@@ -16,7 +16,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: pnpm
       # 不用 pnpm/action-setup(codeload 下载易被 GitHub 限流 429), 改从 npm registry 装 pnpm
       - run: npm install -g pnpm@10
       - run: pnpm install --frozen-lockfile
