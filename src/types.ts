@@ -78,6 +78,13 @@ export interface BranchDeleteClassified {
   force: boolean
 }
 
+/** 分支切换(checkout/switch): 门禁放行, 但 evaluateCommand 用它模拟后续段的分支状态 */
+export interface CheckoutClassified {
+  kind: 'checkout'
+  /** 目标分支(null = 文件模式/未知, 不改变分支) */
+  branch: string | null
+}
+
 export interface GuardCliClassified {
   kind: 'guard-cli'
   sub: 'permit' | 'confirm' | 'status' | 'other'
@@ -93,6 +100,7 @@ export type Classified =
   | PrCreateClassified
   | PrMergeClassified
   | BranchDeleteClassified
+  | CheckoutClassified
   | GuardCliClassified
   | OtherClassified
 

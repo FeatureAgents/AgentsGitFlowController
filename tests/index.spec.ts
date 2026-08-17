@@ -212,6 +212,62 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
+  it('串联绕过: checkout 切到基线后 merge → deny(按模拟分支判定)', async () => {
+    const dir = tempRepo()
+    try {
+      // 命令执行前 agent 在 feature 上; 段 1 checkout 切到 develop, 段 2 merge 必须以 develop 判定
+      const runner = scriptedRunner({
+        'branch --show-current': { stdout: 'feature/dev-verify-01\n' },
+        'merge-base --is-ancestor feature/dev-verify-01 staging': { code: 1 },
+      })
+      const r = await evaluateCommand('git checkout develop && git merge feature/dev-verify-01', {
+        repoRoot: dir,
+        runner,
+        currentBranch: 'feature/dev-verify-01',
+      })
+      expect(r.outcome).toBe('deny')
+      expect(r.reason?.why).toContain('尚未合入预览')
+      expect(r.segmentCount).toBe(2)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('合法串联: 切新分支并推 feature → allow', async () => {
+    const dir = tempRepo()
+    try {
+      const r = await evaluateCommand('git checkout -b feature/dev-new-01 && git push -u origin feature/dev-new-01', {
+        repoRoot: dir,
+        runner: scriptedRunner(),
+        currentBranch: 'feature/dev-verify-01',
+      })
+      expect(r.outcome).toBe('allow')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('串联已确认场景: checkout 到基线 + merge 已合预览且 P2 → allow', async () => {
+    const dir = tempRepo()
+    try {
+      const store = await (await import('../src/permits')).openPermitStore(join(dir, '.git', 'gitflow-guard', 'state.json'))
+      await store.grant('confirm', 'feature/dev-verify-01')
+      const runner = scriptedRunner({
+        'branch --show-current': { stdout: 'feature/dev-verify-01\n' },
+        'merge-base --is-ancestor feature/dev-verify-01 staging': { code: 0 },
+      })
+      const r = await evaluateCommand('git checkout develop && git merge feature/dev-verify-01', {
+        repoRoot: dir,
+        runner,
+        currentBranch: 'feature/dev-verify-01',
+      })
+      expect(r.outcome).toBe('allow')
+      expect(r.pendingConsume).toContainEqual({ kind: 'confirm', feature: 'feature/dev-verify-01' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('gitflow-guard permit → deny(用户专属)', async () => {
     const dir = tempRepo()
     try {

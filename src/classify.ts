@@ -63,7 +63,22 @@ function classifyGit(args: string[], ctx: ClassifyContext): Classified[] {
   if (sub === 'push') return parsePush(rest, ctx)
   if (sub === 'merge') return parseMerge(rest)
   if (sub === 'branch') return parseBranch(rest)
+  if (sub === 'checkout' || sub === 'switch') return parseCheckout(rest)
   return [{ kind: 'other' }]
+}
+
+/** 分支切换: 门禁放行, 分支状态由 evaluateCommand 按段模拟 */
+function parseCheckout(args: string[]): Classified[] {
+  const first = args[0]
+  // 文件模式(git checkout -- <path>)不改变分支
+  if (first === '--') return [{ kind: 'checkout', branch: null }]
+  if (first === '-b' || first === '-B' || first === '-c' || first === '-C') {
+    const name = args[1]
+    return [{ kind: 'checkout', branch: name && !name.startsWith('-') ? name : null }]
+  }
+  if (first && !first.startsWith('-')) return [{ kind: 'checkout', branch: first }]
+  // 其余(- / --detach / 无参)分支未知, 不模拟
+  return [{ kind: 'checkout', branch: null }]
 }
 
 function parsePush(args: string[], ctx: ClassifyContext): Classified[] {

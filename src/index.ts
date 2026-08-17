@@ -95,8 +95,10 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
 
   const segments = classify(command, { currentBranch: branch })
   const pendingConsume: PendingConsume[] = []
+  // 模拟分支状态: checkout/switch 段会改变后续段的当前分支(命令执行前无法得知)
+  let simulatedBranch = branch
   for (const seg of segments) {
-    const { facts, head, inPreview } = await factsFor(seg, env)
+    const { facts, head, inPreview } = await factsFor(seg, { ...env, branch: simulatedBranch })
     const decision = decide(seg, facts, config)
     if (decision.kind === 'deny') {
       await appendAudit(env.repoRoot, { time: Date.now(), event: 'deny', command, reason: decision.reason })
@@ -104,6 +106,7 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
     }
     pendingConsume.push(...permitsUsedBy(seg, env, head, inPreview))
     await logCiReference(seg, env)
+    if (seg.kind === 'checkout' && seg.branch != null) simulatedBranch = seg.branch
   }
   return { outcome: 'allow', segmentCount: segments.length, pendingConsume }
 }

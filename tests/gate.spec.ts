@@ -182,6 +182,11 @@ describe('gate: 同步(其余场景放行)', () => {
     expect(decide({ kind: 'local-merge', source: 'staging' }, facts(), config).kind).toBe('allow')
   })
 
+  it('分支切换(checkout) → allow', () => {
+    expect(decide({ kind: 'checkout', branch: 'develop' }, facts(), config).kind).toBe('allow')
+    expect(decide({ kind: 'checkout', branch: null }, facts(), config).kind).toBe('allow')
+  })
+
   it('其他命令 → allow', () => {
     expect(decide({ kind: 'other' }, facts(), config).kind).toBe('allow')
   })
