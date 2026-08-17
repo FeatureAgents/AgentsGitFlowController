@@ -1,6 +1,6 @@
 {
   "name": "dsh-gitflow-guard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH plugin: enforce the feature → preview → baseline merge order from local git facts; the user holds the only exception right",
   "license": "MIT",
   "type": "module",
