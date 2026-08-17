@@ -107,7 +107,7 @@ function decidePrCreate(c: Extract<Classified, { kind: 'pr-create' }>, facts: Ga
   const head = facts.currentBranch
 
   if (c.target == null) {
-    return deny('无法确定 PR 目标分支', '请显式指定 --base <分支名>(如 gh pr create --base staging)')
+    return deny('无法确定 PR 目标分支', `请显式指定 --base <分支名>(如 gh pr create --base ${config.branches.preview})`)
   }
   if (c.target === preview) return { kind: 'allow' } // PR①(feature → 预览)放行
 
@@ -167,7 +167,7 @@ function branchNext(branch: string | null, config: GuardConfig): string {
   if (branch == null) return '请明确目标分支后重试'
   if (branch === config.branches.preview) {
     return config.mode === 'pr'
-      ? '预览分支须走 PR: 先推 feature 分支, 再 gh pr create --base staging'
+      ? `预览分支须走 PR: 先推 feature 分支, 再 gh pr create --base ${config.branches.preview}`
       : '预览分支可直推(当前 flexible 模式)'
   }
   if (branch === config.branches.base) return `基线分支(${branch})由 PR 合入: 先合入预览并确认(P2), 再创建指向基线的 PR`
