@@ -1,7 +1,7 @@
 // 插件入口: 挂载 tools/pre-execute(硬拦截) + tools/post-execute(特许消费)
 //            + session/event(聊天确认); 核心逻辑在 evaluateCommand(可独立测试)
 
-import { appendFile } from 'node:fs/promises'
+import { appendFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
@@ -67,6 +67,8 @@ function stateFile(repoRoot: string): string {
 /** 审计留痕; 失败不阻断门禁 */
 export async function appendAudit(repoRoot: string, entry: AuditEntry): Promise<void> {
   try {
+    // 目录可能尚不存在(无任何特许操作时), 需先建
+    await mkdir(stateDir(repoRoot), { recursive: true })
     await appendFile(join(stateDir(repoRoot), 'audit.jsonl'), `${JSON.stringify(entry)}\n`, 'utf8')
   } catch {
     // 审计写失败不阻断流程
