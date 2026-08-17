@@ -18,6 +18,9 @@
 - 测试：`pnpm test`(vitest, 全绿才算完成)
 - 类型检查：`pnpm typecheck`(tsc --noEmit, 0 Error 才算完成)
 - 安装进 DSH：`node scripts/install-dsh.mjs [profile]`(本机无 DSH 时跳过)
+- **发布(自动化)**：`npm version patch && git push origin main && git push --tags`
+  —— CI 自动: 校验 tag=package.json 版本 → 测试 → 构建 → npm publish → GitHub Release
+  —— 前提: GitHub 仓库 Secrets 已配 `NPM_TOKEN`(Publish 类型 access token)
 
 ## 3. 目录结构
 

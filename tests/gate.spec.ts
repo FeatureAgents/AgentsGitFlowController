@@ -54,6 +54,17 @@ describe('gate: 直推受保护分支', () => {
     expect(decide({ kind: 'push', dst: 'staging', force: false, delete: false }, facts(), config).kind).toBe('deny')
   })
 
+  it('拦截文案使用自定义预览分支名(不硬编码 staging)', () => {
+    const custom = { ...config, branches: { base: 'master', preview: 'beta', trunk: 'production' } }
+    const d = decide({ kind: 'push', dst: 'beta', force: false, delete: false }, facts(), custom)
+    expect(d.kind).toBe('deny')
+    if (d.kind === 'deny') {
+      expect(d.reason).toContain('beta')
+      expect(d.next).toContain('--base beta')
+      expect(d.next).not.toContain('staging')
+    }
+  })
+
   it('flexible 模式推预览 → allow', () => {
     expect(decide({ kind: 'push', dst: 'staging', force: false, delete: false }, facts(), flexible).kind).toBe('allow')
   })
