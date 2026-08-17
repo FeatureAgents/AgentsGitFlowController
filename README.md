@@ -13,9 +13,9 @@ agents can't skip the flow, and only you can grant an exception.
 
 ## Table of Contents
 
-- [Quick Start — 30 seconds](#quick-start--30-seconds)
+- [Quick Start — 30 seconds to a guarded repo](#quick-start--30-seconds-to-a-guarded-repo)
 - [Why — the problem this plugin solves](#why--the-problem-this-plugin-solves)
-- [Who this is for — scenarios & teams](#who-is-this-for--scenarios--teams)
+- [Who this is for — scenarios & teams](#who-this-is-for--scenarios--teams)
 - [What it does — capabilities](#what-it-does--capabilities)
 - [What it does NOT do — honest limits](#what-it-does-not-do--honest-limits)
 - [Server-side protection vs this plugin](#server-side-protection-vs-this-plugin)
@@ -329,7 +329,7 @@ gitflow-guard audit [--lines <N>]        # read-only: audit trail
 
 **Prerequisite**: a working [DSH](https://github.com/deepseek-ai/deepseek-harness) installation.
 
-**From the npm registry** — the standard path, already covered in [Quick Start](#quick-start--30-seconds):
+**From the npm registry** — the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo):
 
 ```bash
 dsh plugin --profile web add dsh-gitflow-guard
