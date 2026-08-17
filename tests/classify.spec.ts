@@ -174,6 +174,29 @@ describe('classify: gitflow-guard CLI', () => {
   })
 })
 
+describe('classify: 分支切换(checkout/switch)', () => {
+  it('checkout 分支 → checkout(branch)', () => {
+    expect(first('git checkout develop')).toMatchObject({ kind: 'checkout', branch: 'develop' })
+    expect(first('git checkout staging')).toMatchObject({ kind: 'checkout', branch: 'staging' })
+  })
+
+  it('checkout -b/-B 新建分支', () => {
+    expect(first('git checkout -b feature/dev-x-02')).toMatchObject({ kind: 'checkout', branch: 'feature/dev-x-02' })
+    expect(first('git checkout -B feature/dev-x-02')).toMatchObject({ kind: 'checkout', branch: 'feature/dev-x-02' })
+  })
+
+  it('switch / switch -c', () => {
+    expect(first('git switch develop')).toMatchObject({ kind: 'checkout', branch: 'develop' })
+    expect(first('git switch -c feature/dev-x-02')).toMatchObject({ kind: 'checkout', branch: 'feature/dev-x-02' })
+  })
+
+  it('文件模式/无参/切回上一分支 → branch=null(不改变分支)', () => {
+    expect(first('git checkout -- src/a.ts')).toMatchObject({ kind: 'checkout', branch: null })
+    expect(first('git checkout')).toMatchObject({ kind: 'checkout', branch: null })
+    expect(first('git checkout -')).toMatchObject({ kind: 'checkout', branch: null })
+  })
+})
+
 describe('classify: 其余命令放行', () => {
   it.each([
     'git status',
@@ -183,8 +206,6 @@ describe('classify: 其余命令放行', () => {
     'git add src/index.ts',
     'git fetch origin',
     'git pull origin develop',
-    'git checkout -b feature/dev-x-02',
-    'git checkout develop',
     'git rebase develop',
     'git stash push',
     'git reset --hard HEAD~1',
@@ -209,7 +230,7 @@ describe('classify: 多段命令(&& 串联)', () => {
   it('换行/分号分隔', () => {
     const result = classify('git checkout -b feature/dev-x-02\ngh pr create --base develop', { currentBranch: 'feature/dev-x-01' })
     expect(result).toEqual([
-      { kind: 'other' },
+      { kind: 'checkout', branch: 'feature/dev-x-02' },
       { kind: 'pr-create', target: 'develop' },
     ])
   })

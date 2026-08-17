@@ -34,6 +34,9 @@ export function decide(classified: Classified, facts: GateFacts, config: GuardCo
       return classified.sub === 'permit' || classified.sub === 'confirm'
         ? deny('特许/确认是用户专属操作, agent 不能自我授权', '请让用户在终端执行 gitflow-guard permit/confirm, 或在聊天中给出确认')
         : { kind: 'allow' }
+    case 'checkout':
+      // 分支切换本身放行; 切换后的分支状态由 evaluateCommand 按段模拟
+      return { kind: 'allow' }
     default:
       return { kind: 'allow' }
   }
