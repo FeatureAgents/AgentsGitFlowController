@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "mode": "pr",
+  "branches": {
+    "base": "develop",
+    "preview": "staging",
+    "trunk": "main"
+  }
+}
