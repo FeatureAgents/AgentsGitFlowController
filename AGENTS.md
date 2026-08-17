@@ -14,9 +14,10 @@
 
 <!-- 填写项目的构建 / 测试 / 运行 / 部署命令 -->
 
-- 构建：`...`
-- 测试：`...`
-- 运行：`...`
+- 构建：`pnpm build`(tsdown → lib/; 插件改代码后需重建并重启 DSH)
+- 测试：`pnpm test`(vitest, 全绿才算完成)
+- 类型检查：`pnpm typecheck`(tsc --noEmit, 0 Error 才算完成)
+- 安装进 DSH：`node scripts/install-dsh.mjs [profile]`(本机无 DSH 时跳过)
 
 ## 3. 目录结构
 
@@ -69,4 +70,9 @@ GitFlowControllerForDSH/
 
 <!-- 记录踩过的坑，随项目成长追加 -->
 
-- ...
+- macOS 下 `/tmp` 是 `/private/tmp` 的符号链接,git 返回真实路径:测试建临时仓库须 `realpathSync` 规范化,否则断言失败。
+- vitest 会接管 stdout,`console.log` 不走 `process.stdout`:测试捕获输出须拦截 console.log。
+- pnpm 默认不自动安装依赖的 peerDependencies:DSH 类型包(@deepseek-ai/dsh-session 等)须显式加入 devDependencies 才有完整类型面。
+- `{ ...DEFAULT_CONFIG }` 浅拷贝会共享嵌套对象,合并时修改会污染模块级默认值:必须深拷贝。
+- DSH 插件包须在 package.json 声明 `dsh.bundle.patch`(`dsh plugin add` 才会自动挂载为 profile 层)。
+- 本仓库 dogfood:gitflow-guard.config.json 已启用,develop 基线 / staging 预览 / main 主干;合入 develop 前须经 staging + 用户确认(P2)。
