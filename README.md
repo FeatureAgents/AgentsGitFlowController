@@ -1,107 +1,140 @@
 # dsh-gitflow-guard
 
-DSH(DeepSeek Harness)插件:基于**本地 git 客观事实**强制 feature → 预览 → 基线 的合入顺序。agent 每次 git 操作被实时校验,违反流程**硬拦截**并引导;用户是唯一能打破规则的人(特许),agent 永远不能自我授权。
+> Enforce the **feature → preview → baseline** merge order for AI agents, from **local git facts**.
+> The user is the only one who can break the rules — agents can never authorize themselves.
 
-## 工作流
+[中文文档](README.zh.md) | [License](LICENSE)
+
+A plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) that validates every git operation an agent attempts, blocks workflow violations **hard**, and guides the next step. Order checks rely only on the local repository state (`merge-base --is-ancestor`) — never on any git hosting service (GitHub / GitLab / self-hosted all work).
+
+## Workflow
 
 ```
-develop(基线, 受保护)
-  ├── 切出 → feature/dev-x-01   (功能开发)
-  ├── 切出 → staging            (长期预览分支, 自动部署测试环境)
-  feature/dev-x-01 ──PR①──▶ staging ──▶ 测试确认(用户)
-  feature/dev-x-01 ──PR②──▶ develop   ◀── 只有此时才允许
+develop (baseline, protected)
+  ├── → feature/dev-x-01        (feature work)
+  ├── → staging                 (long-lived preview branch, auto-deployed test env)
+  feature/dev-x-01 ──PR①──▶ staging ──▶ user confirms tests
+  feature/dev-x-01 ──PR②──▶ develop   ◀── allowed only after PR① + confirmation
 ```
 
-核心不变量:**PR② 必须发生在 PR① 合入且用户确认之后**。多 feature 可随时并行合入预览,互不阻塞。
+Core invariant: **PR② must come after PR① is merged and the user confirms.** Multiple features may merge into preview in parallel, without blocking each other.
 
-## 安装(DSH)
+## Installation
+
+Install into a DSH profile via the plugin manager (example profile `web`):
 
 ```bash
-pnpm install
-pnpm test          # vitest 单测(核心逻辑无需 DSH)
-pnpm build         # tsdown → lib/
-node scripts/install-dsh.mjs [web]   # dsh plugin --profile <名> add file:<本目录>
-# 重启 DSH → 插件在进程启动时加载
+# From the npm registry:
+dsh plugin --profile web add dsh-gitflow-guard
+
+# ...or from a local checkout:
+#   pnpm install && pnpm build
+#   dsh plugin --profile web add file:/path/to/dsh-gitflow-guard
+
+# Restart DSH — plugins load at process startup.
 ```
 
-插件带 `dsh.bundle.patch` 声明,`dsh plugin add` 后自动成为 profile 层。改插件代码需重新 `pnpm build` 并重启 DSH。
+The package ships a `dsh.bundle.patch` declaration, so `dsh plugin add` automatically makes it a profile layer — no manual profile editing. After changing plugin code, rebuild (`pnpm build`) and restart DSH.
 
-## 项目启用(opt-in)
+## Quick Start
 
-插件安装 ≠ 项目启用。在项目根目录放 `gitflow-guard.config.json`:
+1. Install the plugin and restart DSH (above).
+2. Put a `gitflow-guard.config.json` at your **project root** (opt-in: the plugin does nothing if the file is absent or `enabled: false`):
 
 ```jsonc
+// gitflow-guard.config.json (project root)
 {
-  "enabled": true,                  // 此文件存在且 enabled=true 才生效
-  "mode": "pr",                     // "pr" = 全程 PR | "flexible" = 预览分支可直推/本地合入
+  "enabled": true,                 // opt-in: file exists AND enabled=true
+  "mode": "pr",                    // "pr" = PR-only | "flexible" = direct push/local merge into preview allowed
   "branches": {
-    "base": "develop",              // 基线分支(合入需顺序 + 用户确认)
-    "preview": "staging",           // 预览分支(部署测试环境)
-    "trunk": "main"                 // 主干分支(发布, 可选)
+    "base": "develop",             // baseline branch (merge needs order + user confirmation)
+    "preview": "staging",          // preview branch (deployed to test env)
+    "trunk": "main"                // trunk branch (release; optional)
   },
   "confirm": {
     "keywords": ["确认", "OK", "可以", "特许"],
     "featurePattern": "feature/[\\w-]+"
   },
-  "ci": { "enabled": true }         // 可选适配器: gh pr checks 记入日志(查不到自动跳过)
+  "ci": { "enabled": true }        // optional adapter: gh pr checks logged as reference, skipped when unavailable
 }
 ```
 
-配置错误(如 base 与 preview 同名)会整体拒绝启用并提示。
+> Branch names are **fully configurable** — nothing is hard-coded. `branches` is required; `mode` / `confirm` / `ci` have sensible defaults. A config that maps two roles to the same branch is rejected with a validation error.
 
-## 门禁矩阵
+3. Done. Git operations by agents in this repo are now guarded. Verify with `gitflow-guard status`, or ask the agent to run `git push origin <baseline-branch>` (it will be blocked).
 
-| agent 操作 | 判定 |
+## Gate Matrix
+
+| agent action | decision |
 |---|---|
-| 合入预览分支(PR①) | 放行(流程第一步, 多 feature 并行不限制) |
-| 创建指向基线的 PR | feature 已合预览 ? 放行 : (用户特许 P1 ? 放行 : deny) |
-| 创建指向 trunk 的 PR | 用户特许 P3 ? 放行 : deny |
-| 合入基线(PR merge / 本地 merge) | feature 已合预览 + 用户确认 P2 ? 放行 : deny |
-| 合入 trunk | 一律 deny(仅用户亲手) |
-| 直推/强推/删除受保护分支 | deny(base/trunk 始终受保护; 预览在 pr 模式受保护) |
-| 其余(commit / 推 feature / 同步基线 / 只读 / status) | 放行 |
+| merge into preview (PR①) | allow (first step; parallel features allowed) |
+| create PR targeting baseline | feature ∈ preview ? allow : (permit P1 ? allow : deny) |
+| create PR targeting trunk | permit P3 ? allow : deny |
+| merge into baseline (PR merge / local merge) | feature ∈ preview + permit P2 ? allow : deny |
+| merge into trunk | always deny (user hands only) |
+| direct push / force-push / delete protected branch | deny (base & trunk always protected; preview protected in `pr` mode) |
+| anything else (commit, push feature, sync, read-only, status) | allow |
 
-模式差异:`pr` 模式禁止直推预览分支与本地合入预览(必须走 PR);`flexible` 模式两者放行,基线合入仍须顺序 + 确认。
+`pr` mode additionally denies direct push into preview and local merge into preview; `flexible` mode allows both — baseline merges still require order + confirmation in both modes.
 
-`gh pr merge` 的目标通过 `gh pr view --json baseRefName` 解析(可选适配器);gh 不可用时按「合入基线」最严规则保守处理。
+`gh pr merge` resolves its target via `gh pr view --json baseRefName` (optional adapter); when gh is unavailable the plugin conservatively applies the baseline rules.
 
-## 用户唯一例外权(特许)
+## User Exceptions (Permits)
 
-| 特许 | 含义 | 产生方式 | 消费时机 |
+| permit | meaning | granted by | consumed when |
 |---|---|---|---|
-| P1 `early-pr` | 提前创建指向基线的 PR | 聊天确认 / 终端 CLI | PR 创建成功后 |
-| P2 `confirm` | 确认合入基线("feature X 测试 OK") | 聊天确认 / 终端 CLI | 合入动作成功后 |
-| P3 `trunk-pr` | 许可创建指向 trunk 的 PR | 聊天确认 / 终端 CLI | PR 创建成功后 |
+| P1 `early-pr` | create a PR to baseline before order is satisfied | chat / CLI | PR created |
+| P2 `confirm` | "feature X tests OK" — allow baseline merge | chat / CLI | merge succeeded |
+| P3 `trunk-pr` | allow creating a PR targeting trunk | chat / CLI | PR created |
 
-- **一次性**:动作成功后自动消费并留痕;可设有效期(`--ttl`),过期未用也留痕提醒。
-- **双通道**(两者都支持):
-  - 聊天确认:插件监听 `session/event`,仅认 `source.kind === 'user'` 的真人消息(agent 无法伪造)。示例:"feature/dev-x-01 测试 OK"、"feature/dev-x-01 提前建 PR"、"feature/dev-x-01 可以发布上主干"。
-  - 终端 CLI(用户专属,agent 执行会被插件拦截):
+- **One-shot**: consumed automatically after the action succeeds (audited); optional TTL (`--ttl`), expired-unused permits are logged.
+- **Agents can never self-authorize.** Two channels, both supported:
 
-```bash
-gitflow-guard permit <feature> [--kind early-pr|confirm|trunk-pr] [--ttl <分钟>]
-gitflow-guard confirm <feature> [--ttl <分钟>]
-gitflow-guard status [--repo <路径>]     # 只读: 预览所含 feature / 特许一览, agent 可自查
-gitflow-guard audit [--lines <数量>]     # 只读: 审计记录
+**① Chat confirmation** — the plugin listens to `session/event` and only accepts messages with `source.kind === 'user'` (real humans; agents cannot forge this). Examples:
+
+```
+feature/dev-x-01 测试 OK,可以合入     → P2 confirm
+feature/dev-x-01 提前建 PR            → P1 early-pr
+feature/dev-x-01 可以发布上主干        → P3 trunk-pr
 ```
 
-deny 拦截文案 = 为什么拦 + 下一步该做什么;所有拦截/放行/特许/消费写入 `.git/gitflow-guard/audit.jsonl` 与 `state.json`(不进仓库)。
+(The default keywords are Chinese; configure `confirm.keywords` for your language.)
 
-## 限制(v1)
-
-- 纯文本命令识别无法 100% 防御极端混淆(编码/变量拼接)——插件是流程守卫,不是安全边界;顺序验证基于 git 事实,混淆无法伪造祖先关系。
-- 特许状态单机存储(`.git/gitflow-guard/`),多机并行工作需 v2 同步。
-- 预览环境共享:确认 feature X 时环境中可能含其他变更,确认前可用 `gitflow-guard status` 查看预览内容。
-- 不解析 CI 平台 API 做硬门禁(gh 适配器仅日志参考);核心平台无关,不依赖任何 git 服务特性。
-
-## 开发
+**② Terminal CLI** (user-only; the plugin blocks agents from running `permit`/`confirm`):
 
 ```bash
-pnpm test          # 单测(命令分类 / 门禁矩阵 / 配置 / 特许 / 解析 / 集成)
-pnpm typecheck     # tsc --noEmit
-pnpm build         # tsdown → lib/(CLI 与插件共用)
+gitflow-guard permit <feature> [--kind early-pr|confirm|trunk-pr] [--ttl <minutes>]
+gitflow-guard confirm <feature> [--ttl <minutes>]
+gitflow-guard status [--repo <path>]     # read-only status: preview contents / permits
+gitflow-guard audit [--lines <N>]        # read-only audit trail
 ```
 
-**铁律**:任何逻辑改动必须 0 Error 构建 + 单测全绿后才算完成。
+Every interception / grant / consumption is written to `.git/gitflow-guard/audit.jsonl` and `state.json` (inside `.git`, never committed). Deny messages explain **why** and **what to do next**.
 
-设计规格见 [docs/design.md](docs/design.md)。
+## When NOT to use
+
+The plugin assumes a GitFlow-style workflow (feature → preview → baseline). If your project does not use such a flow (e.g. everyone merges straight to one branch), the plugin will block constantly — do not enable it.
+
+## Limitations
+
+- Plain-text command recognition cannot be a security boundary (encoding / variable obfuscation); order verification rests on git facts, which cannot be forged.
+- Permit state is stored locally (`.git/gitflow-guard/`); multi-machine workflows need sync (v2).
+- The preview environment is shared: when confirming feature X, other features may be in preview. Check `gitflow-guard status` before confirming.
+- No CI-platform hard gating (`gh pr checks` is logged as reference only). Core is platform-agnostic.
+
+## Development
+
+```bash
+pnpm install
+pnpm test          # unit tests (classify / gate / config / permits / session / integration)
+pnpm typecheck     # tsc --noEmit, 0 errors
+pnpm build         # tsdown → lib/ (CLI and plugin share the build)
+```
+
+**Rule**: any logic change must pass 0-error build + all green tests before done.
+
+## License
+
+[MIT](LICENSE) © FeatureAgents
+
+Design specification (Chinese, decision record): [docs/design.md](docs/design.md).

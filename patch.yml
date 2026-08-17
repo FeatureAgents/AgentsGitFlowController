@@ -1,8 +1,8 @@
-# gitflow-guard 插件挂载层(dsh plugin add 后自动成为 profile 层)
+# dsh-gitflow-guard 插件挂载层(dsh plugin add 后自动成为 profile 层)
 # 行配置可在 profile 的 cordis.patch.yml 中按 id 覆盖
 
 - insert:
     - id: gitflow-guard
-      name: '@freehappyteam/dsh-gitflow-guard'
+      name: dsh-gitflow-guard
       config:
         toolNames: ['pwsh', 'bash']

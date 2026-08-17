@@ -1,7 +1,8 @@
 {
-  "name": "@freehappyteam/dsh-gitflow-guard",
+  "name": "dsh-gitflow-guard",
   "version": "0.1.0",
-  "description": "DSH 插件: 基于本地 git 事实强制 feature → 预览 → 基线 的合入顺序, 用户唯一例外权",
+  "description": "DSH plugin: enforce the feature → preview → baseline merge order from local git facts; the user holds the only exception right",
+  "license": "MIT",
   "type": "module",
   "main": "lib/index.mjs",
   "types": "lib/index.d.mts",
@@ -16,10 +17,25 @@
     "lib",
     "bin",
     "patch.yml",
-    "README.md"
+    "README.md",
+    "README.zh.md"
   ],
   "bin": {
     "gitflow-guard": "bin/gitflow-guard.mjs"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "gitflow",
+    "git",
+    "workflow",
+    "guard",
+    "agent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FeatureAgents/GitFlowControllerForDSH.git"
   },
   "dsh": {
     "bundle": {
@@ -28,6 +44,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
