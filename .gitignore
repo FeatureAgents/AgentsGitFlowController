@@ -1,0 +1,13 @@
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 智能体本机配置
+.claude/settings.local.json
+
+# 构建产物与依赖（按项目补充）
+node_modules/
+dist/
+build/
+*.log
+.env
