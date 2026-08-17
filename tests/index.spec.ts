@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { evaluateCommand } from '../src/index'
@@ -263,6 +263,19 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
       })
       expect(r.outcome).toBe('allow')
       expect(r.pendingConsume).toContainEqual({ kind: 'confirm', feature: 'feature/dev-verify-01' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('deny 后审计落盘(目录不存在时自动创建)', async () => {
+    const dir = tempRepo()
+    try {
+      const r = await evaluateCommand('git push origin develop', { repoRoot: dir, runner: scriptedRunner() })
+      expect(r.outcome).toBe('deny')
+      const auditFile = join(dir, '.git', 'gitflow-guard', 'audit.jsonl')
+      expect(existsSync(auditFile)).toBe(true)
+      expect(readFileSync(auditFile, 'utf8')).toContain('deny')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
