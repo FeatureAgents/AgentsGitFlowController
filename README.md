@@ -18,6 +18,7 @@ agents can't skip the flow, and only you can grant an exception.
 - [Who this is for — scenarios & teams](#who-is-this-for--scenarios--teams)
 - [What it does — capabilities](#what-it-does--capabilities)
 - [What it does NOT do — honest limits](#what-it-does-not-do--honest-limits)
+- [Server-side protection vs this plugin](#server-side-protection-vs-this-plugin)
 - [How it works — the mechanism in three lines](#how-it-works--the-mechanism-in-three-lines)
 - [Configuration Reference](#configuration-reference)
 - [Gate Matrix — what gets blocked, what passes](#gate-matrix--what-gets-blocked-what-passes)
@@ -143,6 +144,24 @@ Nobody has to remember the rules — the rules are enforced.
 - **It is not a replacement for the flow itself.** Your project must actually use a feature → preview → baseline flow. If your team merges everything straight to one branch, this plugin will block constantly — don't enable it there.
 - **No multi-machine state sync (v1).** Permits are stored locally; a second machine won't see them (planned in v2).
 - **No pop-up notifications (v1).** Post-actions are reported through the audit trail and the conversation, not pushed to you.
+
+---
+
+## Server-side protection vs this plugin
+
+Server-side branch protection (GitHub branch rules, GitLab protected branches) and this plugin solve **different problems**. They are complementary, not alternatives.
+
+| dimension | server-side protection | this plugin |
+|---|---|---|
+| what it governs | *who* may push / merge to protected branches (permissions) | *the order and prerequisites* of agent merges (workflow) |
+| can express "user confirmed tests" | no — at best it requires review approvals, which mean little when agents are the reviewers | yes — a dedicated, audited permit (P2) that agents cannot self-grant |
+| can enforce "preview before baseline" | no — protection is per-branch, not per-flow | yes — the gate checks feature ∈ preview before any baseline merge |
+| scope | every user of the repository, humans included | DSH agents with the plugin configured (humans are not restricted) |
+| enforcement point | server-side, at push / merge time | local, before the command runs |
+| platform | tied to the hosting service | pure local git, platform-agnostic |
+| bypassable by | users with admin rights | anyone working outside DSH, or a determined malicious agent |
+
+Why this matters: branch protection answers *"can this push happen at all?"*; this plugin answers *"may this agent merge now, given the flow?"*. The strongest setup uses **both** — the plugin keeps agents honest about the workflow, and branch protection guarantees that no one, agent or human, pushes straight to a protected branch.
 
 ---
 
