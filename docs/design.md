@@ -4,9 +4,9 @@
 > 本文件为**唯一设计规格**, 已吸收原 `docs/proposal.md` 全部内容(原文件删除)。
 > 快速导航: 设计定稿 §4 · 项目结构 §5 · 里程碑 §9 · 决策过程见附录。
 >
-> **公开说明(2026-08-17)**: 文中 `D:\DevTools\deepseek-harness` / `D:\DevWorkspace\GitFlow`
-> 为设计期(Windows)环境路径, 与本仓库实际位置无关; 包名已按发布决策更名
-> 为无 scope 的 `dsh-gitflow-guard`(见 §10 决策记录)。其余设计内容仍为当前实现规格。
+> **公开说明(2026-08-17)**: 文中 `D:\...` 等 Windows 路径为设计期环境路径, 与本仓库实际位置
+> 无关; 包名已按发布决策更名 为无 scope 的 `dsh-gitflow-guard`(见 §10 决策记录)。
+> 其余设计内容仍为当前实现规格。
 
 ---
 
@@ -56,7 +56,7 @@
 
 ## 3. 技术依据(源码核实)
 
-以下事实均来自 `D:\DevTools\deepseek-harness` 源码, 非猜测:
+以下事实均来自 deepseek-harness 源码, 非猜测:
 
 ### 3.1 拦截点: `tools/pre-execute` 瀑布
 
@@ -182,7 +182,7 @@ export type PreToolDecision =
 
 ---
 
-## 5. 项目结构(`D:\DevWorkspace\GitFlow`)
+## 5. 项目结构(本仓库)
 
 ```
 GitFlow/
@@ -215,11 +215,11 @@ GitFlow/
 ## 6. 开发 → 安装 → 生效闭环
 
 ```bash
-cd D:\DevWorkspace\GitFlow
+cd <本仓库路径>
 pnpm install
 pnpm test                 # vitest 单测(核心逻辑无需 DSH)
 pnpm build                # tsdown → lib/
-dsh plugin --profile web add file:D:\DevWorkspace\GitFlow
+dsh plugin --profile web add file:<本仓库路径>
 # 编辑 profile cordis.patch.yml 挂载插件 → 重启 DSH web → 生效
 # 项目根目录放 gitflow-guard.config.json(opt-in 启用)
 ```
