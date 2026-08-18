@@ -1,4 +1,4 @@
-# GitFlowControllerForDSH — 项目智能体规范
+# AgentsGitFlowController — 项目智能体规范
 
 > 本文件是项目唯一的智能体规范，遵循 AGENTS.md 标准，Codex / OpenCode / Claude Code / Gemini 等工具均可读取。
 
@@ -25,7 +25,7 @@
 ## 3. 目录结构
 
 ```
-GitFlowControllerForDSH/
+AgentsGitFlowController/
 ├── AGENTS.md            # 唯一的智能体规范（本文件）
 ├── .gitignore           # 忽略本机与系统文件
 ├── .github/workflows/   # GitHub Actions（init.yml 初始化后自删）

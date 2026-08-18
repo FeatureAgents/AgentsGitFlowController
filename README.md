@@ -1,4 +1,4 @@
-# dsh-gitflow-guard
+# agents-gitflow-guard
 
 > **Are you tired of agents skipping your GitFlow?**
 
@@ -38,7 +38,7 @@ agents can't skip the flow, and only you can grant an exception.
 **Step 1 — install**, one command, then restart DSH (plugins load at process startup):
 
 ```bash
-dsh plugin --profile web add dsh-gitflow-guard
+dsh plugin --profile web add agents-gitflow-guard
 ```
 
 **Step 2 — configure**, create `gitflow-guard.config.json` in your **project root**:
@@ -332,7 +332,7 @@ gitflow-guard audit [--lines <N>]        # read-only: audit trail
 **From the npm registry** — the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo):
 
 ```bash
-dsh plugin --profile web add dsh-gitflow-guard
+dsh plugin --profile web add agents-gitflow-guard
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.
@@ -341,7 +341,7 @@ Then restart DSH. Upgrades are the same command, followed by another restart.
 
 ```bash
 pnpm install && pnpm build
-dsh plugin --profile web add file:/path/to/dsh-gitflow-guard
+dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 ```
 
 The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes it a profile layer — no manual profile editing.

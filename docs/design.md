@@ -1,11 +1,11 @@
-# dsh-gitflow-guard 设计定稿(唯一规格)
+# agents-gitflow-guard 设计定稿(唯一规格)
 
 > 状态: **已定稿**(五轮交互对齐完成)
 > 本文件为**唯一设计规格**, 已吸收原 `docs/proposal.md` 全部内容(原文件删除)。
 > 快速导航: 设计定稿 §4 · 项目结构 §5 · 里程碑 §9 · 决策过程见附录。
 >
 > **公开说明(2026-08-17)**: 文中 `D:\...` 等 Windows 路径为设计期环境路径, 与本仓库实际位置
-> 无关; 包名已按发布决策更名 为无 scope 的 `dsh-gitflow-guard`(见 §10 决策记录)。
+> 无关; 包名现为 `agents-gitflow-guard`(曾用 `@freehappyteam/dsh-gitflow-guard` / `dsh-gitflow-guard`, 见 §10 决策记录)。
 > 其余设计内容仍为当前实现规格。
 
 ---
@@ -186,7 +186,7 @@ export type PreToolDecision =
 
 ```
 GitFlow/
-├── package.json              # @freehappyteam/dsh-gitflow-guard
+├── package.json              # agents-gitflow-guard
 ├── tsconfig.json
 ├── src/
 │   ├── index.ts              # 插件入口: name / apply / Config (M2)
@@ -264,7 +264,7 @@ dsh plugin --profile web add file:<本仓库路径>
 
 | 议题 | 定稿答案 |
 |---|---|
-| 包名 | `@freehappyteam/dsh-gitflow-guard` |
+| 包名 | `agents-gitflow-guard` |
 | 规则模型 | 废弃"预设规则集 + 手写正则 allow/deny"; 门禁矩阵 + 用户特许取代(§4.3/§4.4) |
 | 项目配置文件名 | `gitflow-guard.config.json`(随仓库走, opt-in) |
 | RichMan 软层补强 | 各管各, 不在本仓库范围 |

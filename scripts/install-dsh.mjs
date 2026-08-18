@@ -24,7 +24,7 @@ try {
   process.exit(1)
 }
 
-console.log(`\n[install] 完成。${profile} profile 的 bundles 已包含 @freehappyteam/dsh-gitflow-guard。`)
+console.log(`\n[install] 完成。${profile} profile 的 bundles 已包含 agents-gitflow-guard。`)
 console.log('接下来:')
 console.log('  1. (如需覆盖默认插件配置) 在 profile 的 cordis.patch.yml 中按 id "gitflow-guard" 覆盖 config')
 console.log('  2. 重启 DSH(插件在进程启动时加载, 改插件代码后需重启)')
