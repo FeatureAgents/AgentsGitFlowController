@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.1 (2026-08-18)
+
+- chore: 包名更名 `dsh-gitflow-guard` → `agents-gitflow-guard`(跨平台方向, 与仓库 AgentsGitFlowController 对齐)。
+- docs: `.agents/` 全部改英文(开源就绪), 子智能体去掉 `model:` 字段(模型选择本地化)。
+
 ## 0.1.1 (2026-08-18)
 
 - fix: 拦截 `checkout && merge` 串联命令绕过分支状态判定(按段模拟分支切换, 无法绕序)。

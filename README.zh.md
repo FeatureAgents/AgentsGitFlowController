@@ -1,4 +1,4 @@
-# dsh-gitflow-guard
+# agents-gitflow-guard
 
 > **有没有受够了 agent 跳过你的合入流程?**
 
@@ -38,7 +38,7 @@
 **第 1 步——安装**,一条命令,然后重启 DSH(插件在进程启动时加载):
 
 ```bash
-dsh plugin --profile web add dsh-gitflow-guard
+dsh plugin --profile web add agents-gitflow-guard
 ```
 
 **第 2 步——配置**,在**项目根目录**创建 `gitflow-guard.config.json`:
@@ -330,7 +330,7 @@ gitflow-guard audit [--lines <数量>]     # 只读: 审计记录
 **从 npm 安装**——标准路径,已在[快速开始](#快速开始30-秒用上)覆盖:
 
 ```bash
-dsh plugin --profile web add dsh-gitflow-guard
+dsh plugin --profile web add agents-gitflow-guard
 ```
 
 然后重启 DSH。升级用同一条命令,之后同样重启。
@@ -339,7 +339,7 @@ dsh plugin --profile web add dsh-gitflow-guard
 
 ```bash
 pnpm install && pnpm build
-dsh plugin --profile web add file:/path/to/dsh-gitflow-guard
+dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 ```
 
 包自带 `dsh.bundle.patch` 声明,`dsh plugin add` 自动把它挂为 profile 层,无需手工编辑 profile。
