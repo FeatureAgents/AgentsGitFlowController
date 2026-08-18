@@ -340,7 +340,7 @@ Then restart DSH. Upgrades are the same command, followed by another restart.
 **From source** — for contributors, or to run the latest checkout:
 
 ```bash
-pnpm install && pnpm build
+npm install && npm run build
 dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 ```
 
@@ -486,9 +486,9 @@ The plugin is free and open source (MIT). If it saves you and your team from a s
 ## Development
 
 ```bash
-pnpm install
-pnpm test          # unit tests: classify / gate / config / permits / session / real-git integration
-pnpm typecheck     # tsc --noEmit, 0 errors
+npm install
+npm test          # unit tests: classify / gate / config / permits / session / real-git integration
+npm run typecheck     # tsc --noEmit, 0 errors
 pnpm build         # tsdown → lib/ (CLI and plugin share the build)
 ```
 
