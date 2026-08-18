@@ -1,17 +1,17 @@
-# Codex hooks 注册
+# Registering hooks in Codex
 
-## 配置文件位置
+## Config file locations
 
-- 全局：`~/.codex/hooks.json` 或 `~/.codex/config.toml`
-- 项目：`.codex/hooks.json` 或 `.codex/config.toml`
+- Global: `~/.codex/hooks.json` or `~/.codex/config.toml`
+- Project: `.codex/hooks.json` or `.codex/config.toml`
 
-多个来源的钩子会**全部运行**，不互相替换。
+Hooks from multiple sources **all run**; they don't replace each other.
 
-## 支持的事件
+## Supported events
 
 SessionStart / SessionEnd / SubagentStart / SubagentStop / PreToolUse / PermissionRequest / PostToolUse / PreCompact / PostCompact / UserPromptSubmit / Stop
 
-## 配置示例（.codex/hooks.json）
+## Example config (.codex/hooks.json)
 
 ```json
 {
@@ -28,8 +28,8 @@ SessionStart / SessionEnd / SubagentStart / SubagentStop / PreToolUse / Permissi
 }
 ```
 
-## 关键要点
+## Key points
 
-- 阻止工具调用：PreToolUse 输出 `permissionDecision: "deny"`，或退出码 2（拒绝原因写 stderr）。
-- matcher 用正则匹配工具名（如 `^Bash$`）。
-- hooks 命令以会话工作目录运行。
+- To block a tool call: PreToolUse outputs `permissionDecision: "deny"`, or exits with code 2 (denial reason goes to stderr).
+- matcher uses a regex against the tool name (e.g. `^Bash$`).
+- Hook commands run in the session working directory.

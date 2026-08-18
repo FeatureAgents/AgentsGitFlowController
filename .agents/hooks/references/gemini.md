@@ -1,17 +1,17 @@
-# Gemini hooks 注册
+# Registering hooks in Gemini
 
-实验性功能。定义在 `settings.json` 的 `hooks` 对象中（全局 `~/.gemini/settings.json`）。
+Experimental. Defined in the `hooks` object of `settings.json` (global `~/.gemini/settings.json`).
 
-## 支持的事件
+## Supported events
 
-| 类别 | 事件 |
+| Category | Events |
 |---|---|
-| 工具 | BeforeTool / AfterTool |
-| Agent | BeforeAgent / AfterAgent |
-| 模型 | BeforeModel / BeforeToolSelection / AfterModel |
-| 生命周期 | SessionStart / SessionEnd / Notification / PreCompress |
+| Tools | BeforeTool / AfterTool |
+| Agents | BeforeAgent / AfterAgent |
+| Models | BeforeModel / BeforeToolSelection / AfterModel |
+| Lifecycle | SessionStart / SessionEnd / Notification / PreCompress |
 
-## 配置示例
+## Example config
 
 ```json
 {
@@ -29,9 +29,9 @@
 }
 ```
 
-## 关键要点
+## Key points
 
-- 通过 stdin 接收 JSON，stdout 只输出 JSON，stderr 写日志。
-- 退出码 2 表示系统阻止（stderr 内容为拒绝原因）。
-- 阻止工具执行：输出 `decision: "deny"` 并附 `reason`。
-- 内置工具直接按名称匹配（如 read_file），MCP 工具按 `mcp_<服务器名>_<工具名>` 命名，支持正则。
+- Receives JSON on stdin; stdout carries only JSON; stderr is for logging.
+- Exit code 2 means system-level block (stderr content is the denial reason).
+- To block tool execution: output `decision: "deny"` with a `reason`.
+- Built-in tools match by name (e.g. read_file); MCP tools are named `mcp_<server>_<tool>`; regex is supported.
