@@ -212,7 +212,7 @@ describe('classify: 其余命令放行', () => {
     'git tag -d v1.0.0',
     'ls -la',
     'npm test',
-    'pnpm build',
+    'npm run build',
   ])('%s → other', (cmd) => {
     expect(first(cmd)).toMatchObject({ kind: 'other' })
   })

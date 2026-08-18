@@ -216,9 +216,9 @@ GitFlow/
 
 ```bash
 cd <本仓库路径>
-pnpm install
-pnpm test                 # vitest 单测(核心逻辑无需 DSH)
-pnpm build                # tsdown → lib/
+npm install
+npm test                 # vitest 单测(核心逻辑无需 DSH)
+npm run build            # tsdown → lib/
 dsh plugin --profile web add file:<本仓库路径>
 # 编辑 profile cordis.patch.yml 挂载插件 → 重启 DSH web → 生效
 # 项目根目录放 gitflow-guard.config.json(opt-in 启用)
@@ -253,7 +253,7 @@ dsh plugin --profile web add file:<本仓库路径>
 
 | 阶段 | 内容 | 验收 |
 |---|---|---|
-| M1 | 项目骨架 + classify/gate 纯函数 + vitest 单测 | `pnpm test` 全绿 |
+| M1 | 项目骨架 + classify/gate 纯函数 + vitest 单测 | `npm test` 全绿 |
 | M2 | 插件入口 + config/repo/permits/session + 配置合并单测 | 单测全绿 |
 | M3 | 构建 + CLI + 安装进 DSH profile + 真机验证(拦截/聊天确认) | 实际拦截 push develop / 绕序合入 |
 | M4 | 文档完善(README) + 示例项目配置落地(GitFlow 仓库自身 dogfood) | 配置入库, 人+agent 双确认流程 |

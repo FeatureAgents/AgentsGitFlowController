@@ -13,7 +13,7 @@ const profile = process.argv[2] ?? 'web'
 
 if (!existsSync(join(root, 'lib', 'index.mjs'))) {
   console.log('[install] 先构建 lib/ ...')
-  execSync('pnpm build', { cwd: root, stdio: 'inherit' })
+  execSync('npm run build', { cwd: root, stdio: 'inherit' })
 }
 
 console.log(`[install] dsh plugin --profile ${profile} add file:${root} ...`)

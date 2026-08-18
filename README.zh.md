@@ -338,7 +338,7 @@ dsh plugin --profile web add agents-gitflow-guard
 **从源码安装**——贡献者用,或想跑最新 checkout:
 
 ```bash
-pnpm install && pnpm build
+npm install && npm run build
 dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 ```
 
@@ -484,9 +484,9 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 ## 开发
 
 ```bash
-pnpm install
-pnpm test          # 单测: classify / gate / config / permits / session / 真实 git 集成
-pnpm typecheck     # tsc --noEmit, 0 Error
+npm install
+npm test          # 单测: classify / gate / config / permits / session / 真实 git 集成
+npm run typecheck     # tsc --noEmit, 0 Error
 pnpm build         # tsdown → lib/(CLI 与插件共用)
 ```
 
