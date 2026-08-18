@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { main } from '../src/cli'
+import { main, settlePendingPermits, writePendingPermits } from '../src/cli'
 import { openPermitStore } from '../src/permits'
 import { stateDir } from '../src/index'
 import type { RunResult, Runner } from '../src/repo'
@@ -48,6 +48,23 @@ async function captureStdout(run: () => Promise<number>): Promise<{ code: number
     return { code, text: chunks.join('\n') }
   } finally {
     console.log = orig
+  }
+}
+
+/** 捕获 process.stderr.write(check 的 deny 理由走 stderr) */
+async function captureStderr(run: () => Promise<number>): Promise<{ code: number; stderr: string }> {
+  const chunks: string[] = []
+  const write = process.stderr.write.bind(process.stderr)
+  const mockWrite = (chunk: unknown, ..._rest: unknown[]) => {
+    chunks.push(String(chunk))
+    return true
+  }
+  process.stderr.write = mockWrite as typeof process.stderr.write
+  try {
+    const code = await run()
+    return { code, stderr: chunks.join('') }
+  } finally {
+    process.stderr.write = write
   }
 }
 
@@ -147,6 +164,74 @@ describe('cli: 其他', () => {
     try {
       await main(['confirm', 'feature/dev-x-01', '--repo', dir])
       expect(await main(['audit', '--lines', 'abc', '--repo', dir])).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('cli: check(agent hook 门禁)', () => {
+  it('非 git 命令快路径 → exit 0(无需仓库)', async () => {
+    expect(await main(['check', '--command', 'npm test'])).toBe(0)
+    expect(await main(['check', '--command', 'ls -la'])).toBe(0)
+  })
+
+  it('推送到受保护分支 → exit 2 + stderr 理由', async () => {
+    const dir = tempRepo()
+    try {
+      const { code, stderr } = await captureStderr(() => main(['check', '--command', 'git push origin develop', '--repo', dir]))
+      expect(code).toBe(2)
+      expect(stderr).toContain('已拦截')
+      expect(stderr).toContain('受保护分支')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('合法操作(建分支) → exit 0', async () => {
+    const dir = tempRepo()
+    try {
+      expect(await main(['check', '--command', 'git checkout -b feature/x', '--repo', dir])).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('agent 执行 permit(自我授权) → exit 2', async () => {
+    const dir = tempRepo()
+    try {
+      const { code } = await captureStderr(() => main(['check', '--command', 'gitflow-guard permit feature/x', '--repo', dir]))
+      expect(code).toBe(2)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('未启用项目 → exit 0(opt-in 放行)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-check-off-'))
+    try {
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), JSON.stringify({ enabled: false, branches: { base: 'develop', preview: 'staging' } }))
+      expect(await main(['check', '--command', 'git push origin develop', '--repo', dir])).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('post 成功消费特许, post-failure 保留', async () => {
+    const dir = tempRepo()
+    try {
+      await main(['confirm', 'feature/x', '--repo', dir])
+      expect((await openPermitStore(join(stateDir(dir), 'state.json'))).hasValid('confirm', 'feature/x')).toBe(true)
+
+      await writePendingPermits(dir, 'toolu_success', [{ kind: 'confirm', feature: 'feature/x' }])
+      await settlePendingPermits(dir, { command: 'git merge feature/x', toolUseId: 'toolu_success', event: 'post' })
+      expect((await openPermitStore(join(stateDir(dir), 'state.json'))).hasValid('confirm', 'feature/x')).toBe(false)
+      expect(readFileSync(join(stateDir(dir), 'audit.jsonl'), 'utf8')).toContain('consume')
+
+      await main(['confirm', 'feature/x', '--repo', dir])
+      await writePendingPermits(dir, 'toolu_fail', [{ kind: 'confirm', feature: 'feature/x' }])
+      await settlePendingPermits(dir, { command: 'git merge feature/x', toolUseId: 'toolu_fail', event: 'post-failure' })
+      expect((await openPermitStore(join(stateDir(dir), 'state.json'))).hasValid('confirm', 'feature/x')).toBe(true)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

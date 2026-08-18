@@ -344,6 +344,29 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 
 包自带 `dsh.bundle.patch` 声明,`dsh plugin add` 自动把它挂为 profile 层,无需手工编辑 profile。
 
+**Claude Code hook**——同一套门禁跑进 Claude Code,无需 DSH。本仓库已自带配置 `.claude/settings.json`;其他仓库照下面加 hooks 即可:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/绝对路径/gitflow-guard check --platform claude" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/绝对路径/gitflow-guard check --platform claude" }] }
+    ],
+    "PostToolUseFailure": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/绝对路径/gitflow-guard check --platform claude" }] }
+    ]
+  }
+}
+```
+
+- hook 从 stdin 读 payload,`exit 0` 放行、`exit 2` 拦截(stderr 即展示给模型的原因 + 下一步引导)。
+- `PostToolUse` / `PostToolUseFailure` 实现「一次性特许」:动作成功才消费,失败保留。
+- **用绝对路径**指向二进制——hook 子进程不一定继承你的 shell PATH。`${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs`(`npm run build` 后)也可以。
+- 完全 opt-in:仓库没有 `gitflow-guard.config.json` 或未 `enabled: true` 时,hook 什么都不做。
+
 ---
 
 ## 常见疑问(FAQ)
