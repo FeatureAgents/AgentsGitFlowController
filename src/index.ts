@@ -178,7 +178,7 @@ function messageText(msg: UserMessage): string {
   return (msg.content ?? []).map((b) => (b?.type === 'text' ? b.text : '')).join(' ')
 }
 
-function formatDeny(why: string, next: string): string {
+export function formatDeny(why: string, next: string): string {
   return `[gitflow-guard] 已拦截: ${why}\n下一步: ${next}`
 }
 
