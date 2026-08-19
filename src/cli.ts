@@ -1,63 +1,50 @@
-// CLI: gitflow-guard permit/confirm/status/audit(用户终端专属; agent 执行 permit/confirm 被插件拦截)
+// CLI: gitflow-guard status/audit/check(只读 + agent hook 门禁)
 
-import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { classify } from './classify'
-import { loadConfig } from './config'
-import { appendAudit, evaluateCommand, formatDeny, stateDir } from './index'
+import { loadConfig, roleMatches } from './config'
+import { evaluateCommand, formatDeny, stateDir } from './index'
 import { detectPlatform, encodeDeny, extractHookPayload } from './platform'
-import { openPermitStore } from './permits'
-import { currentBranch, findRepoRoot, gitRunner, isAncestor } from './repo'
-import type { PendingConsume } from './index'
+import { currentBranch, findRepoRoot, gitRunner } from './repo'
 import type { HookPayload, HookPlatform } from './platform'
-import type { PermitKind } from './types'
+import type { BranchRole } from './types'
 import type { Runner } from './repo'
 
 const USAGE = `gitflow-guard — GitFlow 流程守卫 CLI
 
 用法:
-  gitflow-guard permit <feature> [--kind early-pr|confirm|trunk-pr] [--ttl <分钟>] [--repo <路径>]
-  gitflow-guard confirm <feature> [--ttl <分钟>] [--repo <路径>]
   gitflow-guard status [--repo <路径>]
   gitflow-guard audit [--lines <数量>] [--repo <路径>]
   gitflow-guard check [--platform <claude|auto>] [--command "<cmd>"] [--repo <路径>]
   gitflow-guard --help
 
 说明:
-  permit/confirm 是用户专属授权操作, agent 执行会被插件拦截。
   status/audit 只读, agent 可自查。
   check 读 stdin hook payload 做门禁(exit 0=放行 / 2=拦截), 供 Claude Code 等 agent 的 pre/post hook 调用。`
 
 interface Flags {
   repo?: string
-  kind?: string
-  ttl?: number
   lines?: number
   platform?: string
   command?: string
 }
 
-function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
-  const positional: string[] = []
+function parseFlags(argv: string[]): Flags {
   const flags: Flags = {}
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     const next = () => argv[++i]
     if (a === '--repo') flags.repo = next()
-    else if (a === '--kind') flags.kind = next()
-    else if (a === '--ttl') flags.ttl = Number(next())
     else if (a === '--lines') flags.lines = Number(next())
     else if (a === '--platform') flags.platform = next()
     else if (a === '--command') flags.command = next()
     else if (a.startsWith('--repo=')) flags.repo = a.slice(7)
-    else if (a.startsWith('--kind=')) flags.kind = a.slice(7)
-    else if (a.startsWith('--ttl=')) flags.ttl = Number(a.slice(6))
     else if (a.startsWith('--lines=')) flags.lines = Number(a.slice(8))
     else if (a.startsWith('--platform=')) flags.platform = a.slice('--platform='.length)
     else if (a.startsWith('--command=')) flags.command = a.slice('--command='.length)
-    else positional.push(a)
   }
-  return { positional, flags }
+  return flags
 }
 
 async function resolveRepo(flags: Flags): Promise<string | null> {
@@ -72,11 +59,9 @@ export async function main(argv: string[], opts: { runner?: Runner } = {}): Prom
     console.log(USAGE)
     return 0
   }
-  const { positional, flags } = parseFlags(rest)
+  const flags = parseFlags(rest)
 
   try {
-    if (cmd === 'permit') return await permit(positional, flags, runner)
-    if (cmd === 'confirm') return await permit(positional, { ...flags, kind: 'confirm' }, runner)
     if (cmd === 'status') return await status(flags, runner)
     if (cmd === 'audit') return await audit(flags)
     if (cmd === 'check') return await check(flags)
@@ -86,37 +71,6 @@ export async function main(argv: string[], opts: { runner?: Runner } = {}): Prom
     console.error(`[gitflow-guard] ${(e as Error).message}`)
     return 1
   }
-}
-
-async function permit(positional: string[], flags: Flags, runner: Runner): Promise<number> {
-  const feature = positional[0]
-  if (!feature) {
-    console.error('[gitflow-guard] 用法: gitflow-guard permit <feature> [--kind early-pr|confirm|trunk-pr]')
-    return 1
-  }
-  const kind = (flags.kind ?? 'confirm') as PermitKind
-  if (kind !== 'early-pr' && kind !== 'confirm' && kind !== 'trunk-pr') {
-    console.error('[gitflow-guard] --kind 必须是 early-pr / confirm / trunk-pr')
-    return 1
-  }
-  const ttlMs = flags.ttl != null && Number.isFinite(flags.ttl) && flags.ttl > 0 ? flags.ttl * 60_000 : undefined
-
-  const repoRoot = await resolveRepo(flags)
-  if (!repoRoot) {
-    console.error('[gitflow-guard] 无法定位 git 仓库(当前目录不在仓库内, 或用 --repo 指定)')
-    return 1
-  }
-  const { config } = await loadConfig(repoRoot)
-  if (!config?.enabled) {
-    console.error(`[gitflow-guard] 项目未启用 gitflow-guard(${join(repoRoot, 'gitflow-guard.config.json')} 不存在或 enabled=false)`)
-    return 1
-  }
-
-  const store = await openPermitStore(join(stateDir(repoRoot), 'state.json'))
-  const granted = await store.grant(kind, feature, ttlMs != null ? { ttlMs } : undefined)
-  await appendAudit(repoRoot, { time: Date.now(), event: 'grant', kind, feature })
-  console.log(`[gitflow-guard] 已授权: ${kind} → ${feature}${granted.expiresAt ? `(有效期至 ${new Date(granted.expiresAt).toLocaleString()})` : '(长期有效)'}`)
-  return 0
 }
 
 async function status(flags: Flags, runner: Runner): Promise<number> {
@@ -135,41 +89,27 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
   }
 
   const branch = await currentBranch(runner, repoRoot)
-  console.log(`配置: 已启用(${config!.mode} 模式) | 基线: ${config!.branches.base} | 预览: ${config!.branches.preview}${config!.branches.trunk ? ` | 主干: ${config!.branches.trunk}` : ''}`)
+  const c = config!
+  console.log(`配置: 已启用 | featurePattern: ${c.featurePattern}`)
+  console.log(`集成分支: ${c.branches.integration.branches.join(', ')} (update=${c.branches.integration.update || 'pr'})`)
+  if (c.branches.preview) console.log(`预览分支: ${c.branches.preview.branches.join(', ')} (update=${c.branches.preview.update || 'pr'})`)
+  if (c.branches.production) console.log(`生产分支: ${c.branches.production.branches.join(', ')} (update=${c.branches.production.update || 'pr'}, 合并=${c.branches.production.mergeBy || 'user'})`)
+  if (c.branches.archive) console.log(`归档分支: ${c.branches.archive.branches.join(', ')}`)
   console.log(`当前分支: ${branch ?? '(未知)'}`)
 
-  // 预览分支包含的 feature(按 featurePattern 过滤本地分支)
-  const pattern = new RegExp(config!.confirm.featurePattern)
+  // 列出本地分支并按角色分组(展示用)
   const r = await runner.run(['for-each-ref', '--format=%(refname:short)', 'refs/heads/'], repoRoot)
-  const branches = r.code === 0 ? r.stdout.split('\n').map((s) => s.trim()).filter(Boolean) : []
-  const features = branches.filter((b) => pattern.test(b))
-
-  const store = await openPermitStore(join(stateDir(repoRoot), 'state.json'))
-  const inPreview: string[] = []
-  for (const f of features) {
-    if (await isAncestor(runner, repoRoot, f, config!.branches.preview)) inPreview.push(f)
+  const localBranches = r.code === 0 ? r.stdout.split('\n').map((s) => s.trim()).filter(Boolean) : []
+  const classifyBranch = (b: string): string => {
+    if (c.branches.production && roleMatches(b, c.branches.production)) return 'production'
+    if (c.branches.preview && roleMatches(b, c.branches.preview)) return 'preview'
+    if (roleMatches(b, c.branches.integration)) return 'integration'
+    if (c.branches.archive && roleMatches(b, c.branches.archive)) return 'archive'
+    if (new RegExp(c.featurePattern).test(b)) return 'feature'
+    return 'other'
   }
-  console.log(`预览分支(${config!.branches.preview})包含的 feature:`)
-  for (const f of inPreview) console.log(`  ✓ ${f}`)
-  if (inPreview.length === 0) console.log('  (无)')
-
-  console.log('feature 状态一览:')
-  for (const f of features) {
-    const confirmed = store.hasValid('confirm', f)
-    const early = store.hasValid('early-pr', f)
-    const trunk = store.hasValid('trunk-pr', f)
-    const mark = (ok: boolean) => (ok ? '✓' : '✗')
-    console.log(`  ${f}: 已合预览 ${mark(inPreview.includes(f))} | 已确认(P2) ${mark(confirmed)} | P1 ${early ? '✓' : '-'} | P3 ${trunk ? '✓' : '-'}`)
-  }
-
-  const permits = store.list()
-  if (permits.length > 0) {
-    console.log('特许记录:')
-    for (const p of permits) {
-      const state = p.used ? '已使用' : p.expiresAt && p.expiresAt <= Date.now() ? '已过期' : '未使用'
-      console.log(`  ${p.kind} ${p.feature} (${state})`)
-    }
-  }
+  console.log('本地分支(按角色):')
+  for (const b of localBranches) console.log(`  ${b} → ${classifyBranch(b)}`)
   return 0
 }
 
@@ -185,8 +125,8 @@ async function audit(flags: Flags): Promise<number> {
     const all = text.split('\n').filter(Boolean)
     for (const line of all.slice(-lines)) {
       try {
-        const e = JSON.parse(line) as { time: number; event: string; command?: string; feature?: string; kind?: string }
-        console.log(`  ${new Date(e.time).toLocaleString()} ${e.event} ${e.kind ?? ''} ${e.feature ?? ''}${e.command ? ` | ${e.command.slice(0, 80)}` : ''}`)
+        const e = JSON.parse(line) as { time: number; event: string; command?: string; role?: string; reason?: string }
+        console.log(`  ${new Date(e.time).toLocaleString()} ${e.event} ${e.role ?? ''}${e.command ? ` | ${e.command.slice(0, 80)}` : ''}${e.reason ? ` | ${e.reason.slice(0, 60)}` : ''}`)
       } catch {
         console.log(`  ${line}`)
       }
@@ -207,60 +147,6 @@ function readStdin(): Promise<string> {
   })
 }
 
-function pendingDir(repoRoot: string): string {
-  return join(stateDir(repoRoot), 'pending')
-}
-
-/** 放行动作把待消费特许登记到 pending(以 tool_use_id 为键), 动作成功后由 post hook 消费 */
-export async function writePendingPermits(repoRoot: string, toolUseId: string, items: PendingConsume[]): Promise<void> {
-  try {
-    await mkdir(pendingDir(repoRoot), { recursive: true })
-    await writeFile(join(pendingDir(repoRoot), `${toolUseId}.json`), JSON.stringify(items), 'utf8')
-  } catch {
-    // 写失败不阻断
-  }
-}
-
-/** post 事件: 成功(PostToolUse)消费待处理特许, 失败(PostToolUseFailure)丢弃; 无论成败清理 pending 文件 */
-export async function settlePendingPermits(repoRoot: string, payload: HookPayload): Promise<number> {
-  if (!payload.toolUseId) return 0
-  const file = join(pendingDir(repoRoot), `${payload.toolUseId}.json`)
-  let items: PendingConsume[] = []
-  try {
-    items = JSON.parse(await readFile(file, 'utf8')) as PendingConsume[]
-  } catch {
-    return 0
-  }
-  await rm(file, { force: true }).catch(() => {})
-  if (payload.event === 'post' && items.length > 0) {
-    const store = await openPermitStore(join(stateDir(repoRoot), 'state.json'))
-    for (const p of items) {
-      const used = await store.consume(p.kind, p.feature)
-      await appendAudit(repoRoot, { time: Date.now(), event: used ? 'consume' : 'remind', feature: p.feature, kind: p.kind })
-    }
-  }
-  return 0
-}
-
-/** 清理超龄 pending 文件(会话中断留下的孤儿), 保持目录有界 */
-async function pruneStalePending(repoRoot: string, maxAgeMs = 60 * 60 * 1000): Promise<void> {
-  try {
-    const dir = pendingDir(repoRoot)
-    const now = Date.now()
-    for (const entry of await readdir(dir)) {
-      if (!entry.endsWith('.json')) continue
-      try {
-        const st = await stat(join(dir, entry))
-        if (now - st.mtimeMs > maxAgeMs) await rm(join(dir, entry), { force: true })
-      } catch {
-        // 单个文件失败忽略
-      }
-    }
-  } catch {
-    // pending 目录不存在则跳过
-  }
-}
-
 /** check: agent hook 门禁。读 stdin hook payload(或 --command), exit 0=放行 / 2=拦截(按平台编码) */
 async function check(flags: Flags): Promise<number> {
   const platform = (flags.platform ?? 'auto') as HookPlatform | 'auto'
@@ -272,7 +158,7 @@ async function check(flags: Flags): Promise<number> {
         : extractHookPayload(raw, platform)
     if (!payload?.command) return 0
 
-    // 快路径: 非 git/gh/gitflow-guard 命令直接放行, 不触发任何 git 查询
+    // 快路径: 非 git/gh/glab/gitflow-guard 命令直接放行, 不触发任何 git 查询
     const segments = classify(payload.command)
     if (segments.length === 0 || segments.every((s) => s.kind === 'other')) return 0
 
@@ -282,13 +168,6 @@ async function check(flags: Flags): Promise<number> {
     const { config } = await loadConfig(repoRoot)
     if (!config?.enabled) return 0
 
-    await pruneStalePending(repoRoot)
-
-    // post 事件: 只做特许消费/丢弃, 不再走门禁
-    if (payload.event === 'post' || payload.event === 'post-failure') {
-      return settlePendingPermits(repoRoot, payload)
-    }
-
     // --platform auto 时按 payload 判别; 具体平台用于 deny 编码
     const hookPlatform: HookPlatform = platform === 'auto' ? detectPlatform(raw) : platform
     const result = await evaluateCommand(payload.command, { repoRoot })
@@ -297,9 +176,6 @@ async function check(flags: Flags): Promise<number> {
       if (enc.stdout) process.stdout.write(enc.stdout + '\n')
       if (enc.stderr) process.stderr.write(enc.stderr + '\n')
       return enc.exitCode
-    }
-    if (payload.toolUseId && result.pendingConsume.length > 0) {
-      await writePendingPermits(repoRoot, payload.toolUseId, result.pendingConsume)
     }
     return 0
   } catch (e) {

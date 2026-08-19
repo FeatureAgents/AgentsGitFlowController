@@ -49,6 +49,7 @@ function classifySegment(segment: string, ctx: ClassifyContext): Classified[] {
   const [cmd, ...rest] = tokens
   if (cmd === 'git') return classifyGit(rest, ctx)
   if (cmd === 'gh') return classifyGh(rest)
+  if (cmd === 'glab') return classifyGlab(rest)
   if (cmd === 'gitflow-guard') return [{ kind: 'guard-cli', sub: guardSub(rest) }]
   return [{ kind: 'other' }]
 }
@@ -142,21 +143,32 @@ function parseBranch(args: string[]): Classified[] {
 function classifyGh(args: string[]): Classified[] {
   const [sub, action, ...rest] = args
   if (sub !== 'pr') return [{ kind: 'other' }]
-  if (action === 'create') return parsePrCreate(rest)
+  if (action === 'create') return parsePrCreate(rest, ['--base', '-B'])
   if (action === 'merge') return parsePrMerge(rest)
   return [{ kind: 'other' }]
 }
 
-function parsePrCreate(args: string[]): Classified[] {
+/** GitLab: glab mr create --target-branch <b> / glab mr merge <id> */
+function classifyGlab(args: string[]): Classified[] {
+  const [sub, action, ...rest] = args
+  if (sub !== 'mr') return [{ kind: 'other' }]
+  if (action === 'create') return parsePrCreate(rest, ['--target-branch'])
+  if (action === 'merge') return parsePrMerge(rest)
+  return [{ kind: 'other' }]
+}
+
+function parsePrCreate(args: string[], targetFlags: string[]): Classified[] {
   if (hasHelpFlag(args)) return [{ kind: 'other' }]
   const out: PrCreateClassified = { kind: 'pr-create', target: null }
   for (let i = 0; i < args.length; i++) {
     const a = args[i]
-    if (a === '--base' || a === '-B') {
+    const flag = targetFlags.find((f) => a === f || a.startsWith(`${f}=`))
+    if (!flag) continue
+    if (a === flag) {
       const value = args[i + 1]
       if (value && !value.startsWith('-')) out.target = value
-    } else if (a.startsWith('--base=')) {
-      out.target = a.slice('--base='.length) || null
+    } else {
+      out.target = a.slice(flag.length + 1) || null
     }
   }
   return [out]
@@ -175,6 +187,6 @@ function hasHelpFlag(args: string[]): boolean {
 
 function guardSub(args: string[]): GuardCliClassified['sub'] {
   const sub = args[0]
-  if (sub === 'permit' || sub === 'confirm' || sub === 'status') return sub
+  if (sub === 'status') return 'status'
   return 'other'
 }
