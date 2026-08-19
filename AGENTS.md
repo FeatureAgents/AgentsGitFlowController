@@ -18,7 +18,8 @@
 - 测试：`npm test`(vitest, 全绿才算完成)
 - 类型检查：`npm run typecheck`(tsc --noEmit, 0 Error 才算完成)
 - 安装进 DSH：`node scripts/install-dsh.mjs [profile]`(本机无 DSH 时跳过)
-- **发布(自动化)**：`npm version patch && git push origin main && git push --tags`
+- **发布(自动化)**：`npm version patch && git push origin develop && git push --tags`
+  —— develop 为打 tag 发布的集成分支; main 为发布成功后的归档分支, 不直接推版本
   —— CI 自动: 校验 tag=package.json 版本 → 测试 → 构建 → npm publish → GitHub Release
   —— 前提: GitHub 仓库 Secrets 已配 `NPM_TOKEN`(Publish 类型 access token)
 

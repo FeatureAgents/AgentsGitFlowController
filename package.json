@@ -1,6 +1,6 @@
 {
   "name": "agents-gitflow-guard",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "DSH plugin: a configurable branch-role guard — integration/preview/production/archive, each with its own update rules",
   "license": "MIT",
   "type": "module",

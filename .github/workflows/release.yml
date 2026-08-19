@@ -1,7 +1,7 @@
 name: Release
 
 # 打 v* 标签时自动发布: 校验版本 → 测试 → 构建 → npm publish → GitHub Release
-# 用法: npm version patch && git push origin main && git push --tags
+# 用法: npm version patch && git push origin develop && git push --tags(develop 为打 tag 发布分支)
 
 on:
   push:
