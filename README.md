@@ -146,51 +146,39 @@ Server-side branch protection (GitHub branch rules, GitLab protected branches) a
 
 | dimension | server-side protection | this plugin |
 |---|---|---|
-| what it governs | *who* may push / merge to protected branches (permissions) | *the order and prerequisites* of agent merges (workflow) |
-| can express "user confirmed tests" | no — at best it requires review approvals, which mean little when agents are the reviewers | yes — a dedicated, audited permit (P2) that agents cannot self-grant |
-| can enforce "preview before baseline" | no — protection is per-branch, not per-flow | yes — the gate checks feature ∈ preview before any baseline merge |
+| what it governs | *who* may push / merge to protected branches (permissions) | *how* agents may enter the flow (workflow) — which role a merge lands in |
+| keeps agents from merging into production/archive | no — it can't tell "agent did it" | yes — production/archive merges are blocked for agents by default |
+| per-role flexibility | one rule per branch on the host | per-role `update` (`pr`/`flexible`) + `mergeBy` (`user`/`anyone`) in one config file |
 | scope | every user of the repository, humans included | DSH agents with the plugin configured (humans are not restricted) |
 | enforcement point | server-side, at push / merge time | local, before the command runs |
-| platform | tied to the hosting service | pure local git, platform-agnostic |
+| platform | tied to the hosting service | pure local git, platform-agnostic (`gh` / `glab` optional) |
 | bypassable by | users with admin rights | anyone working outside DSH, or a determined malicious agent |
 
-Why this matters: branch protection answers *"can this push happen at all?"*; this plugin answers *"may this agent merge now, given the flow?"*. The strongest setup uses **both** — the plugin keeps agents honest about the workflow, and branch protection guarantees that no one, agent or human, pushes straight to a protected branch.
+Why this matters: branch protection answers *"can this push happen at all?"*; this plugin answers *"may this agent enter this role, given the config?"*. The strongest setup uses **both** — the plugin keeps agents honest about the workflow, and branch protection guarantees that no one, agent or human, pushes straight to a protected branch.
 
 ---
 
 ## How it works — the mechanism in three lines
 
 1. An agent calls a shell tool (`pwsh` / `bash`) with a git command.
-2. The plugin classifies the command, reads local git facts (current branch, whether the feature is an ancestor of the preview branch), consults permit state, and applies the gate matrix.
-3. Violation → the tool call is **denied before it runs**, with a reason and the next step. Allowed → the command proceeds, audited.
+2. The plugin classifies the command, resolves the branch roles from `gitflow-guard.config.json`, and applies the gate matrix.
+3. Violation → the tool call is **denied before it runs**, with a reason and the next step. Allowed → the command proceeds; every deny is audited to `.git/gitflow-guard/audit.jsonl`.
 
-Confirmation channel: the plugin listens to your chat messages in DSH and only accepts messages whose source is a **real human** (`source.kind === 'user'`) — an agent cannot forge that.
+No chat-confirmation or permit store: sensitive merges (production / archive) are simply **user-only** — an agent may prepare the PR/MR, but the merge click stays yours.
 
 ### Design principles — why it works
 
-#### 1. Local git facts are the only trusted source
+#### 1. Config is the single source of truth
 
-The plugin never asks the agent "which branch are you on?" or "did the user confirm?" — it runs read-only git queries itself (`branch --show-current`, `merge-base --is-ancestor feature preview`).
-
-Git ancestry is a fact of the repository: if the feature's HEAD is an ancestor of the preview branch, the merge happened; otherwise it did not. An agent can claim anything; the repository cannot lie.
-
----
+Nothing about branch names or rules is hard-coded. `integration` is the only required role; `preview` / `production` / `archive` are optional arrays of exact names or regexes, each with its own `update` and `mergeBy`. The same binary scales from a solo `develop` to an enterprise multi-env pipeline.
 
 #### 2. Blocking happens before execution, not after
 
 The plugin hooks the tool pipeline at `tools/pre-execute` — the decision point that runs *before* the command is dispatched. A `deny` there means the command **never runs**; the agent only ever sees the rejection. Post-hoc detection (scanning logs after the fact) can't work as enforcement — the damage would already be done.
 
----
+#### 3. The sensitive merges are unforgeably human
 
-#### 3. The confirmation channel is unforgeable by design
-
-Chat messages in DSH carry a producer tag (`source`). Only input typed by the real user has `source.kind === 'user'`; model output, tool results, and plugin injections all carry different sources. The plugin accepts confirmations exclusively from the user source — so "user confirmed it" cannot be faked by the agent, the model, or another plugin.
-
----
-
-#### 4. Permits are one-shot and consumed after the action succeeds
-
-"One-shot" means every exception is explicit, auditable, and non-recurring — there is no "permanently exempted feature". "Consumed after success" means a failed attempt (e.g. a PR that fails to create) does not waste the permit: it stays valid for the next attempt. Both properties are visible in the audit trail (`grant` → `consume`).
+No plugin code decides "is this merge OK?" for production or archive. The gate simply refuses to let an *agent* perform those merges, so the only path is a PR/MR page where **you** click merge — and that click is the confirmation. There is no token, permit, or chat message an agent could forge to get past you.
 
 ---
 
@@ -347,19 +335,15 @@ The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes
 
 ### My branches don't follow the default names — can I use it?
 
-Yes — nothing about the branch names is fixed. The three roles (baseline, preview, trunk) are concepts; the `branches` field maps your repository's actual names onto them, and `featurePattern` tells the plugin how to recognize your feature branches.
+Yes — nothing about the branch names is fixed. `integration` is the only required role; its entries (and those of `preview` / `production` / `archive`) are any exact branch names or regex patterns you like. `featurePattern` tells the plugin how to recognize your working branches.
 
-A team that calls its baseline `master`, its preview `beta`, and prefixes feature branches with `fix/` writes exactly that into the config, and everything — the blocks, the reports, the audit — then speaks those names. There is no convention you must adopt; there is only a mapping you declare.
-
-The full worked example is in [Customizing branch names](#customizing-branch-names--any-naming-works).
+A team that calls its integration branch `master`, adds a `beta` preview, and prefixes feature branches with `fix/` writes exactly that into the config; every block, report, and audit then speaks those names. There is no convention you must adopt — only a mapping you declare. See [Customizing branch names & rules](#customizing-branch-names--rules--any-naming-works).
 
 ---
 
-### My project doesn't use a feature → preview → baseline flow.
+### Do I need a preview/production/archive at all?
 
-Then this plugin is not for you, and enabling it would be a frustrating mistake: every routine merge would be blocked, because the guard enforces an order your workflow does not have. It is a mechanism for a flow that already exists, not a substitute for one.
-
-One nuance worth knowing: if your team is close — you do separate feature branches and a shared preview, but you prefer direct pushes into preview over PRs — the `flexible` mode keeps the order + confirmation requirement on the baseline while relaxing the preview rules.
+No. Add only the roles your flow actually has. A solo repo with just `develop` configures `integration: ["develop"]` and nothing else; an enterprise with ten environments adds the `preview` array and a `production` role. The rest stays off.
 
 ---
 
@@ -367,67 +351,43 @@ One nuance worth knowing: if your team is close — you do separate feature bran
 
 No, and it is important that you don't treat it as one. It is a workflow guard: it makes an agreed process mechanically enforceable. Text-based command recognition is inherently best-effort — an agent determined to obfuscate a command can slip past the parser.
 
-What cannot be forged is the *order check itself*: whether a feature is an ancestor of the preview branch is a property of the repository, not a claim the agent can invent. If you need real protection against hostile agents, that belongs in branch-protection rules on your hosting service; this plugin is the layer that keeps honest workflows honest.
+But what cannot be bypassed is the **role boundary itself**: merging into a protected role branch (integration / preview / production / archive) requires the configured path (PR/MR, or a human merge for production/archive). If you need real protection against hostile agents, that belongs in branch-protection rules on your hosting service.
 
 ---
 
-### Why can't the agent just run `gitflow-guard permit ...` itself?
+### Why can't the agent just merge into production/archive itself?
 
-Because both exception channels are sealed against it. The `permit` / `confirm` commands are classified as user-only: when they arrive as tool calls, the plugin denies them outright.
-
-The chat channel is sealed the same way — the plugin only accepts confirmations whose message source is `source.kind === 'user'`, a tag that only genuine human input carries; model output, tool results, and plugin injections all carry different sources.
-
-The two channels converge on the same guarantee: an exception can only ever originate from the person, never from the agent. This is the property that makes "the user is the only exception authority" more than a slogan.
+Because the gate classifies those as **user-only** actions. An agent may create the PR/MR, but the plugin denies the *merge* for production and the *PR creation* (and merge) for archive. The only path is for **you** to click merge — there is no permit, token, or chat message an agent could use to confer that power on itself.
 
 ---
 
-### Do I need the `gh` CLI?
+### Do I need the `gh` or `glab` CLI?
 
-No. The `gh` integration is an optional adapter: it lets the plugin resolve what `gh pr merge` is actually targeting, and it logs `pr checks` status as a reference.
-
-Without `gh`, the plugin simply takes the conservative path — an unresolvable `pr merge` is treated under the baseline rules — and everything else works exactly the same. The core enforcement never touches a hosting service, which is also why the plugin works identically on GitHub, GitLab, a self-hosted server, or an offline repository.
+No. They are optional adapters used only to resolve what a `pr merge` / `mr merge` is targeting, so the gate can tell "merge into integration/preview" (okay) from "merge into production/archive" (blocked). Without them, the plugin takes a conservative path — it refuses when it can't confirm the target — and everything else works the same. The core enforcement never touches a hosting service, which is why it works identically on GitHub, GitLab, self-hosted, or offline.
 
 ---
 
 ### Will it block my normal work?
 
-Deliberately, no. Everything a feature branch is for — committing, pushing, syncing from the baseline, rebasing, inspecting with read-only commands, running `gitflow-guard status` — is allowed without friction.
+Deliberately, no. Everything a feature branch is for — committing, pushing, syncing from `integration`, rebasing, inspecting with read-only commands, running `gitflow-guard status` — is allowed without friction.
 
-The blocks are reserved for exactly two families of actions: writes to protected branches, and baseline merges that skip the order or the confirmation.
-
-If you ever see a block you believe is wrong, run `gitflow-guard status` before anything else: the report shows the precise facts the decision was built on (whether the feature is in the preview, which permits exist), so a misjudgment is visible and correctable rather than mysterious.
+The blocks are reserved for: (1) direct writes to protected role branches, and (2) an agent trying to merge into production or archive. If you ever see a block you believe is wrong, run `gitflow-guard status` — it shows exactly which role each local branch got, so a misjudgment is visible and correctable.
 
 ---
 
 ### What if my config has a mistake?
 
-The plugin prefers failing closed: any validation error in the config disables the guard for that project and reports the errors, so a half-guessed setup never applies by accident.
+The plugin prefers failing closed: any validation error disables the guard for that project and reports the errors, so a half-guessed setup never applies by accident.
 
-The most common mistakes are mapping two roles to the same branch (rejected explicitly), a `featurePattern` that doesn't compile (rejected as invalid regex), and a typo in `mode`. Because the failure is loud and the file is one JSON object, the fix is usually a thirty-second correction followed by a working guard.
-
----
-
-### Does it work across multiple machines?
-
-Within one machine, fully — permit state and audit live in `.git/gitflow-guard/` and survive DSH restarts.
-
-Across machines, not yet: if you and an agent work from different computers, a confirmation granted on one machine is not visible on the other, so a merge attempted there would be blocked until you confirm again. This is a v1 limitation with a straightforward v2 plan (synchronizing state), listed in the [Roadmap](#roadmap).
-
----
-
-### Will my agent's legitimate PR① (feature → preview) be blocked?
-
-No. Merging into the preview branch is the first step of the flow and is always allowed — parallel features landing in preview are precisely what the model expects.
-
-The order gate applies only to baseline merges, so the normal path (feature → preview → confirm → baseline) never trips it.
+Common mistakes: missing `integration` (required), overlapping a branch across two roles (rejected explicitly), and a `featurePattern` that doesn't compile (rejected as invalid regex). The failure is loud and the file is one JSON object, so the fix is usually a thirty-second correction.
 
 ---
 
 ### What exactly is checked against the local repository?
 
-Three read-only queries, nothing more: the current branch (`git branch --show-current`), whether the feature is an ancestor of the preview branch (`git merge-base --is-ancestor`), and — only for `gh pr merge` — the PR's base branch (`gh pr view`).
+The current branch (`git branch --show-current`), and — only for `pr merge` / `mr merge` — the PR/MR target via `gh pr view` / `glab mr view`. Nothing about ancestry is needed, because the model is role-driven (which branch *is* the target) rather than order-driven.
 
-Nothing is written, no remote is contacted, and no hosting-service feature is required. This is the whole reason the plugin can make hard promises about order: the facts it trusts come from the repository itself.
+Nothing is written, no remote is contacted, and no hosting-service feature is required for the core checks. Production/archive merges are simply denied for agents; the human merge happens in your UI.
 
 ---
 
@@ -438,7 +398,6 @@ MIT, free, no strings. Use it, modify it, ship it — the only obligation is kee
 If it saves your team from a shortcut gone wrong, the coffee button at the top of this page is appreciated but never required. See [License](#license).
 
 ---
-
 ## Glossary
 
 | term | meaning |
@@ -457,11 +416,9 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 ## Roadmap
 
 - **i18n — localized block messages**: deny messages are Chinese by default today; make them follow the user's language (and the plugin config).
-- **v2 — multi-machine state**: sync permits/audit across machines.
-- **v2 — platform adapters**: GitLab / Gitea support (interface already reserved).
-- **v2 — notifications**: push notice to the user when a permit is consumed (currently audit + conversation only).
-- **v2 — CI hard-gating research**: whether `gh pr checks` can become a real gate without hurting the platform-agnostic core.
-- **Ecosystem**: ready-made config templates for common workflows; community-contributed confirmation keywords.
+- **v2 — audit sync**: sync `.git/gitflow-guard/audit.jsonl` across machines (audit is local-only today).
+- **v2 — more pre-built templates**: ready-made config templates for common flows (solo `develop`, multi-env enterprise) as community-contributed presets.
+- **v2 — CI hard-gating research**: whether `pr checks` could become a real gate without hurting the platform-agnostic core.
 
 Contributions welcome — see [Development](#development).
 
@@ -479,9 +436,9 @@ The plugin is free and open source (MIT). If it saves you and your team from a s
 
 ```bash
 npm install
-npm test          # unit tests: classify / gate / config / permits / session / real-git integration
+npm test          # unit tests: classify / gate / config / cli / repo / platform
 npm run typecheck     # tsc --noEmit, 0 errors
-pnpm build         # tsdown → lib/ (CLI and plugin share the build)
+npm run build         # tsdown → lib/ (CLI and plugin share the build)
 ```
 
 **Rule**: any logic change must pass a 0-error build + all green tests before done.
