@@ -2,8 +2,8 @@
 
 > **有没有受够了 agent 跳过你的合入流程?**
 
-基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH)的插件:  
-依据本地 git 事实强制 **feature → 预览 → 基线** 合入顺序 —— agent 无法跳过流程,例外只能由你授予。
+一个可自由配置分支角色守卫的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH)插件。  
+你自己定义分支——**集成分支**(feature 经 PR/MR 合入)、**预览分支**(环境终点)、**生产分支**、**归档分支**——每个角色各自配规则。agent 无法跳过流程,敏感合并始终留在你手上。
 
 [English](README.md) · [许可证](LICENSE)
 
@@ -46,25 +46,24 @@ dsh plugin --profile web add agents-gitflow-guard
 ```jsonc
 {
   "enabled": true,
-  "mode": "pr",
+  "featurePattern": "feature/[\\w-]+",
   "branches": {
-    "base": "develop",
-    "preview": "staging",
-    "trunk": "main"
+    "integration": ["develop"],   // 集成分支: feature 经 PR 合入, 受保护
+    "archive": ["main"]           // 归档分支: 发布后由你亲手合入
   }
 }
 ```
 
-这一个文件就是全部配置:它声明"本项目启用守卫"、"我的基线是 `develop`"、"我的预览是 `staging`"。插件按项目 opt-in——文件不存在或 `enabled: false` 时什么都不做。
+这一个文件就是全部配置:其中的 **`integration` 是唯一必填**角色;`preview` / `production` / `archive` 都是可选,只有你配了才启用对应关卡。插件按项目 opt-in——文件不存在或 `enabled: false` 时什么都不做。
 
 **第 3 步——验证**。让 agent 执行 `git push origin develop`,预期工具调用被拒绝:
 
 ```text
 Error: [gitflow-guard] 已拦截: 受保护分支「develop」禁止直推
-下一步: 基线分支(develop)由 PR 合入: 先合入预览并确认(P2), 再创建指向基线的 PR
+下一步: 集成分支(develop)由 PR/MR 合入 feature: 先推 feature 分支, 再 gh pr create --base develop / glab mr create --target-branch develop
 ```
 
-**完成。** 守卫对该仓库生效。继续往下看[完整实战示例](#完整实战示例一个-feature-的端到端旅程),或准备好映射自己的分支名时跳到[配置参考](#配置参考)。
+**完成。** 守卫对该仓库生效。继续往下看[配置参考](#配置参考)映射自己的分支,或看[门禁矩阵](#门禁矩阵拦什么放什么)的完整判定表。
 
 ### 完整实战示例——一个 feature 的端到端旅程
 

@@ -2,8 +2,8 @@
 
 > **Are you tired of agents skipping your GitFlow?**
 
-A plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) that enforces the **feature → preview → baseline** merge order from local git facts —  
-agents can't skip the flow, and only you can grant an exception.
+A configurable branch-role guard for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH). You define your own branches —
+**integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Agents can't skip the flow, and sensitive merges stay in your hands.
 
 [中文文档](README.zh.md) · [License](LICENSE)
 
@@ -22,7 +22,7 @@ agents can't skip the flow, and only you can grant an exception.
 - [How it works — the mechanism in three lines](#how-it-works--the-mechanism-in-three-lines)
 - [Configuration Reference](#configuration-reference)
 - [Gate Matrix — what gets blocked, what passes](#gate-matrix--what-gets-blocked-what-passes)
-- [User Exceptions (Permits) — the only way to break the rules](#user-exceptions-permits--the-only-way-to-break-the-rules)
+- [Where the human stays in control](#where-the-human-stays-in-control)
 - [Installation in detail](#installation-in-detail)
 - [FAQ](#faq)
 - [Glossary](#glossary)
@@ -46,53 +46,47 @@ dsh plugin --profile web add agents-gitflow-guard
 ```jsonc
 {
   "enabled": true,
-  "mode": "pr",
+  "featurePattern": "feature/[\\w-]+",
   "branches": {
-    "base": "develop",
-    "preview": "staging",
-    "trunk": "main"
+    "integration": ["develop"],   // 集成分支: feature 经 PR 合入, 受保护
+    "archive": ["main"]           // 归档分支: 发布后由你亲手合入
   }
 }
 ```
 
-This one file is the entire setup: it says "this project uses the guard", "my baseline is `develop`", "my preview is `staging`". The plugin is opt-in per project — absent or `enabled: false`, it does nothing.
+This one file is the entire setup: `integration` is the **only required** role; `preview` / `production` / `archive` are optional — add them only if your flow needs them. The plugin is opt-in per project — absent or `enabled: false`, it does nothing.
 
 **Step 3 — verify.** Ask the agent (or run in a DSH session) to `git push origin develop`. Expect the tool call to be denied:
 
 ```text
 Error: [gitflow-guard] 已拦截: 受保护分支「develop」禁止直推
-下一步: 基线分支(develop)由 PR 合入: 先合入预览并确认(P2), 再创建指向基线的 PR
+下一步: 集成分支(develop)由 PR/MR 合入 feature: 先推 feature 分支, 再 gh pr create --base develop / glab mr create --target-branch develop
 ```
 
-The block message is currently Chinese by default (localization is on the [Roadmap](#roadmap)); in English it means: *blocked: protected branch `develop` — direct push forbidden. Next: baseline merges via PR — merge into preview first, get P2 confirmation, then create the PR.*
+The block message is currently Chinese by default (localization is on the [Roadmap](#roadmap)); in English it means: *blocked: protected branch `develop` — direct push forbidden. Next: integration branch is updated by PR/MR — push the feature branch first, then open a PR/MR into `develop`.*
 
-**Done.** The guard is live for this repo. Keep reading for the [full walkthrough](#full-walkthrough--one-feature-end-to-end), or jump to [Configuration](#configuration-reference) when you're ready to map your own branch names.
+**Done.** The guard is live for this repo. Keep reading for the [Configuration](#configuration-reference) to map your own branches, or the [Gate Matrix](#gate-matrix--what-gets-blocked-what-passes) for the full decision table.
 
 ### Full walkthrough — one feature, end to end
 
-Scenario: your team ships a login page (`feature/login-page`); baseline `develop`, preview `staging`. What you and the agent experience at every step:
+Scenario: your team ships a login page (`feature/login-page`); `develop` is the integration branch, `main` the archive. What you and the agent experience at every step:
 
 | # | what the agent runs | plugin decision | what you see |
 |---|---|---|---|
-| 1 | `git checkout -b feature/login-page` | ✅ allow (feature work is free) | branch created |
+| 1 | `git checkout -b feature/login-page` (from develop) | ✅ allow (feature work is free) | branch created |
 | 2 | `git add . && git commit -m "feat: login"` | ✅ allow | committed |
 | 3 | `git push -u origin feature/login-page` | ✅ allow (pushing your feature is fine) | pushed |
-| 4 | `git checkout develop && git merge feature/login-page` | 🚫 **deny** — not in preview yet | blocked with: merge into staging first (PR①), test, then P2 |
-| 5 | *(tries to bypass)* `git checkout develop && git merge feature/login-page` in one chained command | 🚫 **deny** — branch switches are simulated per segment; no bypass | same rejection |
-| 6 | `gh pr create --base staging` | ✅ allow (PR①: feature → preview is the flow's first step) | PR created |
-| 7 | *(you merge PR①)* | — | feature now in `staging`, deployed to test env |
-| 8 | you type in DSH chat: `feature/login-page 测试 OK,可以合入` | plugin records **P2 permit** (`grant` in audit) | confirmed |
-| 9 | `git checkout develop && git merge feature/login-page` | ✅ allow — order (∈ preview) + P2 both satisfied | merge succeeds |
-| 10 | *(after the merge)* | plugin **consumes** the P2 permit (`consume` in audit) | one-shot used up |
-| 11 | `gitflow-guard status` / `gitflow-guard audit` | ✅ allow (read-only) | full state & trail: grant → consume |
+| 4 | `git checkout develop && git merge feature/login-page` | 🚫 **deny** — integration branch is PR/MR-only | must open a PR/MR into develop |
+| 5 | `gh pr create --base develop` | ✅ allow (feature → integration via PR) | PR created, you review & merge |
+| 6 | `git push origin main` or merge into main | 🚫 **deny** — archive is user-hand only | you archive develop → main yourself after release |
 
-Notice what the agent *cannot* do anywhere in this flow: skip step 6/7, self-confirm in step 8, or re-use the same confirmation in a later feature. Every exception is one explicit user action, visible in the audit.
+Notice what the agent *cannot* do: merge a feature straight into `develop`, or touch `main` at all. Every sensitive merge is a deliberate human action in the PR/MR page or your own terminal.
 
 ---
 
 ## Why — the problem this plugin solves
 
-AI coding agents work in your repository. They are *told* — via system prompts, project instruction files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, and similar), and project docs — to follow a merge flow: develop on a feature branch, merge to a preview branch (the deployed test environment), let the user confirm, then merge to baseline.
+AI coding agents work in your repository. They are *told* — via system prompts, project instruction files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, and similar), and project docs — to follow a merge flow: develop on a feature branch, merge into the integration branch (and your preview/production stages when you have them), and leave archive/production merges to you.
 
 **That is a soft rule.** Agents skip it, reorder it, or simply "forget" it — not out of malice, but because soft instructions are optional to a model.
 
@@ -106,44 +100,43 @@ Nobody has to remember the rules — the rules are enforced.
 
 ### Signs this plugin is for you
 
-- Your team works with AI agents in the repository, and you have — or want — a formal branch flow (feature → preview → baseline).
-- An agent has already cut a corner: merged straight to the baseline without the preview, or merged before tests were confirmed. If it happened once, it will happen again — this plugin is the structural fix.
-- You protect your baseline/trunk but don't want to rely on human review to catch every shortcut.
-- Multiple features develop in parallel and land in one shared preview environment, and you need per-feature verification before the baseline.
+- You have — or want — a defined branch flow, from a single `develop`-style integration branch up to multi-stage preview/production pipelines.
+- An agent has already cut a corner: pushed straight into a protected branch, or merged somewhere it shouldn't. If it happened once, it will happen again — this plugin is the structural fix.
+- You protect your integration/archive branches but don't want to rely on human review to catch every shortcut.
+- Multiple features develop in parallel and land in one shared preview environment, and you want each entry to a stricter stage reviewed.
 
 ### Concrete scenarios
 
-1. **Solo developer + agent on client projects.** You hand the agent a ticket; it "helps" by merging straight into the baseline and the preview environment goes stale. One config file per project, and the agent physically cannot merge into the baseline before the preview + your confirmation — even when you're not watching.
-2. **Small team (3–10) with a CI-deployed preview.** Staging auto-deploys on merge; one day an agent merged a feature into `develop` that was never deployed or tested. From then on, every baseline merge requires: feature ∈ preview **and** your chat confirmation — a deliberate, audited act, not a forgotten one.
-3. **Large team, many agents.** Agents work freely on feature branches (commit, push, sync, rebase — all allowed); the gate guarantees nothing enters the baseline unconfirmed. Feature velocity stays unchanged; only the shortcut is removed.
-4. **Async collaboration.** You're not always online. The guard keeps the flow honest between your sessions; exceptions remain exclusively yours to grant, and every one of them leaves an audit trail.
+1. **Solo developer + agent on client projects.** You hand the agent a ticket; it "helps" by pushing straight into the integration branch. One small config file, and the agent physically cannot touch protected branches without a PR/MR — even when you're not watching.
+2. **Small team (3–10) with a CI-deployed preview.** Staging auto-deploys on merge; one day an agent merged a feature into `develop` without review. From then on, every entry to the protected stages requires a PR/MR — a deliberate, audited act.
+3. **Enterprise with multi-env pipelines.** Many preview endpoints plus a gated production and archive line — each role simply gets configured, and the guard scales without extra rules.
+4. **Async collaboration.** You're not always online. The guard keeps the flow honest between your sessions; production/archive merges remain yours alone.
 
 **Not for you** (see also [What it does NOT do](#what-it-does-not-do--honest-limits)):
 
 - **Trunk-based flow** — everyone merges straight to one branch: the plugin would block constantly.
 - **Personal repo without a defined flow** — nothing to enforce, no value.
-- **A team unwilling to establish feature → preview → baseline** — the plugin enforces a flow; it will not invent one.
+- **A team unwilling to give any branch a role** — the plugin needs at least one `integration` branch to protect.
 
 ---
 
 ## What it does — capabilities
 
-- **Blocks, before execution**: direct push / force-push / delete of protected branches; merging a feature into the baseline before it reached the preview branch; merging into trunk; an agent trying to grant itself an exception.
-- **Enforces order from git facts**: "is this feature merged into preview?" is answered by `merge-base --is-ancestor` on your local repository — no hosting service involved, no trusting the agent's word.
-- **One exception authority — you**: the user can permit early PRs, confirm a feature's tests, or allow a trunk PR. Agents can never authorize themselves.
+- **Blocks, before execution**: direct push / force-push / delete of protected role branches (integration / preview / production / archive); agent merging into production or archive.
+- **Role-driven, fully configurable**: `integration` is the only required role; `preview` / `production` / `archive` are optional arrays of branch names or regexes, each with its own update rules (`pr` / `flexible`, `mergeBy`).
+- **Merge-by-user where it matters**: production & archive merges stay in your hands — the plugin blocks the agent from clicking merge, so your action *is* the confirmation.
 - **Works with any naming**: branch names are mapped by your config, never hard-coded (see [Configuration](#configuration-reference)).
-- **Fully audited**: every block, grant, and consumption is written to `.git/gitflow-guard/` (audit trail + state) — inside `.git`, never committed.
-- **Platform-agnostic core**: pure local git; optionally consults `gh` when available (PR target resolution, CI status as a log reference), and works fine without it.
+- **Fully audited**: every deny is written to `.git/gitflow-guard/audit.jsonl` — inside `.git`, never committed.
+- **Platform-agnostic core**: pure local git; optionally consults `gh` (GitHub) or `glab` (GitLab) for PR/MR target resolution, and works fine without them.
 
 ---
 
 ## What it does NOT do — honest limits
 
-- **It is not a security boundary.** Command parsing is best-effort; an agent determined to obfuscate commands can evade text analysis. What *cannot* be evaded is the order check itself: git ancestry is a fact, not a claim.
-- **It does not gate on CI platforms.** `gh pr checks` is logged as a reference only, never as a hard gate. No GitHub/GitLab API enforcement (that belongs in branch protection rules, which can layer on top).
-- **It is not a replacement for the flow itself.** Your project must actually use a feature → preview → baseline flow. If your team merges everything straight to one branch, this plugin will block constantly — don't enable it there.
-- **No multi-machine state sync (v1).** Permits are stored locally; a second machine won't see them (planned in v2).
-- **No pop-up notifications (v1).** Post-actions are reported through the audit trail and the conversation, not pushed to you.
+- **It is not a security boundary.** Command parsing is best-effort; an agent determined to obfuscate commands can evade text analysis.
+- **It does not gate on CI platforms.** CI status is logged as a reference only, never a hard gate. Real branch protection belongs in GitHub/GitLab settings, which can layer on top.
+- **It is not a replacement for the flow itself.** Your project must have at least one `integration` branch; if everyone pushes straight to one branch, this plugin will block constantly — don't enable it there.
+- **Production/archive are not automated** — they're deliberately left to your human click; the plugin only tells agents "no".
 
 ---
 
@@ -205,73 +198,80 @@ Chat messages in DSH carry a producer tag (`source`). Only input typed by the re
 
 ### Branch roles — the model behind the checks
 
-The plugin models **four roles**. Only the roles are fixed; the names are yours.
+Only **`integration`** is required. Every other role is optional — configure what your flow actually uses, and each entry is an exact branch name **or** a regex pattern.
 
 ```text
-trunk ─── (optional, release)  merging into it: ALWAYS BLOCKED — user hands only
-  ▲
-baseline ─ merging into it requires: feature ∈ preview  AND  user confirmation (P2)
-  ▲
-preview ── merging into it: always allowed (PR①) — parallel features OK
-  ▲
-feature branches — your working branches, recognized by featurePattern
+feature branches ──(free)──> integration（集成分支, PR/MR 合入）
+                                   │
+                                   ├──> preview（可选, 环境终点, PR/MR 更新）
+                                   │
+                                   └──> production（可选, PR/MR + 只有你能点合并）
+archive（可选, 发布后你亲手归档）
 ```
 
-| role | config key | protected? | enforced behavior |
+| role | config key | required? | enforced behavior |
 |---|---|---|---|
-| **baseline** | `branches.base` | always | no direct push / force-push / delete; merges need order + P2 |
-| **preview** | `branches.preview` | in `pr` mode | no direct push / local merge in `pr` mode; merging *into* it is always allowed |
-| **trunk** | `branches.trunk` (optional) | always | nothing merges into it except the user themselves |
-| **feature** | matched by `confirm.featurePattern` | — | free: commit / push / sync / rebase |
+| **feature** | `featurePattern` | — | free: commit / push / sync / rebase |
+| **integration** | `branches.integration` | always | no direct push (default `pr`); features merge in via PR/MR |
+| **preview** | `branches.preview` (array) | optional | no direct push; updates via PR/MR only (env endpoints) |
+| **production** | `branches.production` (array) | optional | PR/MR only; merge by user only (`mergeBy: "user"`) |
+| **archive** | `branches.archive` (array) | optional | user-hand only — agents cannot even create a PR |
 
-### Customizing branch names — any naming works
+### Customizing branch names & rules — any naming works
 
-`branches` maps your repository's *actual* branch names onto the roles. Nothing is hard-coded. Example: baseline `master`, preview `beta`, trunk `production`, feature branches `fix/`- and `task/`-prefixed:
+**小团队（个人 / 2-3 人）—— 最简，只有 integration：**
 
 ```jsonc
 {
   "enabled": true,
-  "mode": "pr",
-  "branches": {
-    "base": "master",
-    "preview": "beta",
-    "trunk": "production"
-  },
-  "confirm": {
-    "keywords": ["确认", "OK", "可以", "特许"],
-    "featurePattern": "(fix|task)/[\\w-]+"
-  }
+  "featurePattern": "feature/[\\w-]+",
+  "branches": { "integration": ["develop"] }
 }
 ```
 
-With this config, `master` is treated exactly as `develop` is in the default examples: agents pushing `master` are blocked; merging `fix/auth-42` into `master` is blocked until `fix/auth-42` is in `beta` *and* you confirm it; `gitflow-guard status` reports with your branch names.
+**大团队（多预览环境 + 生产 + 归档）：**
 
-**`featurePattern`**: a JS regular expression matched against branch names. Matches → feature branch (free to push, merge, sync). Non-matches that are also not role branches → "anything else" (allowed). Configure it to your actual convention.
+```jsonc
+{
+  "enabled": true,
+  "featurePattern": "(topic|feature)/[\\w-]+",
+  "branches": {
+    "integration": ["develop", "topic/[\\w-]+"],
+    "preview": {
+      "branches": ["ita1", "itb1", "itb2", "sg", "vb", "r1-conf", "r1-ope", "r2-conf", "r2-ope"],
+      "update": "pr"
+    },
+    "production": {
+      "branches": ["prd-conf", "prd-ope"],
+      "update": "pr",
+      "mergeBy": "user"
+    },
+    "archive": ["main"]
+  }
+}
+```
 
 ### Full field reference
 
 ```jsonc
 {
-  "enabled": true,                 // opt-in: file exists AND enabled=true
-  "mode": "pr",                    // "pr" = PR-only | "flexible" = direct push/local merge into preview allowed
+  "enabled": true,                     // opt-in: file exists AND enabled=true
+  "featurePattern": "feature/[\\w-]+", // JS regex matching your working/feature branches
   "branches": {
-    "base": "develop",             // REQUIRED: baseline branch
-    "preview": "staging",          // REQUIRED: preview branch
-    "trunk": "main"                // optional: trunk branch (release)
+    "integration": { "branches": ["develop"], "update": "pr" },  // REQUIRED
+    "preview":     { "branches": ["ita1"], "update": "pr" },     // optional
+    "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // optional
+    "archive":     ["main"]                                      // optional
   },
-  "confirm": {
-    "keywords": ["确认", "OK", "可以", "特许"],   // chat-confirmation trigger words
-    "featurePattern": "feature/[\\w-]+"          // JS regex matching your feature branches
-  },
-  "ci": { "enabled": true }        // optional adapter: gh pr checks logged as reference, skipped when unavailable
+  "ci": { "enabled": true }            // optional: gh pr checks logged as reference
 }
 ```
 
-**Validation**: `branches.base` and `branches.preview` are required; mapping two roles to the same branch is rejected; `mode` must be `pr` or `flexible`; an invalid `featurePattern` regex is rejected. **Any error disables the plugin for that project** (errors are reported) rather than applying a half-guessed setup.
-
-**`mode`**:
-- `pr` (default): preview is protected — features reach it only via PRs (no direct push, no local merge).
-- `flexible`: preview may be pushed to / merged into directly; baseline merges still require order + P2.
+- Roles accept either an **array** (shorthand) or an **object** `{ branches, update?, mergeBy? }`.
+- `update`: `pr` (default) = updates only via PR/MR; `flexible` = allow direct/local merges (small teams).
+- `mergeBy` (production): `user` (default) = only you click merge; `anyone` = allow PR merge through.
+- Each branch entry is an exact name or a regex (auto-detected).
+- **Validation**: `integration` is required; overlapping role entries are rejected; invalid regex is rejected. **Any error disables the plugin for that project** (reported) rather than applying a half-guessed setup.
 
 ---
 
@@ -279,52 +279,24 @@ With this config, `master` is treated exactly as `develop` is in the default exa
 
 | agent action | decision |
 |---|---|
-| merge into preview (PR①) | ✅ allow (first step; parallel features OK) |
-| create PR targeting baseline | ✅ if feature ∈ preview · else P1 permit ? allow : 🚫 block |
-| create PR targeting trunk | P3 permit ? ✅ allow : 🚫 block |
-| merge into baseline (PR merge / local merge) | feature ∈ preview + P2 ? ✅ allow : 🚫 block |
-| merge into trunk | 🚫 always blocked (user hands only) |
-| direct push / force-push / delete protected branch | 🚫 block |
+| commit / push feature / sync / rebase / read-only | ✅ allow |
+| direct push / force-push / delete integration / preview / production / archive | 🚫 block (integration/preview `flexible` direct push allowed) |
+| PR/MR: feature → integration / preview | ✅ allow |
+| PR/MR: feature → production | ✅ allow to create; **merge blocked** (you merge in UI) |
+| PR/MR targeting archive | 🚫 block |
+| local `git merge feature/x` while on integration / preview | 🚫 block (PR/MR required); `update: flexible` allows |
 | chained commands (`checkout develop && merge feature/x`) | 🚫 blocked — branch switches are simulated per segment, no bypass |
-| commit / push feature / sync from baseline / rebase / read-only / `gitflow-guard status` | ✅ allow |
 
-`gh pr merge` resolves its target via `gh pr view` (optional adapter); without `gh`, the plugin conservatively applies the baseline rules.
-
----
-
-## User Exceptions (Permits) — the only way to break the rules
-
-| permit | meaning | granted by | consumed when |
-|---|---|---|---|
-| P1 `early-pr` | create a baseline PR before order is satisfied | chat / CLI | PR created |
-| P2 `confirm` | "feature X tests OK" — allow baseline merge | chat / CLI | merge succeeded |
-| P3 `trunk-pr` | allow creating a PR targeting trunk | chat / CLI | PR created |
-
-**One-shot**: consumed automatically after the action succeeds (audited). Optional TTL via `--ttl`; expired-unused permits are logged.
-
-**Agents can never self-authorize** — the plugin blocks agents from running `permit` / `confirm`.
-
-**① Chat confirmation** — in DSH, just type it (real user message only):
-
-```text
-feature/dev-x-01 测试 OK,可以合入     → P2 confirm
-feature/dev-x-01 提前建 PR            → P1 early-pr
-feature/dev-x-01 可以发布上主干        → P3 trunk-pr
-```
-
-(The default trigger words are Chinese; configure `confirm.keywords` for your language.)
-
-**② Terminal CLI** (user-only):
-
-```bash
-gitflow-guard permit <feature> [--kind early-pr|confirm|trunk-pr] [--ttl <minutes>]
-gitflow-guard confirm <feature> [--ttl <minutes>]
-gitflow-guard status [--repo <path>]     # read-only: preview contents / permits per feature
-gitflow-guard audit [--lines <N>]        # read-only: audit trail
-```
+The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab). Without a platform CLI, the plugin is conservative.
 
 ---
 
+## Where the human stays in control
+
+- **Production merge** and **archive** are user-only by default: an agent may help prepare the PR/MR, but **you click the merge button** — that click *is* the confirmation. There is no separate permit store to outsource that decision.
+- Every deny is written to `.git/gitflow-guard/audit.jsonl` for review (`gitflow-guard audit`).
+
+---
 ## Installation in detail
 
 **Prerequisite**: a working [DSH](https://github.com/deepseek-ai/deepseek-harness) installation.
@@ -471,17 +443,14 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 
 | term | meaning |
 |---|---|
-| **baseline** | your stable integration branch (`branches.base`); protected; merges need order + P2 |
-| **preview** | the test-env branch (`branches.preview`); features merge in freely (PR①) |
-| **trunk** | the release branch (`branches.trunk`, optional); user-hands only |
-| **feature branch** | your working branch, matched by `featurePattern` |
-| **PR① / PR②** | feature → preview / feature → baseline |
-| **permit** | a one-shot user-granted exception (P1 early-pr / P2 confirm / P3 trunk-pr) |
+| **integration** | the branch and only required role (`branches.integration`); features merge in via PR/MR; protected |
+| **preview** | optional env-endpoint branches (`branches.preview`, array); updates via PR/MR only |
+| **production** | optional production branches (`branches.production`, array); PR/MR + merge by user only |
+| **archive** | optional post-release archive branch (`branches.archive`); user-hand only |
+| **feature branch** | your working branch, matched by `featurePattern`; free zone |
 | **gate matrix** | the decision table mapping each classified command to allow/deny |
-| **P2** | the user confirmation that unlocks a baseline merge |
 | **pre-execute** | the tool-pipeline hook where denial happens — before the command runs |
-| **`source.kind === 'user'`** | the DSH message tag that marks a real human's input — the unforgeable confirmation channel |
-| **`merge-base --is-ancestor`** | the git query that answers "is this feature merged into preview?" truthfully |
+| **merge-by-user** | production/archive merges stay in your hands — your click on the PR/MR is the confirmation |
 
 ---
 
