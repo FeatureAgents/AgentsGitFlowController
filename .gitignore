@@ -4,6 +4,7 @@ Thumbs.db
 
 # 智能体本机配置
 .claude/settings.local.json
+.claude/agents
 
 # 构建产物与依赖（按项目补充）
 node_modules/
