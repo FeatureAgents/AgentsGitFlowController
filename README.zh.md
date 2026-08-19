@@ -311,18 +311,13 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
   "hooks": {
     "PreToolUse": [
       { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/abs/path/gitflow-guard check --platform claude" }] }
-    ],
-    "PostToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/abs/path/gitflow-guard check --platform claude" }] }
-    ],
-    "PostToolUseFailure": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/abs/path/gitflow-guard check --platform claude" }] }
     ]
   }
 }
 ```
 
 - hook 读 stdin payload,按 `exit 0`(放行)/ `exit 2`(拦截,stderr 展示给模型的原因 + "下一步"提示)作答。
+- 只需要 `PreToolUse`:守卫在命令执行*之前*拦截;没有特许可事后消费,因此无需 `PostToolUse` 钩子。
 - 用**绝对路径**指向二进制——hook 子进程不一定继承你的 shell PATH。`${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs`(`npm run build` 后)也可以。
 - 完全 opt-in:仓库没有 `gitflow-guard.config.json`(或 `enabled` 非 true)时 hook 什么都不做。
 

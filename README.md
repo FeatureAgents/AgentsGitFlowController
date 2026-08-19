@@ -313,19 +313,13 @@ The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes
   "hooks": {
     "PreToolUse": [
       { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/abs/path/gitflow-guard check --platform claude" }] }
-    ],
-    "PostToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/abs/path/gitflow-guard check --platform claude" }] }
-    ],
-    "PostToolUseFailure": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/abs/path/gitflow-guard check --platform claude" }] }
     ]
   }
 }
 ```
 
 - The hook reads the payload on stdin and answers `exit 0` (allow) or `exit 2` (block — stderr is the reason shown to the model, plus a "next step" hint).
-- `PostToolUse` / `PostToolUseFailure` implement one-shot permit consumption: a permit granted for an action is spent only if that action succeeds.
+- Only `PreToolUse` is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no `PostToolUse` hooks are required.
 - Use an **absolute path** to the binary — hook subprocesses may not inherit your shell `PATH`. `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs` (after `npm run build`) also works from a checkout.
 - Fully opt-in: the hook does nothing unless the repo has `gitflow-guard.config.json` with `enabled: true`.
 
