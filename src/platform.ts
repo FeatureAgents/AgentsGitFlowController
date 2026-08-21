@@ -1,7 +1,7 @@
 // 跨平台 hook 适配层: 解析各家工具 stdin payload → 统一 {command, cwd, event}; 按平台编码 deny
 // 只以各平台官方 hook 文档为准, 自行实现; 拿不准的 wire 格式在真机核验后定稿。
 
-export type HookPlatform = 'claude' | 'codex' | 'copilot' | 'antigravity' | 'opencode'
+export type HookPlatform = 'claude' | 'codex' | 'antigravity' | 'opencode'
 
 export type HookEvent = 'pre' | 'post' | 'post-failure'
 
@@ -27,7 +27,6 @@ interface RawPayload {
   tool_use_id?: unknown
   turn_id?: unknown
   toolCall?: { args?: { CommandLine?: unknown } }
-  toolArgs?: { command?: unknown }
 }
 
 function str(v: unknown): string {
@@ -66,10 +65,6 @@ export function extractHookPayload(raw: string, platform: HookPlatform | 'auto' 
   } else if (plat === 'opencode') {
     // OpenCode tool.before.* : tool_args.command(或 cmd)+ cwd
     command = str(j.tool_args?.command) || str(j.tool_args?.cmd)
-    cwd = str(j.cwd)
-  } else if (plat === 'copilot') {
-    // Claude 兼容 snake_case 与 camelCase toolArgs 兜底(真机核验后定稿)
-    command = str(j.tool_input?.command) || str(j.toolArgs?.command)
     cwd = str(j.cwd)
   } else if (plat === 'antigravity') {
     // agy 嵌套 envelope: toolCall.args.CommandLine
@@ -110,8 +105,5 @@ export function encodeDeny(platform: HookPlatform, reason: string): DenyEncoding
       // 官方(antigravity.google/docs/ide/hooks): 必须 exit 0; stdout 顶层 { decision: allow|deny|ask|force_ask, reason }
       // 包裹 hookSpecificOutput 或非零退出都会校验失败; decision 无 "block" 值
       return { exitCode: 0, stdout: JSON.stringify({ decision: 'deny', reason }) }
-    case 'copilot':
-      // 待真机核验; 先按 claude 的 exit 2 协议兜底
-      return { exitCode: 2, stderr: reason }
   }
 }
