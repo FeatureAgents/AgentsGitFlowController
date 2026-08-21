@@ -66,7 +66,7 @@ describe('config: 校验', () => {
 
   it('角色间分支重叠 → 报错', () => {
     const { errors } = mergeConfig({ branches: { integration: ['develop'], preview: ['develop'] } })
-    expect(errors.some((e) => e.includes('集成') || e.includes('integration') && e.includes('preview'))).toBe(true)
+    expect(errors.some((e) => e.includes('integration') && e.includes('preview'))).toBe(true)
   })
 
   it('featurePattern 非法正则 → 报错', () => {

@@ -7,6 +7,8 @@ import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { classify } from './classify'
 import { loadConfig } from './config'
 import { decide } from './gate'
+import { makeT, resolveLocale } from './i18n'
+import type { Locale } from './i18n'
 import { currentBranch as queryCurrentBranch, findRepoRoot, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget } from './repo'
 import type { Classified, GateFacts, PrTargetResolution } from './types'
 import type { Runner } from './repo'
@@ -33,6 +35,8 @@ export interface EvaluateResult {
   outcome: 'allow' | 'deny' | 'skipped'
   reason?: { why: string; next: string }
   segmentCount: number
+  /** 本次评估使用的文案语言(供 formatDeny/审计一致) */
+  locale: Locale
 }
 
 export interface AuditEntry {
@@ -72,7 +76,9 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
   const gh = opts.ghRunner ?? ghRunner
   const glab = opts.glabRunner ?? glabRunner
   const { config } = await loadConfig(opts.repoRoot)
-  if (!config?.enabled) return { outcome: 'skipped', segmentCount: 0 }
+  if (!config?.enabled) return { outcome: 'skipped', segmentCount: 0, locale: 'en' }
+  const locale = resolveLocale(config.locale)
+  const t = makeT(locale)
 
   const branch = opts.currentBranch ?? (await queryCurrentBranch(runner, opts.repoRoot))
   const env: Env = { repoRoot: opts.repoRoot, config, branch, runner, gh, glab }
@@ -82,15 +88,15 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
   let simulatedBranch = branch
   for (const seg of segments) {
     const { facts } = await factsFor(seg, { ...env, branch: simulatedBranch })
-    const decision = decide(seg, facts, config)
+    const decision = decide(seg, facts, config, t)
     if (decision.kind === 'deny') {
       await appendAudit(env.repoRoot, { time: Date.now(), event: 'deny', command, reason: decision.reason })
-      return { outcome: 'deny', reason: { why: decision.reason, next: decision.next }, segmentCount: segments.length }
+      return { outcome: 'deny', reason: { why: decision.reason, next: decision.next }, segmentCount: segments.length, locale }
     }
     await logCiReference(seg, env)
     if (seg.kind === 'checkout' && seg.branch != null) simulatedBranch = seg.branch
   }
-  return { outcome: 'allow', segmentCount: segments.length }
+  return { outcome: 'allow', segmentCount: segments.length, locale }
 }
 
 /** CI 参考(可选适配器): gh pr checks 状态记入审计日志, 查不到自动跳过 */
@@ -133,8 +139,9 @@ function commandText(exec: ToolExecution): string {
   return typeof args?.command === 'string' ? args.command : ''
 }
 
-export function formatDeny(why: string, next: string): string {
-  return `[gitflow-guard] 已拦截: ${why}\n下一步: ${next}`
+export function formatDeny(locale: Locale, why: string, next: string): string {
+  const t = makeT(locale)
+  return `${t('deny.header', { why })}\n${t('deny.next', { next })}`
 }
 
 export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
@@ -150,7 +157,7 @@ export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
 
       const result = await evaluateCommand(command, { repoRoot, runner: gitRunner })
       if (result.outcome === 'deny' && result.reason) {
-        return { kind: 'deny', reason: formatDeny(result.reason.why, result.reason.next) }
+        return { kind: 'deny', reason: formatDeny(result.locale, result.reason.why, result.reason.next) }
       }
       return next()
     } catch (e) {

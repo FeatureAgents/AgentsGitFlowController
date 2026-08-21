@@ -69,10 +69,10 @@ describe('cli: status(只读状态一览)', () => {
     try {
       const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner: scriptedRunner() }))
       expect(code).toBe(0)
-      expect(text).toContain('集成分支: develop')
-      expect(text).toContain('预览分支: ita1')
-      expect(text).toContain('归档分支: main')
-      expect(text).toContain('当前分支: feature/dev-x-01')
+      expect(text).toContain('Integration: develop')
+      expect(text).toContain('Preview: ita1')
+      expect(text).toContain('Archive: main')
+      expect(text).toContain('Current branch: feature/dev-x-01')
       expect(text).toContain('develop → integration')
       expect(text).toContain('feature/dev-x-01 → feature')
     } finally {
@@ -86,7 +86,7 @@ describe('cli: status(只读状态一览)', () => {
     try {
       const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner: scriptedRunner() }))
       expect(code).toBe(0)
-      expect(text).toContain('未启用')
+      expect(text).toContain('Config: not enabled')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -132,6 +132,22 @@ describe('cli: check(agent hook 门禁)', () => {
 
   it('推送到集成分支 → exit 2 + stderr 理由', async () => {
     const dir = tempRepo()
+    try {
+      const { code, stderr } = await captureStderr(() => main(['check', '--command', 'git push origin develop', '--repo', dir]))
+      expect(code).toBe(2)
+      expect(stderr).toContain('blocked:')
+      expect(stderr).toContain('Protected branch')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('locale=zh → 拦截文案为中文', async () => {
+    const dir = tempRepo()
+    writeFileSync(
+      join(dir, 'gitflow-guard.config.json'),
+      JSON.stringify({ enabled: true, featurePattern: 'feature/[\\w-]+', locale: 'zh', branches: { integration: ['develop'] } }),
+    )
     try {
       const { code, stderr } = await captureStderr(() => main(['check', '--command', 'git push origin develop', '--repo', dir]))
       expect(code).toBe(2)

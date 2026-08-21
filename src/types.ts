@@ -26,6 +26,9 @@ export interface CiConfig {
   enabled: boolean
 }
 
+/** 文案语言: 默认 en; 'zh' 切中文 */
+export type Locale = 'en' | 'zh'
+
 /** 项目配置(来自 gitflow-guard.config.json, opt-in 启用) */
 export interface GuardConfig {
   enabled: boolean
@@ -33,6 +36,8 @@ export interface GuardConfig {
   featurePattern: string
   branches: BranchRoles
   ci: CiConfig
+  /** 用户可见文案语言(默认 'en'; 缺失时按 'en' 处理) */
+  locale?: Locale
 }
 
 /** 分支角色名(门禁判定对象) */

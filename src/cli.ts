@@ -5,23 +5,12 @@ import { join } from 'node:path'
 import { classify } from './classify'
 import { loadConfig, roleMatches } from './config'
 import { evaluateCommand, formatDeny, stateDir } from './index'
+import { makeT, resolveLocale } from './i18n'
 import { detectPlatform, encodeDeny, extractHookPayload } from './platform'
 import { currentBranch, findRepoRoot, gitRunner } from './repo'
 import type { HookPayload, HookPlatform } from './platform'
 import type { BranchRole } from './types'
 import type { Runner } from './repo'
-
-const USAGE = `gitflow-guard — GitFlow 流程守卫 CLI
-
-用法:
-  gitflow-guard status [--repo <路径>]
-  gitflow-guard audit [--lines <数量>] [--repo <路径>]
-  gitflow-guard check [--platform <claude|auto>] [--command "<cmd>"] [--repo <路径>]
-  gitflow-guard --help
-
-说明:
-  status/audit 只读, agent 可自查。
-  check 读 stdin hook payload 做门禁(exit 0=放行 / 2=拦截), 供 Claude Code 等 agent 的 pre/post hook 调用。`
 
 interface Flags {
   repo?: string
@@ -54,9 +43,10 @@ async function resolveRepo(flags: Flags): Promise<string | null> {
 
 export async function main(argv: string[], opts: { runner?: Runner } = {}): Promise<number> {
   const runner = opts.runner ?? gitRunner
+  const usage = makeT('en')('usage.text')
   const [cmd, ...rest] = argv
   if (cmd === '--help' || cmd === 'help' || cmd === undefined) {
-    console.log(USAGE)
+    console.log(usage)
     return 0
   }
   const flags = parseFlags(rest)
@@ -65,7 +55,7 @@ export async function main(argv: string[], opts: { runner?: Runner } = {}): Prom
     if (cmd === 'status') return await status(flags, runner)
     if (cmd === 'audit') return await audit(flags)
     if (cmd === 'check') return await check(flags)
-    console.error(`[gitflow-guard] 未知子命令: ${cmd ?? ''}\n\n${USAGE}`)
+    console.error(`${makeT('en')('cli.unknownCommand', { cmd: cmd ?? '' })}\n\n${usage}`)
     return 1
   } catch (e) {
     console.error(`[gitflow-guard] ${(e as Error).message}`)
@@ -76,26 +66,27 @@ export async function main(argv: string[], opts: { runner?: Runner } = {}): Prom
 async function status(flags: Flags, runner: Runner): Promise<number> {
   const repoRoot = await resolveRepo(flags)
   if (!repoRoot) {
-    console.error('[gitflow-guard] 无法定位 git 仓库')
+    console.error(makeT('en')('cli.cannotLocate'))
     return 1
   }
   const { config, errors } = await loadConfig(repoRoot)
   const enabled = config?.enabled === true
-  console.log(`[gitflow-guard] status — ${repoRoot}`)
+  const t = makeT(resolveLocale(config?.locale))
+  console.log(t('cli.statusTitle', { repo: repoRoot }))
   if (!enabled) {
-    console.log('配置: 未启用(不存在 gitflow-guard.config.json 或 enabled=false)')
-    for (const e of errors) console.log(`  配置错误: ${e}`)
+    console.log(t('cli.statusDisabled'))
+    for (const e of errors) console.log(t('cli.statusConfigError', { err: e }))
     return 0
   }
 
   const branch = await currentBranch(runner, repoRoot)
   const c = config!
-  console.log(`配置: 已启用 | featurePattern: ${c.featurePattern}`)
-  console.log(`集成分支: ${c.branches.integration.branches.join(', ')} (update=${c.branches.integration.update || 'pr'})`)
-  if (c.branches.preview) console.log(`预览分支: ${c.branches.preview.branches.join(', ')} (update=${c.branches.preview.update || 'pr'})`)
-  if (c.branches.production) console.log(`生产分支: ${c.branches.production.branches.join(', ')} (update=${c.branches.production.update || 'pr'}, 合并=${c.branches.production.mergeBy || 'user'})`)
-  if (c.branches.archive) console.log(`归档分支: ${c.branches.archive.branches.join(', ')}`)
-  console.log(`当前分支: ${branch ?? '(未知)'}`)
+  console.log(t('cli.statusEnabled', { pattern: c.featurePattern }))
+  console.log(t('cli.statusIntegration', { list: c.branches.integration.branches.join(', '), mode: c.branches.integration.update || 'pr' }))
+  if (c.branches.preview) console.log(t('cli.statusPreview', { list: c.branches.preview.branches.join(', '), mode: c.branches.preview.update || 'pr' }))
+  if (c.branches.production) console.log(t('cli.statusProduction', { list: c.branches.production.branches.join(', '), mode: c.branches.production.update || 'pr', merge: c.branches.production.mergeBy || 'user' }))
+  if (c.branches.archive) console.log(t('cli.statusArchive', { list: c.branches.archive.branches.join(', ') }))
+  console.log(t('cli.statusCurrentBranch', { branch: branch ?? t('cli.statusUnknownBranch') }))
 
   // 列出本地分支并按角色分组(展示用)
   const r = await runner.run(['for-each-ref', '--format=%(refname:short)', 'refs/heads/'], repoRoot)
@@ -108,7 +99,7 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
     if (new RegExp(c.featurePattern).test(b)) return 'feature'
     return 'other'
   }
-  console.log('本地分支(按角色):')
+  console.log(t('cli.statusLocalBranches'))
   for (const b of localBranches) console.log(`  ${b} → ${classifyBranch(b)}`)
   return 0
 }
@@ -116,7 +107,7 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
 async function audit(flags: Flags): Promise<number> {
   const repoRoot = await resolveRepo(flags)
   if (!repoRoot) {
-    console.error('[gitflow-guard] 无法定位 git 仓库')
+    console.error(makeT('en')('cli.cannotLocate'))
     return 1
   }
   const lines = flags.lines != null && Number.isFinite(flags.lines) && flags.lines > 0 ? Math.floor(flags.lines) : 20
@@ -132,7 +123,7 @@ async function audit(flags: Flags): Promise<number> {
       }
     }
   } catch {
-    console.log('  暂无审计记录')
+    console.log(makeT('en')('cli.auditEmpty'))
   }
   return 0
 }
@@ -170,9 +161,10 @@ async function check(flags: Flags): Promise<number> {
 
     // --platform auto 时按 payload 判别; 具体平台用于 deny 编码
     const hookPlatform: HookPlatform = platform === 'auto' ? detectPlatform(raw) : platform
+    const locale = resolveLocale(config.locale)
     const result = await evaluateCommand(payload.command, { repoRoot })
     if (result.outcome === 'deny' && result.reason) {
-      const enc = encodeDeny(hookPlatform, formatDeny(result.reason.why, result.reason.next))
+      const enc = encodeDeny(hookPlatform, formatDeny(locale, result.reason.why, result.reason.next))
       if (enc.stdout) process.stdout.write(enc.stdout + '\n')
       if (enc.stderr) process.stderr.write(enc.stderr + '\n')
       return enc.exitCode
@@ -180,7 +172,7 @@ async function check(flags: Flags): Promise<number> {
     return 0
   } catch (e) {
     // fail-open: 门禁内部故障不阻断工具管道(与插件 apply 的降级一致)
-    process.stderr.write(`[gitflow-guard] check 内部错误, 已放行: ${(e as Error).message}\n`)
+    process.stderr.write(`${makeT('en')('cli.checkInternalError', { msg: (e as Error).message })}\n`)
     return 0
   }
 }

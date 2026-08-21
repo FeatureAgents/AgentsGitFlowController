@@ -11,6 +11,7 @@ export const DEFAULT_CONFIG = {
   enabled: false,
   featurePattern: 'feature/[\\w-]+',
   ci: { enabled: true },
+  locale: 'en',
 } satisfies Omit<GuardConfig, 'branches'>
 
 export interface ConfigLoadResult {
@@ -52,21 +53,21 @@ function normalizeRole(raw: unknown, defaultUpdate: UpdateMode, defaultMergeBy: 
     update = o.update
     mergeBy = o.mergeBy
   } else {
-    return { role: { branches: [] }, errors: ['分支角色必须是数组或 { branches: [...] }'] }
+    return { role: { branches: [] }, errors: ['Branch role must be an array or { branches: [...] }'] }
   }
   if (!Array.isArray(arr) || arr.length === 0 || !arr.every((x) => typeof x === 'string' && x !== '')) {
-    errors.push('branches 必须是非空字符串数组')
+    errors.push('branches must be a non-empty array of strings')
   }
   const role: BranchRole = { branches: (Array.isArray(arr) ? arr : []).filter((x): x is string => typeof x === 'string' && x !== '') }
   if (update === undefined || update === 'pr' || update === 'flexible') {
     role.update = update === undefined ? defaultUpdate : (update as UpdateMode)
   } else {
-    errors.push('update 必须是 "pr" 或 "flexible"')
+    errors.push('update must be "pr" or "flexible"')
   }
   if (mergeBy === undefined || mergeBy === 'user' || mergeBy === 'anyone') {
     role.mergeBy = mergeBy === undefined ? defaultMergeBy : (mergeBy as MergeBy)
   } else {
-    errors.push('mergeBy 必须是 "user" 或 "anyone"')
+    errors.push('mergeBy must be "user" or "anyone"')
   }
   return { role, errors }
 }
@@ -75,7 +76,7 @@ function normalizeRole(raw: unknown, defaultUpdate: UpdateMode, defaultMergeBy: 
 export function mergeConfig(raw: unknown): ConfigLoadResult {
   const errors: string[] = []
   if (typeof raw !== 'object' || raw === null) {
-    return { config: null, errors: ['配置文件必须是 JSON 对象'] }
+    return { config: null, errors: ['Config file must be a JSON object'] }
   }
   const r = raw as Record<string, unknown>
 
@@ -86,6 +87,8 @@ export function mergeConfig(raw: unknown): ConfigLoadResult {
   }
   if (typeof r.enabled === 'boolean') config.enabled = r.enabled
   if (typeof r.featurePattern === 'string' && r.featurePattern !== '') config.featurePattern = r.featurePattern
+  if (r.locale === 'en' || r.locale === 'zh') config.locale = r.locale
+  else if (r.locale !== undefined) errors.push('locale must be "en" or "zh"')
 
   const b = (r.branches ?? {}) as Record<string, unknown>
   if ('integration' in b) {
@@ -93,7 +96,7 @@ export function mergeConfig(raw: unknown): ConfigLoadResult {
     config.branches.integration = role
     errors.push(...e)
   } else {
-    errors.push('branches.integration 必填')
+    errors.push('branches.integration is required')
   }
   if (b.preview !== undefined) {
     const { role, errors: e } = normalizeRole(b.preview, 'pr', 'anyone')
@@ -121,11 +124,11 @@ export function mergeConfig(raw: unknown): ConfigLoadResult {
 /** 配置校验: 角色分支重叠 / 正则合法等 */
 export function validateConfig(config: GuardConfig): string[] {
   const errors: string[] = []
-  if (config.branches.integration.branches.length === 0) errors.push('branches.integration.branches 必填')
+  if (config.branches.integration.branches.length === 0) errors.push('branches.integration.branches is required')
   try {
     new RegExp(config.featurePattern)
   } catch {
-    errors.push(`featurePattern 不是合法正则: ${config.featurePattern}`)
+    errors.push(`featurePattern is not a valid regex: ${config.featurePattern}`)
   }
 
   const allRoles = ['integration', 'preview', 'production', 'archive'] as const
@@ -136,7 +139,7 @@ export function validateConfig(config: GuardConfig): string[] {
       const bb = config.branches[allRoles[j]]
       if (!bb) continue
       const overlap = a.branches.some((s) => bb.branches.includes(s))
-      if (overlap) errors.push(`branches.${allRoles[i]} 与 branches.${allRoles[j]} 含有相同条目`)
+      if (overlap) errors.push(`branches.${allRoles[i]} and branches.${allRoles[j]} share the same entries`)
     }
   }
   return errors
@@ -149,6 +152,6 @@ export async function loadConfig(repoRoot: string): Promise<ConfigLoadResult> {
     return mergeConfig(JSON.parse(text))
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { config: null, errors: [] }
-    return { config: null, errors: [`读取配置文件失败: ${(e as Error).message}`] }
+    return { config: null, errors: [`Failed to read config file: ${(e as Error).message}`] }
   }
 }
