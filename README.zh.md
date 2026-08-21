@@ -201,7 +201,7 @@ archive(可选, 发布后你亲手归档)
 | **integration** | `branches.integration` | 必填 | 禁直推(默认 `pr`);feature 只经 PR/MR 合入 |
 | **preview** | `branches.preview`(数组) | 可选 | 禁直推;只走 PR/MR(环境终点) |
 | **production** | `branches.production`(数组) | 可选 | 只走 PR/MR;合并仅限你(`mergeBy: "user"`) |
-| **archive** | `branches.archive`(数组) | 可选 | 仅用户——agent 连建 PR 都不行 |
+| **archive** | `branches.archive`(数组) | 可选 | 允许 agent 创建指向它的 PR/MR; 合并仍限用户亲手 |
 
 ### 自定义分支名与规则——任何命名都可以
 
@@ -438,7 +438,7 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 | **integration** | 集成分支,唯一必填角色(`branches.integration`);feature 经 PR/MR 合入;受保护 |
 | **preview** | 可选环境终点分支(`branches.preview`,数组);只走 PR/MR 更新 |
 | **production** | 可选生产分支(`branches.production`,数组);PR/MR + 合并仅限用户 |
-| **archive** | 可选发布后归档分支(`branches.archive`);仅用户亲手 |
+| **archive** | `branches.archive`(数组) | 可选 | 允许 agent 创建指向它的 PR/MR; 合并仍限用户亲手 |
 | **feature 分支** | 你的工作分支,由 `featurePattern` 识别;自由区 |
 | **门禁矩阵** | 把每条被分类的命令映射为放行/拦截的判定表 |
 | **pre-execute** | 工具管线中拦截发生的钩子——在命令运行之前 |

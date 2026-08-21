@@ -126,8 +126,10 @@ describe('gate: 创建 PR/MR', () => {
     expect(decide({ kind: 'pr-create', target: 'ita1' }, facts({ currentBranch: 'prd' }), config).kind).toBe('deny')
   })
 
-  it('指向归档 → deny(agent 不能建归档 PR)', () => {
-    expect(decide({ kind: 'pr-create', target: 'main' }, facts(), config).kind).toBe('deny')
+  it('指向归档: 允许建 PR(起草归档 PR), 合并仍限用户', () => {
+    expect(decide({ kind: 'pr-create', target: 'main' }, facts(), config).kind).toBe('allow')
+    // 合并(decidePrMerge)对 archive 仍 deny
+    expect(decide({ kind: 'pr-create', target: 'main' }, facts({ currentBranch: 'develop' }), config).kind).toBe('allow')
   })
 
   it('指向普通分支/feature 分支 → allow', () => {

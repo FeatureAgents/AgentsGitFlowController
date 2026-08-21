@@ -43,8 +43,6 @@ const en: Dict = {
   'prCreateNoTarget.why': () => 'Cannot determine the PR/MR target branch',
   'prCreateNoTarget.next': (v) =>
     `Specify --base/--target-branch explicitly (e.g. \`gh pr create --base ${v.base}\`).`,
-  'prCreateArchive.why': () => 'Archive branches are user-managed; PRs/MRs into them are not allowed',
-  'prCreateArchive.next': () => 'Do the release/archive yourself in your terminal or UI.',
   'prCreateHead.why': (v) =>
     `Current branch (${v.head}) is not a feature branch, so it cannot be the source of a PR/MR into ${v.role}`,
   'prCreateHead.next': () => 'Open the PR/MR into integration/preview/production from a feature/topic branch.',
@@ -125,8 +123,6 @@ const zh: Dict = {
   'mergeFeature.next': (v) => `先推 feature 分支, 再创建指向 ${v.branch} 的 PR/MR`,
   'prCreateNoTarget.why': () => '无法确定 PR/MR 目标分支',
   'prCreateNoTarget.next': (v) => `请显式指定 --base/--target-branch(如 gh pr create --base ${v.base})`,
-  'prCreateArchive.why': () => '归档分支(archive)仅用户亲手操作, 不允许创建指向它的 PR/MR',
-  'prCreateArchive.next': () => '发布/归档由你自己在终端或 UI 完成',
   'prCreateHead.why': (v) => `当前分支(${v.head})不是 feature 分支, 不能作为指向${v.role}的 PR/MR 源`,
   'prCreateHead.next': () => '请从 feature/topic 分支上创建指向集成/预览/生产分支的 PR/MR',
   'prMergeProduction.why': () => '合入生产(production)分支仅允许用户亲手点合并',
