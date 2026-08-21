@@ -67,9 +67,9 @@ describe('platform: encodeDeny', () => {
     expect(enc.exitCode).toBe(0)
     expect(enc.stdout).toContain('"permissionDecision":"deny"')
   })
-  it('antigravity → exit 0 + stdout decision block', () => {
+  it('antigravity → exit 0 + stdout decision deny', () => {
     const enc = encodeDeny('antigravity', 'r')
     expect(enc.exitCode).toBe(0)
-    expect(enc.stdout).toContain('"decision":"block"')
+    expect(enc.stdout).toContain('"decision":"deny"')
   })
 })

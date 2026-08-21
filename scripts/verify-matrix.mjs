@@ -138,7 +138,7 @@ console.log('[E] antigravity encoding')
   try {
     const deny = runCheck('antigravity', JSON.stringify({ hook_event_name: 'PreToolUse', toolCall: { args: { CommandLine: 'git branch -D main' } }, cwd: repo }), repo)
     check('拦截: exit 0', deny.code === 0, `code=${deny.code}`)
-    check('拦截: stdout decision=block', /"decision":"block"/.test(deny.stdout), deny.stdout)
+    check('拦截: stdout decision=deny', /"decision":"deny"/.test(deny.stdout), deny.stdout)
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }

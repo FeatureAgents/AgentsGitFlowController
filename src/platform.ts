@@ -107,8 +107,9 @@ export function encodeDeny(platform: HookPlatform, reason: string): DenyEncoding
         stderr: reason,
       }
     case 'antigravity':
-      // 非零退出码不保证拦截, 必须 exit 0 + stdout {"decision":"block","reason":...}
-      return { exitCode: 0, stdout: JSON.stringify({ decision: 'block', reason }) }
+      // 官方(antigravity.google/docs/ide/hooks): 必须 exit 0; stdout 顶层 { decision: allow|deny|ask|force_ask, reason }
+      // 包裹 hookSpecificOutput 或非零退出都会校验失败; decision 无 "block" 值
+      return { exitCode: 0, stdout: JSON.stringify({ decision: 'deny', reason }) }
     case 'copilot':
       // 待真机核验; 先按 claude 的 exit 2 协议兜底
       return { exitCode: 2, stderr: reason }
