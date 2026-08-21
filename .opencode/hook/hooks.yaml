@@ -1,0 +1,9 @@
+# agents-gitflow-guard — OpenCode hook (dogfood)
+# 事件 tool.before.bash: 读 stdin payload, 由 gitflow-guard check 判定; exit 2 阻断工具。
+# 文档: https://opencode.ai/docs (hooks.yaml; tool.before.*; 仅 bash action exit 2 可阻断)
+hooks:
+  - id: gitflow-guard
+    event: tool.before.bash
+    actions:
+      - bash: |
+          node "$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs" check --platform opencode

@@ -144,6 +144,20 @@ console.log('[E] antigravity encoding')
   }
 }
 
+console.log('[F] OpenCode hook (--platform opencode)')
+{
+  const repo = tempRepo(CONFIG)
+  try {
+    const deny = runCheck('opencode', JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'git push origin develop' }, cwd: repo }), repo)
+    check('拦截: exit 2', deny.code === 2, `code=${deny.code}`)
+    check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
+    const ok = runCheck('opencode', JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'ls -la' }, cwd: repo }), repo)
+    check('放行: exit 0 且无输出(快路径)', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+}
+
 console.log('\n' + lines.join('\n'))
 console.log(`\n=== ${pass} PASS / ${fail} FAIL ===`)
 process.exit(fail ? 1 : 0)

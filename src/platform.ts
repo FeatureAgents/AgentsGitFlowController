@@ -1,7 +1,7 @@
 // 跨平台 hook 适配层: 解析各家工具 stdin payload → 统一 {command, cwd, event}; 按平台编码 deny
 // 只以各平台官方 hook 文档为准, 自行实现; 拿不准的 wire 格式在真机核验后定稿。
 
-export type HookPlatform = 'claude' | 'codex' | 'copilot' | 'antigravity'
+export type HookPlatform = 'claude' | 'codex' | 'copilot' | 'antigravity' | 'opencode'
 
 export type HookEvent = 'pre' | 'post' | 'post-failure'
 
@@ -22,6 +22,7 @@ export interface DenyEncoding {
 interface RawPayload {
   hook_event_name?: unknown
   tool_input?: { command?: unknown }
+  tool_args?: { command?: unknown; cmd?: unknown }
   cwd?: unknown
   tool_use_id?: unknown
   turn_id?: unknown
@@ -62,6 +63,10 @@ export function extractHookPayload(raw: string, platform: HookPlatform | 'auto' 
     // Claude Code 与 Codex 同形: tool_input.command + cwd
     command = str(j.tool_input?.command)
     cwd = str(j.cwd)
+  } else if (plat === 'opencode') {
+    // OpenCode tool.before.* : tool_args.command(或 cmd)+ cwd
+    command = str(j.tool_args?.command) || str(j.tool_args?.cmd)
+    cwd = str(j.cwd)
   } else if (plat === 'copilot') {
     // Claude 兼容 snake_case 与 camelCase toolArgs 兜底(真机核验后定稿)
     command = str(j.tool_input?.command) || str(j.toolArgs?.command)
@@ -75,12 +80,13 @@ export function extractHookPayload(raw: string, platform: HookPlatform | 'auto' 
   return { command, cwd: cwd || undefined, toolUseId: str(j.tool_use_id) || undefined, event: eventFrom(j.hook_event_name) }
 }
 
-/** 按 payload 判别平台: 非空 turn_id→codex, toolCall→antigravity, 其余→claude */
+/** 按 payload 判别平台: 非空 turn_id→codex, toolCall→antigravity, tool_args→opencode, 其余→claude */
 export function detectPlatform(raw: string): HookPlatform {
   const j = parseRaw(raw)
   if (!j) return 'claude'
   if (j.turn_id) return 'codex'
   if (j.toolCall) return 'antigravity'
+  if (j.tool_args) return 'opencode'
   return 'claude'
 }
 
@@ -89,6 +95,9 @@ export function encodeDeny(platform: HookPlatform, reason: string): DenyEncoding
   switch (platform) {
     case 'claude':
       // exit 2 = 硬拦截; stderr 即展示给模型的原因
+      return { exitCode: 2, stderr: reason }
+    case 'opencode':
+      // OpenCode tool.before.bash: bash action exit 2 阻断工具; stderr 展示原因
       return { exitCode: 2, stderr: reason }
     case 'codex':
       // exit 0 + stdout permissionDecision(Codex 拒绝未知字段, 只输出规定的三个)

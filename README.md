@@ -2,7 +2,7 @@
 
 > **Are you tired of agents skipping your GitFlow?**
 
-A configurable branch-role guard for AI coding agents — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, and Codex.
+A configurable branch-role guard for AI coding agents — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, and OpenCode.
 You define your own branches —
 **integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Agents can't skip the flow, and sensitive merges stay in your hands.
 
@@ -309,7 +309,7 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 
 The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes it a profile layer — no manual profile editing.
 
-**Claude Code / Codex hooks** — the same guard inside those agents, no DSH required. This repo ships project configs at `.claude/settings.json` (Claude Code) and `.codex/hooks.json` (Codex); any other repo adds its own:
+**Claude Code / Codex / OpenCode hooks** — the same guard inside those agents, no DSH required. This repo ships project configs at `.claude/settings.json` (Claude Code), `.codex/hooks.json` (Codex) and `.opencode/hook/hooks.yaml` (OpenCode); any other repo adds its own:
 
 ```jsonc
 // Claude Code — .claude/settings.json
@@ -333,9 +333,19 @@ The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes
 }
 ```
 
-- The hook reads the payload on stdin and answers with that platform's protocol: Claude Code → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout (Codex also accepts the legacy `{"decision":"block","reason":...}` shape, which `--platform antigravity` uses).
-- Only `PreToolUse` is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no `PostToolUse` hooks are required.
-- Use an **absolute path** to the binary — hook subprocesses may not inherit your shell `PATH`. `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs` (Claude Code) or `node bin/gitflow-guard.mjs` (Codex, runs from the project working directory) also work from a checkout.
+```yaml
+# OpenCode — .opencode/hook/hooks.yaml
+hooks:
+  - id: gitflow-guard
+    event: tool.before.bash
+    actions:
+      - bash: |
+          node "$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs" check --platform opencode
+```
+
+- The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout (Codex also accepts the legacy `{"decision":"block","reason":...}` shape, which `--platform antigravity` uses).
+- Only the pre-tool event is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no post-tool hooks are required.
+- Use an **absolute path** to the binary — hook subprocesses may not inherit your shell `PATH`. `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs` (Claude Code), `node bin/gitflow-guard.mjs` (Codex, runs from the project working directory), or `$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs` (OpenCode) also work from a checkout.
 - Fully opt-in: the hook does nothing unless the repo has `gitflow-guard.config.json` with `enabled: true`.
 
 ---

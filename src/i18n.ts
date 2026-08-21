@@ -92,13 +92,13 @@ const en: Dict = {
 Usage:
   gitflow-guard status [--repo <path>]
   gitflow-guard audit [--lines <count>] [--repo <path>]
-  gitflow-guard check [--platform <claude|auto>] [--command "<cmd>"] [--repo <path>]
+  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity>] [--command "<cmd>"] [--repo <path>]
   gitflow-guard --help
 
 Notes:
   status/audit are read-only; the agent can self-inspect.
-  check reads the hook payload on stdin (exit 0 = allow / 2 = block) and is meant for
-  pre/post hooks of agents such as Claude Code.`,
+  check reads the hook payload on stdin (platform-specific protocol: claude/opencode exit 2,
+  codex/antigravity JSON on stdout) and is meant for pre/post hooks of AI agents.`,
 }
 
 const zh: Dict = {
@@ -169,12 +169,13 @@ const zh: Dict = {
 用法:
   gitflow-guard status [--repo <路径>]
   gitflow-guard audit [--lines <数量>] [--repo <路径>]
-  gitflow-guard check [--platform <claude|auto>] [--command "<cmd>"] [--repo <路径>]
+  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity>] [--command "<cmd>"] [--repo <路径>]
   gitflow-guard --help
 
 说明:
   status/audit 只读, agent 可自查。
-  check 读 stdin hook payload 做门禁(exit 0=放行 / 2=拦截), 供 Claude Code 等 agent 的 pre/post hook 调用。`,
+  check 读 stdin hook payload 做门禁(平台协议: claude/opencode exit 2, codex/antigravity stdout JSON),
+  供 Claude Code / Codex / OpenCode 等 agent 的 pre/post hook 调用。`,
 }
 
 const MESSAGE_KEYS = Object.keys(en)

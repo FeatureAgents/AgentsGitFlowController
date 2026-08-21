@@ -34,17 +34,33 @@ describe('platform: extractHookPayload', () => {
     const raw = JSON.stringify({ toolCall: { name: 'run_command', args: { CommandLine: 'git push origin develop' } } })
     expect(extractHookPayload(raw, 'auto')?.command).toBe('git push origin develop')
   })
+
+  it('auto: opencode tool_args.command', () => {
+    const raw = JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'git merge feature/x' }, cwd: '/r' })
+    expect(extractHookPayload(raw, 'auto')?.command).toBe('git merge feature/x')
+    expect(extractHookPayload(raw, 'auto')?.cwd).toBe('/r')
+    expect(extractHookPayload(raw, 'auto')?.event).toBe('pre')
+  })
+
+  it('opencode 显式平台: tool_args.cmd 兜底', () => {
+    const raw = JSON.stringify({ tool_args: { cmd: 'git push origin develop' }, cwd: '/r' })
+    expect(extractHookPayload(raw, 'opencode')?.command).toBe('git push origin develop')
+  })
 })
 
 describe('platform: detectPlatform', () => {
   it('turn_id → codex', () => expect(detectPlatform('{"turn_id":"x"}')).toBe('codex'))
   it('toolCall → antigravity', () => expect(detectPlatform('{"toolCall":{}}')).toBe('antigravity'))
+  it('tool_args → opencode', () => expect(detectPlatform('{"tool_args":{"command":"git push"}}')).toBe('opencode'))
   it('默认 → claude', () => expect(detectPlatform('{"tool_name":"Bash"}')).toBe('claude'))
 })
 
 describe('platform: encodeDeny', () => {
   it('claude → exit 2 + stderr', () => {
     expect(encodeDeny('claude', '已拦截: x')).toEqual({ exitCode: 2, stderr: '已拦截: x' })
+  })
+  it('opencode → exit 2 + stderr', () => {
+    expect(encodeDeny('opencode', 'blocked: x')).toEqual({ exitCode: 2, stderr: 'blocked: x' })
   })
   it('codex → exit 0 + stdout permissionDecision', () => {
     const enc = encodeDeny('codex', 'r')
