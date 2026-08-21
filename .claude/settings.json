@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform claude" }
+        ]
+      }
+    ]
+  }
+}

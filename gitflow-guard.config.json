@@ -1,9 +1,8 @@
 {
   "enabled": true,
-  "mode": "pr",
+  "featurePattern": "feature/[\\w-]+",
   "branches": {
-    "base": "develop",
-    "preview": "staging",
-    "trunk": "main"
+    "integration": ["develop"],
+    "archive": ["main"]
   }
 }

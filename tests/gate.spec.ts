@@ -1,293 +1,173 @@
 import { describe, expect, it } from 'vitest'
-import { decide } from '../src/gate'
-import type { GateFacts, GuardConfig, PrTarget } from '../src/types'
+import { decide, roleOfBranch } from '../src/gate'
+import type { GateFacts, GuardConfig, PrTargetResolution } from '../src/types'
 
-const config: GuardConfig = {
-  enabled: true,
-  mode: 'pr',
-  branches: { base: 'develop', preview: 'staging', trunk: 'main' },
-  confirm: { keywords: ['确认', 'OK', '可以', '特许'], featurePattern: 'feature/[\\w-]+' },
-  ci: { enabled: true },
-}
-
-const flexible: GuardConfig = { ...config, mode: 'flexible' }
-
-function facts(over: Partial<GateFacts> = {}): GateFacts {
+function makeConfig(over: Partial<GuardConfig> = {}): GuardConfig {
   return {
-    currentBranch: 'feature/dev-x-01',
-    featureInPreview: () => false,
-    hasPermit: () => false,
+    enabled: true,
+    featurePattern: 'feature/[\\w-]+',
+    branches: {
+      integration: { branches: ['develop'], update: 'pr' },
+      preview: { branches: ['ita1'], update: 'pr' },
+      production: { branches: ['prd'], update: 'pr', mergeBy: 'user' },
+      archive: { branches: ['main'], update: 'pr', mergeBy: 'user' },
+    },
+    ci: { enabled: true },
     ...over,
   }
 }
 
-/** 命中 feature/dev-x-01 的常用事实组合 */
-function inPreviewWithConfirm(over: Partial<GateFacts> = {}): GateFacts {
-  return facts({
-    currentBranch: 'develop',
-    featureInPreview: (f) => f === 'feature/dev-x-01',
-    hasPermit: (kind, f) => kind === 'confirm' && f === 'feature/dev-x-01',
-    ...over,
-  })
+const config = makeConfig()
+const flexibleIntegration = makeConfig({ branches: { ...config.branches, integration: { branches: ['develop'], update: 'flexible' } } })
+
+function facts(over: Partial<GateFacts> = {}): GateFacts {
+  return { currentBranch: 'feature/dev-x-01', ...over }
 }
 
-/** 在基线上合并 feature/dev-x-01 的事实组合 */
-function mergeOnBase(over: Partial<GateFacts> = {}): GateFacts {
-  return facts({ currentBranch: 'develop', ...over })
+function resolve(role: PrTargetResolution['role'], target: string, head?: string) {
+  return () => ({ role, target, head: head ?? null }) satisfies PrTargetResolution
 }
+
+describe('roleOfBranch', () => {
+  it('角色配置优先于 featurePattern', () => {
+    expect(roleOfBranch('develop', config)).toBe('integration')
+    expect(roleOfBranch('ita1', config)).toBe('preview')
+    expect(roleOfBranch('prd', config)).toBe('production')
+    expect(roleOfBranch('main', config)).toBe('archive')
+    expect(roleOfBranch('feature/dev-x', config)).toBe('feature')
+    expect(roleOfBranch('topic/abc', makeConfig({ featurePattern: 'topic/[\\w-]+' }))).toBe('feature')
+    expect(roleOfBranch('random', config)).toBe('other')
+  })
+})
 
 describe('gate: 直推受保护分支', () => {
-  it('推基线 → deny(文案含分支名与下一步)', () => {
-    const d = decide({ kind: 'push', dst: 'develop', force: false, delete: false }, facts(), config)
-    expect(d.kind).toBe('deny')
-    if (d.kind === 'deny') {
-      expect(d.reason).toContain('develop')
-      expect(d.next).toBeTruthy()
-    }
-  })
-
-  it('推主干 → deny', () => {
+  it('推集成分支/预览/生产/归档 → deny', () => {
+    expect(decide({ kind: 'push', dst: 'develop', force: false, delete: false }, facts(), config).kind).toBe('deny')
+    expect(decide({ kind: 'push', dst: 'ita1', force: false, delete: false }, facts(), config).kind).toBe('deny')
+    expect(decide({ kind: 'push', dst: 'prd', force: false, delete: false }, facts(), config).kind).toBe('deny')
     expect(decide({ kind: 'push', dst: 'main', force: false, delete: false }, facts(), config).kind).toBe('deny')
   })
 
-  it('pr 模式推预览 → deny', () => {
-    expect(decide({ kind: 'push', dst: 'staging', force: false, delete: false }, facts(), config).kind).toBe('deny')
-  })
-
-  it('拦截文案使用自定义预览分支名(不硬编码 staging)', () => {
-    const custom = { ...config, branches: { base: 'master', preview: 'beta', trunk: 'production' } }
-    const d = decide({ kind: 'push', dst: 'beta', force: false, delete: false }, facts(), custom)
-    expect(d.kind).toBe('deny')
-    if (d.kind === 'deny') {
-      expect(d.reason).toContain('beta')
-      expect(d.next).toContain('--base beta')
-      expect(d.next).not.toContain('staging')
-    }
-  })
-
-  it('flexible 模式推预览 → allow', () => {
-    expect(decide({ kind: 'push', dst: 'staging', force: false, delete: false }, facts(), flexible).kind).toBe('allow')
-  })
-
   it('强推受保护分支 → deny', () => {
-    expect(decide({ kind: 'push', dst: 'main', force: true, delete: false }, facts(), config).kind).toBe('deny')
+    const d = decide({ kind: 'push', dst: 'develop', force: true, delete: false }, facts(), config)
+    expect(d.kind).toBe('deny')
+    if (d.kind === 'deny') expect(d.reason).toContain('develop')
   })
 
-  it('推 feature → allow', () => {
+  it('integration flexible 模式允许直推 feature(非删除)', () => {
+    expect(decide({ kind: 'push', dst: 'develop', force: false, delete: false }, facts(), flexibleIntegration).kind).toBe('allow')
+  })
+
+  it('推 feature 分支 → allow', () => {
     expect(decide({ kind: 'push', dst: 'feature/dev-x-01', force: false, delete: false }, facts(), config).kind).toBe('allow')
+  })
+
+  it('推普通分支 → allow', () => {
+    expect(decide({ kind: 'push', dst: 'random', force: false, delete: false }, facts(), config).kind).toBe('allow')
   })
 
   it('dst 为空 → 回退当前分支判定', () => {
     expect(decide({ kind: 'push', dst: null, force: false, delete: false }, facts({ currentBranch: 'develop' }), config).kind).toBe('deny')
-    expect(decide({ kind: 'push', dst: null, force: false, delete: false }, facts({ currentBranch: 'feature/dev-x-01' }), config).kind).toBe('allow')
   })
 
-  it('detached HEAD(dst 与当前分支均 null) → deny 引导', () => {
-    const d = decide({ kind: 'push', dst: null, force: false, delete: false }, facts({ currentBranch: null }), config)
-    expect(d.kind).toBe('deny')
-    if (d.kind === 'deny') expect(d.reason).toContain('detached')
-  })
-
-  it('--all 推送 → deny(包含受保护分支)', () => {
-    const d = decide({ kind: 'push', dst: null, force: false, delete: false, all: true }, facts(), config)
-    expect(d.kind).toBe('deny')
-  })
-
-  it('未配置 trunk → main 不受保护', () => {
-    const noTrunk = { ...config, branches: { base: 'develop', preview: 'staging' } }
-    expect(decide({ kind: 'push', dst: 'main', force: false, delete: false }, facts(), noTrunk).kind).toBe('allow')
+  it('--all 推送 → deny', () => {
+    expect(decide({ kind: 'push', dst: null, force: false, delete: false, all: true }, facts(), config).kind).toBe('deny')
   })
 })
 
 describe('gate: 删除受保护分支', () => {
-  it('删除基线 → deny', () => {
+  it('删除受保护分支 → deny, 删除 feature → allow', () => {
     expect(decide({ kind: 'branch-delete', branch: 'develop', force: false }, facts(), config).kind).toBe('deny')
-  })
-
-  it('pr 模式删除预览 → deny', () => {
-    expect(decide({ kind: 'branch-delete', branch: 'staging', force: false }, facts(), config).kind).toBe('deny')
-  })
-
-  it('flexible 模式删除预览 → allow', () => {
-    expect(decide({ kind: 'branch-delete', branch: 'staging', force: false }, facts(), flexible).kind).toBe('allow')
-  })
-
-  it('删除 feature → allow', () => {
+    expect(decide({ kind: 'branch-delete', branch: 'main', force: false }, facts(), config).kind).toBe('deny')
     expect(decide({ kind: 'branch-delete', branch: 'feature/dev-x-01', force: true }, facts(), config).kind).toBe('allow')
   })
 })
 
-describe('gate: 合入基线(本地 merge, 当前在基线)', () => {
-  it('feature ∈ 预览 + P2 → allow', () => {
-    expect(decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, inPreviewWithConfirm(), config).kind).toBe('allow')
+describe('gate: 本地合入', () => {
+  it('在归档/生产上合入 → deny(仅用户亲手)', () => {
+    expect(decide({ kind: 'local-merge', source: 'feature/x' }, facts({ currentBranch: 'main' }), config).kind).toBe('deny')
+    expect(decide({ kind: 'local-merge', source: 'feature/x' }, facts({ currentBranch: 'prd' }), config).kind).toBe('deny')
   })
 
-  it('feature ∈ 预览 但无 P2 → deny', () => {
-    const d = decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, mergeOnBase({ featureInPreview: () => true }), config)
-    expect(d.kind).toBe('deny')
-    expect(d).toMatchObject({ kind: 'deny', next: expect.any(String) })
-  })
-
-  it('feature ∉ 预览 但已有 P2 → deny(顺序未满足, 文案说明预览分支)', () => {
-    const d = decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, mergeOnBase({ hasPermit: (k) => k === 'confirm' }), config)
-    expect(d.kind).toBe('deny')
-    if (d.kind === 'deny') {
-      expect(d.reason).toContain('尚未合入预览')
-      expect(d.reason).toContain('staging')
-      expect(d.next).toBeTruthy()
-    }
-  })
-
-  it('feature ∈ 预览 + 无 P2 → deny(文案说明需用户确认)', () => {
-    const d = decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, mergeOnBase({ featureInPreview: () => true }), config)
-    expect(d.kind).toBe('deny')
-    if (d.kind === 'deny') expect(d.reason).toContain('确认')
-  })
-
-  it('基线上无 source 的 merge(同步上游) → allow', () => {
-    expect(decide({ kind: 'local-merge', source: null }, mergeOnBase(), config).kind).toBe('allow')
-  })
-
-  it('合并预览整体进基线 → deny(批量绕过逐 feature 验证)', () => {
-    const d = decide({ kind: 'local-merge', source: 'staging' }, facts({ currentBranch: 'develop' }), config)
-    expect(d.kind).toBe('deny')
-  })
-
-  it('从主干同步到基线 → allow', () => {
+  it('集成分支: feature 直接合入 → deny(须 PR), 无 source 同步 → allow, 受保护分支间同步 → allow', () => {
+    expect(decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, facts({ currentBranch: 'develop' }), config).kind).toBe('deny')
+    expect(decide({ kind: 'local-merge', source: null }, facts({ currentBranch: 'develop' }), config).kind).toBe('allow')
     expect(decide({ kind: 'local-merge', source: 'main' }, facts({ currentBranch: 'develop' }), config).kind).toBe('allow')
   })
-})
 
-describe('gate: 合入预览(本地 merge)', () => {
-  it('pr 模式本地合入预览 → deny', () => {
-    expect(decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, facts({ currentBranch: 'staging' }), config).kind).toBe('deny')
+  it('集成 flexible: feature 本地合入 → allow', () => {
+    expect(decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, facts({ currentBranch: 'develop' }), flexibleIntegration).kind).toBe('allow')
   })
 
-  it('flexible 模式本地合入预览 → allow', () => {
-    expect(decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, facts({ currentBranch: 'staging' }), flexible).kind).toBe('allow')
+  it('预览分支: feature 本地合入 → deny(须 PR)', () => {
+    expect(decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, facts({ currentBranch: 'ita1' }), config).kind).toBe('deny')
+    expect(decide({ kind: 'local-merge', source: null }, facts({ currentBranch: 'ita1' }), config).kind).toBe('allow')
   })
 
-  it('同步基线进预览 → allow(两种模式)', () => {
-    expect(decide({ kind: 'local-merge', source: 'develop' }, facts({ currentBranch: 'staging' }), config).kind).toBe('allow')
-    expect(decide({ kind: 'local-merge', source: 'develop' }, facts({ currentBranch: 'staging' }), flexible).kind).toBe('allow')
-  })
-})
-
-describe('gate: 合入主干', () => {
-  it('当前在 trunk 上 merge → 一律 deny(文案说明仅用户亲手)', () => {
-    const d = decide({ kind: 'local-merge', source: 'develop' }, facts({ currentBranch: 'main' }), config)
-    expect(d.kind).toBe('deny')
-    if (d.kind === 'deny') {
-      expect(d.reason).toContain('主干')
-      expect(d.next).toBeTruthy()
-    } else {
-      expect.fail('应 deny')
-    }
-    expect(decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, facts({ currentBranch: 'main' }), config).kind).toBe('deny')
+  it('在 feature 分支上合并(同步) → allow', () => {
+    expect(decide({ kind: 'local-merge', source: 'develop' }, facts({ currentBranch: 'feature/dev-x-01' }), config).kind).toBe('allow')
+    expect(decide({ kind: 'local-merge', source: 'ita1' }, facts({ currentBranch: 'feature/dev-x-01' }), config).kind).toBe('allow')
   })
 })
 
-describe('gate: 同步(其余场景放行)', () => {
-  it('feature 上合并基线/预览 → allow', () => {
-    expect(decide({ kind: 'local-merge', source: 'develop' }, facts(), config).kind).toBe('allow')
-    expect(decide({ kind: 'local-merge', source: 'staging' }, facts(), config).kind).toBe('allow')
-  })
-
-  it('分支切换(checkout) → allow', () => {
-    expect(decide({ kind: 'checkout', branch: 'develop' }, facts(), config).kind).toBe('allow')
-    expect(decide({ kind: 'checkout', branch: null }, facts(), config).kind).toBe('allow')
-  })
-
-  it('其他命令 → allow', () => {
-    expect(decide({ kind: 'other' }, facts(), config).kind).toBe('allow')
-  })
-})
-
-describe('gate: 创建 PR', () => {
-  it('指向基线且 feature ∈ 预览 → allow', () => {
-    expect(decide({ kind: 'pr-create', target: 'develop' }, facts({ featureInPreview: () => true }), config).kind).toBe('allow')
-  })
-
-  it('指向基线且 feature ∉ 预览 → deny', () => {
-    expect(decide({ kind: 'pr-create', target: 'develop' }, facts(), config).kind).toBe('deny')
-  })
-
-  it('指向基线且 feature ∉ 预览 + P1 → allow', () => {
-    expect(decide({ kind: 'pr-create', target: 'develop' }, facts({ hasPermit: (k) => k === 'early-pr' }), config).kind).toBe('allow')
-  })
-
-  it('当前分支是基线自身 → deny', () => {
-    expect(decide({ kind: 'pr-create', target: 'develop' }, facts({ currentBranch: 'develop' }), config).kind).toBe('deny')
-  })
-
-  it('当前分支是预览 → deny(预览整体合入基线, 批量绕过)', () => {
-    expect(decide({ kind: 'pr-create', target: 'develop' }, facts({ currentBranch: 'staging' }), config).kind).toBe('deny')
-  })
-
-  it('指向主干 → 需 P3(deny 文案引导用户特许)', () => {
-    const d = decide({ kind: 'pr-create', target: 'main' }, facts(), config)
-    expect(d.kind).toBe('deny')
-    if (d.kind === 'deny') expect(d.reason).toContain('特许')
-    expect(decide({ kind: 'pr-create', target: 'main' }, facts({ hasPermit: (k) => k === 'trunk-pr' }), config).kind).toBe('allow')
-  })
-
-  it('未指定 base → deny(引导显式指定)', () => {
+describe('gate: 创建 PR/MR', () => {
+  it('未指定目标 → deny(引导显式指定)', () => {
     expect(decide({ kind: 'pr-create', target: null }, facts(), config).kind).toBe('deny')
   })
 
-  it('指向预览(PR①) → allow', () => {
-    expect(decide({ kind: 'pr-create', target: 'staging' }, facts(), config).kind).toBe('allow')
+  it('指向集成/预览/生产, 且 head 是 feature → allow', () => {
+    expect(decide({ kind: 'pr-create', target: 'develop' }, facts(), config).kind).toBe('allow')
+    expect(decide({ kind: 'pr-create', target: 'ita1' }, facts(), config).kind).toBe('allow')
+    expect(decide({ kind: 'pr-create', target: 'prd' }, facts(), config).kind).toBe('allow')
+  })
+
+  it('指向受保护角色但 head 不是 feature → deny', () => {
+    expect(decide({ kind: 'pr-create', target: 'develop' }, facts({ currentBranch: 'develop' }), config).kind).toBe('deny')
+    expect(decide({ kind: 'pr-create', target: 'ita1' }, facts({ currentBranch: 'prd' }), config).kind).toBe('deny')
+  })
+
+  it('指向归档 → deny(agent 不能建归档 PR)', () => {
+    expect(decide({ kind: 'pr-create', target: 'main' }, facts(), config).kind).toBe('deny')
+  })
+
+  it('指向普通分支/feature 分支 → allow', () => {
+    expect(decide({ kind: 'pr-create', target: 'random' }, facts(), config).kind).toBe('allow')
+    expect(decide({ kind: 'pr-create', target: 'feature/other' }, facts(), config).kind).toBe('allow')
   })
 })
 
-describe('gate: 合入 PR(gh pr merge)', () => {
-  it('目标是预览(PR①) → allow', () => {
-    const d = decide({ kind: 'pr-merge', pr: '10' }, facts({ resolvePrTarget: () => ({ target: 'preview' }) }), config)
-    expect(d.kind).toBe('allow')
+describe('gate: 合并 PR/MR', () => {
+  it('目标集成/预览 → allow', () => {
+    expect(decide({ kind: 'pr-merge', pr: '1' }, facts({ resolvePrTarget: resolve('integration', 'develop', 'feature/x') }), config).kind).toBe('allow')
+    expect(decide({ kind: 'pr-merge', pr: '2' }, facts({ resolvePrTarget: resolve('preview', 'ita1', 'feature/x') }), config).kind).toBe('allow')
   })
 
-  it('目标是基线 + 顺序确认 → allow', () => {
-    const d = decide(
-      { kind: 'pr-merge', pr: '11' },
-      facts({
-        resolvePrTarget: () => ({ target: 'base', head: 'feature/dev-x-01' }),
-        featureInPreview: (f) => f === 'feature/dev-x-01',
-        hasPermit: (kind, f) => kind === 'confirm' && f === 'feature/dev-x-01',
-      }),
-      config,
-    )
-    expect(d.kind).toBe('allow')
+  it('目标生产 + mergeBy user → deny(只能用户亲手)', () => {
+    expect(decide({ kind: 'pr-merge', pr: '3' }, facts({ resolvePrTarget: resolve('production', 'prd', 'feature/x') }), config).kind).toBe('deny')
   })
 
-  it('目标是基线 无 P2 → deny', () => {
-    expect(decide({ kind: 'pr-merge', pr: '11' }, facts({ resolvePrTarget: () => ({ target: 'base', head: 'feature/dev-x-01' }), featureInPreview: () => true }), config).kind).toBe('deny')
+  it('目标生产 + mergeBy anyone → allow', () => {
+    const relaxed = makeConfig({ branches: { ...config.branches, production: { branches: ['prd'], update: 'pr', mergeBy: 'anyone' } } })
+    expect(decide({ kind: 'pr-merge', pr: '3' }, facts({ resolvePrTarget: resolve('production', 'prd', 'feature/x') }), relaxed).kind).toBe('allow')
   })
 
-  it('目标是主干 → deny', () => {
-    expect(decide({ kind: 'pr-merge', pr: '12' }, facts({ resolvePrTarget: () => ({ target: 'trunk' }) }), config).kind).toBe('deny')
+  it('目标归档 → deny', () => {
+    expect(decide({ kind: 'pr-merge', pr: '4' }, facts({ resolvePrTarget: resolve('archive', 'main', 'feature/x') }), config).kind).toBe('deny')
   })
 
-  it('目标无法解析 → 保守按基线规则(以当前分支为 head 代理)', () => {
-    const unresolved = facts({
-      currentBranch: 'feature/dev-x-01',
-      featureInPreview: (f) => f === 'feature/dev-x-01',
-      hasPermit: (kind, f) => kind === 'confirm' && f === 'feature/dev-x-01',
-      resolvePrTarget: () => null,
-    })
-    expect(decide({ kind: 'pr-merge', pr: '13' }, facts({ resolvePrTarget: () => null }), config).kind).toBe('deny')
-    expect(decide({ kind: 'pr-merge', pr: '13' }, unresolved, config).kind).toBe('allow')
+  it('目标其他 → allow', () => {
+    expect(decide({ kind: 'pr-merge', pr: '5' }, facts({ resolvePrTarget: resolve('other', 'random', 'feature/x') }), config).kind).toBe('allow')
+  })
+
+  it('目标无法解析: head 为 feature → allow, 否则 deny', () => {
+    expect(decide({ kind: 'pr-merge', pr: '6' }, facts({ currentBranch: 'feature/x' }), config).kind).toBe('allow')
+    expect(decide({ kind: 'pr-merge', pr: '6' }, facts({ currentBranch: 'develop' }), config).kind).toBe('deny')
   })
 })
 
-describe('gate: gitflow-guard CLI', () => {
-  it('permit/confirm 是用户终端专属 → deny(文案说明 agent 不能自我授权)', () => {
-    const d = decide({ kind: 'guard-cli', sub: 'permit' }, facts(), config)
-    expect(d.kind).toBe('deny')
-    if (d.kind === 'deny') expect(d.reason).toContain('用户')
-    expect(decide({ kind: 'guard-cli', sub: 'confirm' }, facts(), config).kind).toBe('deny')
-  })
-
-  it('status 只读 → allow', () => {
+describe('gate: 其他', () => {
+  it('checkout / guard-cli(status,other) 放行', () => {
+    expect(decide({ kind: 'checkout', branch: 'develop' }, facts(), config).kind).toBe('allow')
     expect(decide({ kind: 'guard-cli', sub: 'status' }, facts(), config).kind).toBe('allow')
     expect(decide({ kind: 'guard-cli', sub: 'other' }, facts(), config).kind).toBe('allow')
   })

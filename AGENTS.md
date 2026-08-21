@@ -18,7 +18,8 @@
 - 测试：`npm test`(vitest, 全绿才算完成)
 - 类型检查：`npm run typecheck`(tsc --noEmit, 0 Error 才算完成)
 - 安装进 DSH：`node scripts/install-dsh.mjs [profile]`(本机无 DSH 时跳过)
-- **发布(自动化)**：`npm version patch && git push origin main && git push --tags`
+- **发布(自动化)**：`npm version patch && git push origin develop && git push --tags`
+  —— develop 为打 tag 发布的集成分支; main 为发布成功后的归档分支, 不直接推版本
   —— CI 自动: 校验 tag=package.json 版本 → 测试 → 构建 → npm publish → GitHub Release
   —— 前提: GitHub 仓库 Secrets 已配 `NPM_TOKEN`(Publish 类型 access token)
 
@@ -48,7 +49,8 @@ AgentsGitFlowController/
 
 - 测试驱动与代码实现之间按 TDD 循环迭代：先写失败测试（红）→ 最小实现（绿）→ 重构，循环直至完成。
 - 代码审查与测试审查在**合并前**执行，审查通过才进入收尾。
-- 提交规范：Conventional Commits（feat / fix / docs / style / refactor / test / chore）。
+- **本仓库自身开发也走 GitFlow**：`feature/<主题>` 分支开发 → 测试/矩阵全绿 → **PR 到 develop**【经用户确认合并】; **禁止直接 commit/push develop**。develop 只承载集成、发版 tag 与归档 PR 的源——这与插件对 `develop=integration (update=pr)` 的约束一致，规矩靠纪律执行，不靠插件兜底。
+- 提交规范：Conventional Commits（feat / fix / docs / style / refactor / test / chore）；**PR 标题与正文一律英文**。
 - 遇到设计稿 / 报错截图 / 架构图等图片时，插入 vision 识别。
 
 <!-- 项目特定的开发流程、提交规范等在此补充 -->
@@ -79,4 +81,20 @@ AgentsGitFlowController/
 - npm 7+ 默认自动安装 peerDependencies; 本仓库仍将 DSH 类型包(@deepseek-ai/dsh-session 等)显式声明为 devDependencies, 保证类型面完整与锁文件可复现。
 - `{ ...DEFAULT_CONFIG }` 浅拷贝会共享嵌套对象,合并时修改会污染模块级默认值:必须深拷贝。
 - DSH 插件包须在 package.json 声明 `dsh.bundle.patch`(`dsh plugin add` 才会自动挂载为 profile 层)。
-- 本仓库 dogfood:gitflow-guard.config.json 已启用,develop 基线 / staging 预览 / main 主干;合入 develop 前须经 staging + 用户确认(P2)。
+- 本仓库 dogfood:gitflow-guard.config.json 已启用,develop 为集成分支 / main 为归档分支;合入 develop 须经用户确认;main 仅用户亲手归档。
+
+## 8. 客户端支持清单(新增 agent 平台时必须逐项同步)
+
+> 每次给守卫新增一个客户端接入(已有 DSH / Claude Code / Codex / OpenCode / Antigravity;未来如 Cursor 等),按以下清单逐项同步,最后 `npm run verify:matrix` 全绿才算完成。**漏一项就是隐性半成品**。
+
+1. **协议层** `src/platform.ts` + `tests/platform.spec.ts`:
+   - `detectPlatform`: 加该平台 payload 判别字段;`extractHookPayload`: 加 stdin 形状;`encodeDeny`: 加拦截协议(exit 码 / stdout JSON 形状)。
+   - `HookPlatform` 联合类型加成员;补三者的单测分支。
+2. **CLI**: `gitflow-guard check --platform <name>` 可走通(`cli.ts` 透传 `--platform`, 无需特判)。
+3. **仓库级 hook 配置(dogfood)**: 新增与 `.claude/settings.json`、`.codex/hooks.json` 同款的项目配置。
+4. **仓库内参考文档**: `.agents/hooks/references/<tool>.md` 存在且与官方协议一致, 缺失则补。
+5. **连续复测矩阵**: `scripts/verify-matrix.mjs` 新增该平台「真实 payload 拦截 + 放行」用例, 断言 wire 格式(exit/JSON 字段)。
+6. **README 双语**: 安装/使用段补该平台配置示例;开头宣传语 "for AI coding agents — DSH, Claude Code, and Codex" 追加上新客户端名。
+7. **package.json**: `description` 的客户端清单追加;`keywords` 补搜索词。
+8. **CHANGELOG**: 记一条 feat。
+9. **QA 三连**: `npm run typecheck`(0 错) + `npm test`(全绿) + `npm run verify:matrix`(全绿)。

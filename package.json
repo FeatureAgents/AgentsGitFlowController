@@ -1,7 +1,7 @@
 {
   "name": "agents-gitflow-guard",
-  "version": "0.0.1",
-  "description": "DSH plugin: enforce the feature → preview → baseline merge order from local git facts; the user holds the only exception right",
+  "version": "0.0.6",
+  "description": "A configurable branch-role guard for AI coding agents (DSH / Claude Code / Codex / OpenCode / Antigravity) — integration/preview/production/archive, each with its own update rules",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.mjs",
@@ -26,7 +26,12 @@
   "keywords": [
     "dsh",
     "deepseek-harness",
+    "claude-code",
+    "codex",
+    "opencode",
+    "antigravity",
     "plugin",
+    "hook",
     "gitflow",
     "git",
     "workflow",
@@ -46,7 +51,8 @@
     "build": "tsdown",
     "prepack": "npm run build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:matrix": "npm run build && node scripts/verify-matrix.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",

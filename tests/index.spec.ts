@@ -5,17 +5,15 @@ import { join } from 'node:path'
 import { evaluateCommand } from '../src/index'
 import type { RunResult, Runner } from '../src/repo'
 
-function tempRepo(): string {
+/** 小团队配置: 仅 integration */
+function baseConfig(): Record<string, unknown> {
+  return { enabled: true, featurePattern: 'feature/[\\w-]+', branches: { integration: ['develop'] } }
+}
+
+function tempRepo(config: Record<string, unknown> = baseConfig()): string {
   const dir = mkdtempSync(join(tmpdir(), 'gfguard-eval-'))
   mkdirSync(join(dir, '.git'), { recursive: true })
-  writeFileSync(
-    join(dir, 'gitflow-guard.config.json'),
-    JSON.stringify({
-      enabled: true,
-      mode: 'pr',
-      branches: { base: 'develop', preview: 'staging', trunk: 'main' },
-    }),
-  )
+  writeFileSync(join(dir, 'gitflow-guard.config.json'), JSON.stringify(config))
   return dir
 }
 
@@ -27,7 +25,6 @@ function scriptedRunner(overrides: Record<string, Partial<RunResult>> = {}): Run
       const match = Object.entries(overrides).find(([k]) => key.startsWith(k))
       if (match) return { code: 0, stdout: '', stderr: '', ...match[1] }
       if (key === 'branch --show-current') return { code: 0, stdout: 'feature/dev-x-01\n', stderr: '' }
-      if (args[0] === 'merge-base') return { code: 1, stdout: '', stderr: '' }
       if (args[0] === 'pr') return { code: 1, stdout: '', stderr: '' } // gh 查询失败是正常路径
       if (args[0] === 'rev-parse') return { code: 0, stdout: '', stderr: '' }
       throw new Error(`unexpected git command: ${key}`)
@@ -37,8 +34,7 @@ function scriptedRunner(overrides: Record<string, Partial<RunResult>> = {}): Run
 
 describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
   it('未启用配置的项目 → skipped', async () => {
-    const dir = tempRepo()
-    writeFileSync(join(dir, 'gitflow-guard.config.json'), JSON.stringify({ enabled: false, branches: { base: 'develop', preview: 'staging' } }))
+    const dir = tempRepo({ enabled: false, branches: { integration: ['develop'] } })
     try {
       const r = await evaluateCommand('git push origin develop', { repoRoot: dir, runner: scriptedRunner() })
       expect(r.outcome).toBe('skipped')
@@ -47,7 +43,7 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
-  it('直推基线 → deny(带引导文案)', async () => {
+  it('直推集成分支 → deny(带引导文案)', async () => {
     const dir = tempRepo()
     try {
       const r = await evaluateCommand('git push origin develop', { repoRoot: dir, runner: scriptedRunner() })
@@ -59,174 +55,79 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
-  it('普通提交 → allow', async () => {
+  it('推 feature / 普通提交 → allow', async () => {
     const dir = tempRepo()
     try {
-      const r = await evaluateCommand('git commit -m "feat: x"', { repoRoot: dir, runner: scriptedRunner() })
+      expect((await evaluateCommand('git push origin feature/dev-x-01', { repoRoot: dir, runner: scriptedRunner() })).outcome).toBe('allow')
+      expect((await evaluateCommand('git commit -m "feat: x"', { repoRoot: dir, runner: scriptedRunner() })).outcome).toBe('allow')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('在 feature 上本地 merge 同步 → allow', async () => {
+    const dir = tempRepo()
+    try {
+      const r = await evaluateCommand('git merge develop', { repoRoot: dir, runner: scriptedRunner() })
       expect(r.outcome).toBe('allow')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   })
 
-  it('合入基线: 已合预览 + 有 P2 → allow 且返回待消费特许', async () => {
+  it('创建指向 develop 的 PR(feature→集成) → allow', async () => {
     const dir = tempRepo()
     try {
-      const store = await (await import('../src/permits')).openPermitStore(join(dir, '.git', 'gitflow-guard', 'state.json'))
-      await store.grant('confirm', 'feature/dev-x-01')
-      const runner = scriptedRunner({
-        'merge-base --is-ancestor feature/dev-x-01 staging': { code: 0 },
-      })
-      const r = await evaluateCommand('git merge feature/dev-x-01', {
-        repoRoot: dir,
-        runner,
-        currentBranch: 'develop',
-      })
-      expect(r.outcome).toBe('allow')
-      expect(r.pendingConsume).toContainEqual({ kind: 'confirm', feature: 'feature/dev-x-01' })
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('合入基线: 未合预览 → deny(顺序违规)', async () => {
-    const dir = tempRepo()
-    try {
-      const r = await evaluateCommand('git merge feature/dev-x-01', {
-        repoRoot: dir,
-        runner: scriptedRunner(),
-        currentBranch: 'develop',
-      })
-      expect(r.outcome).toBe('deny')
-      expect(r.reason?.why).toContain('尚未合入预览')
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('gh pr merge: 目标为预览(PR①) → allow, 不查询特许', async () => {
-    const dir = tempRepo()
-    try {
-      const runner = scriptedRunner({
-        'pr view 10 --json': { stdout: '{"baseRefName":"staging","headRefName":"feature/dev-x-01"}' },
-      })
-      const r = await evaluateCommand('gh pr merge 10', { repoRoot: dir, runner, ghRunner: runner })
-      expect(r.outcome).toBe('allow')
-      expect(r.pendingConsume).toEqual([])
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('gh pr merge: 目标基线且未确认 → deny', async () => {
-    const dir = tempRepo()
-    try {
-      const runner = scriptedRunner({
-        'pr view 11 --json': { stdout: '{"baseRefName":"develop","headRefName":"feature/dev-x-01"}' },
-        'merge-base --is-ancestor feature/dev-x-01 staging': { code: 0 },
-      })
-      const r = await evaluateCommand('gh pr merge 11', { repoRoot: dir, runner, ghRunner: runner })
-      expect(r.outcome).toBe('deny')
-      expect(r.reason?.why).toContain('确认')
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('&& 串联: 一段违规 → 整体 deny', async () => {
-    const dir = tempRepo()
-    try {
-      const r = await evaluateCommand('git push origin feature/dev-x-01 && git push origin develop', {
-        repoRoot: dir,
-        runner: scriptedRunner(),
-      })
-      expect(r.outcome).toBe('deny')
-      expect(r.segmentCount).toBe(2)
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('gh pr merge: 目标无法解析(gh 查询失败) → 保守按基线规则 deny', async () => {
-    const dir = tempRepo()
-    try {
-      const r = await evaluateCommand('gh pr merge 14', {
-        repoRoot: dir,
-        runner: scriptedRunner(),
-        ghRunner: scriptedRunner(),
-        currentBranch: 'feature/dev-x-01',
-      })
-      expect(r.outcome).toBe('deny')
-      expect(r.reason?.why).toContain('无法确认 PR 目标')
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('P1: 未合预览 + early-pr 特许 → 创建基线 PR 放行并待消费', async () => {
-    const dir = tempRepo()
-    try {
-      const store = await (await import('../src/permits')).openPermitStore(join(dir, '.git', 'gitflow-guard', 'state.json'))
-      await store.grant('early-pr', 'feature/dev-x-01')
       const r = await evaluateCommand('gh pr create --base develop', {
         repoRoot: dir,
         runner: scriptedRunner(),
         currentBranch: 'feature/dev-x-01',
       })
       expect(r.outcome).toBe('allow')
-      expect(r.pendingConsume).toContainEqual({ kind: 'early-pr', feature: 'feature/dev-x-01' })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   })
 
-  it('P3: trunk-pr 特许 → 创建主干 PR 放行并待消费', async () => {
+  it('gh pr merge: 目标集成(develop) → allow', async () => {
     const dir = tempRepo()
     try {
-      const store = await (await import('../src/permits')).openPermitStore(join(dir, '.git', 'gitflow-guard', 'state.json'))
-      await store.grant('trunk-pr', 'feature/dev-x-01')
-      const r = await evaluateCommand('gh pr create --base main', {
-        repoRoot: dir,
-        runner: scriptedRunner(),
-        currentBranch: 'feature/dev-x-01',
-      })
-      expect(r.outcome).toBe('allow')
-      expect(r.pendingConsume).toContainEqual({ kind: 'trunk-pr', feature: 'feature/dev-x-01' })
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('多段命令全放行 → allow, segmentCount 正确', async () => {
-    const dir = tempRepo()
-    try {
-      const r = await evaluateCommand('git add . && git commit -m "feat: x"', {
-        repoRoot: dir,
-        runner: scriptedRunner(),
-        currentBranch: 'feature/dev-x-01',
-      })
-      expect(r.outcome).toBe('allow')
-      expect(r.segmentCount).toBe(2)
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('串联绕过: checkout 切到基线后 merge → deny(按模拟分支判定)', async () => {
-    const dir = tempRepo()
-    try {
-      // 命令执行前 agent 在 feature 上; 段 1 checkout 切到 develop, 段 2 merge 必须以 develop 判定
       const runner = scriptedRunner({
-        'branch --show-current': { stdout: 'feature/dev-verify-01\n' },
-        'merge-base --is-ancestor feature/dev-verify-01 staging': { code: 1 },
+        'pr view 10 --json': { stdout: '{"baseRefName":"develop","headRefName":"feature/dev-x-01"}' },
       })
+      const r = await evaluateCommand('gh pr merge 10', { repoRoot: dir, runner, ghRunner: runner })
+      expect(r.outcome).toBe('allow')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('gh pr merge: 目标无法解析(gh 失败) 且 head 非 feature → deny', async () => {
+    const dir = tempRepo()
+    try {
+      const r = await evaluateCommand('gh pr merge 14', {
+        repoRoot: dir,
+        runner: scriptedRunner(),
+        ghRunner: scriptedRunner(),
+        currentBranch: 'develop',
+      })
+      expect(r.outcome).toBe('deny')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('&& 串联: 切到集成分支再 merge feature → deny(按模拟分支判定)', async () => {
+    const dir = tempRepo()
+    try {
+      const runner = scriptedRunner({ 'branch --show-current': { stdout: 'feature/dev-verify-01\n' } })
       const r = await evaluateCommand('git checkout develop && git merge feature/dev-verify-01', {
         repoRoot: dir,
         runner,
         currentBranch: 'feature/dev-verify-01',
       })
       expect(r.outcome).toBe('deny')
-      expect(r.reason?.why).toContain('尚未合入预览')
+      expect(r.reason?.why).toContain('PR')
       expect(r.segmentCount).toBe(2)
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -247,27 +148,6 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
-  it('串联已确认场景: checkout 到基线 + merge 已合预览且 P2 → allow', async () => {
-    const dir = tempRepo()
-    try {
-      const store = await (await import('../src/permits')).openPermitStore(join(dir, '.git', 'gitflow-guard', 'state.json'))
-      await store.grant('confirm', 'feature/dev-verify-01')
-      const runner = scriptedRunner({
-        'branch --show-current': { stdout: 'feature/dev-verify-01\n' },
-        'merge-base --is-ancestor feature/dev-verify-01 staging': { code: 0 },
-      })
-      const r = await evaluateCommand('git checkout develop && git merge feature/dev-verify-01', {
-        repoRoot: dir,
-        runner,
-        currentBranch: 'feature/dev-verify-01',
-      })
-      expect(r.outcome).toBe('allow')
-      expect(r.pendingConsume).toContainEqual({ kind: 'confirm', feature: 'feature/dev-verify-01' })
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
   it('deny 后审计落盘(目录不存在时自动创建)', async () => {
     const dir = tempRepo()
     try {
@@ -281,11 +161,11 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
-  it('gitflow-guard permit → deny(用户专属)', async () => {
+  it('gitflow-guard 只读命令 → allow(不再有自理特许)', async () => {
     const dir = tempRepo()
     try {
-      const r = await evaluateCommand('gitflow-guard permit feature/dev-x-01', { repoRoot: dir, runner: scriptedRunner() })
-      expect(r.outcome).toBe('deny')
+      const r = await evaluateCommand('gitflow-guard status', { repoRoot: dir, runner: scriptedRunner() })
+      expect(r.outcome).toBe('allow')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

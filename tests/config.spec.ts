@@ -2,38 +2,41 @@ import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DEFAULT_CONFIG, loadConfig, mergeConfig, validateConfig } from '../src/config'
+import { DEFAULT_CONFIG, loadConfig, mergeConfig, validateConfig, matchBranchSpec, roleMatches } from '../src/config'
 import type { GuardConfig } from '../src/types'
 
 describe('config: 默认值合并', () => {
-  it('空配置 → 默认值(未启用, pr 模式)', () => {
-    const { config, errors } = mergeConfig({ branches: { base: 'develop', preview: 'staging' } })
+  it('最小配置(仅 integration 数组) → 规范化默认', () => {
+    const { config, errors } = mergeConfig({ branches: { integration: ['develop'] } })
     expect(errors).toEqual([])
     expect(config!.enabled).toBe(false)
-    expect(config!.mode).toBe('pr')
-    expect(config!.branches).toEqual({ base: 'develop', preview: 'staging' })
-    expect(config!.confirm.keywords).toContain('确认')
+    expect(config!.branches.integration).toEqual({ branches: ['develop'], update: 'pr', mergeBy: 'anyone' })
+    expect(config!.featurePattern).toContain('feature')
     expect(config!.ci.enabled).toBe(true)
   })
 
-  it('部分字段覆盖默认值', () => {
-    const { config } = mergeConfig({
+  it('对象形式 + 自定义 update', () => {
+    const { config, errors } = mergeConfig({
       enabled: true,
-      mode: 'flexible',
-      branches: { base: 'master', preview: 'dev' },
-      confirm: { keywords: ['OK'], featurePattern: '\\w+' },
+      featurePattern: 'topic/[\\w-]+',
+      branches: {
+        integration: { branches: ['topic/.*', 'develop'], update: 'flexible' },
+        preview: { branches: ['ita1', 'itb1'], update: 'pr' },
+        production: { branches: ['prd'], update: 'pr', mergeBy: 'user' },
+        archive: ['main'],
+      },
     })
-    expect(config!.enabled).toBe(true)
-    expect(config!.mode).toBe('flexible')
-    expect(config!.branches.base).toBe('master')
-    expect(config!.confirm.keywords).toEqual(['OK'])
-    expect(config!.ci.enabled).toBe(true)
+    expect(errors).toEqual([])
+    expect(config!.branches.integration).toEqual({ branches: ['topic/.*', 'develop'], update: 'flexible', mergeBy: 'anyone' })
+    expect(config!.branches.production?.mergeBy).toBe('user')
+    expect(config!.branches.archive?.branches).toEqual(['main'])
   })
 
-  it('trunk 可选', () => {
-    const { config, errors } = mergeConfig({ branches: { base: 'develop', preview: 'staging' } })
-    expect(errors).toEqual([])
-    expect(config!.branches.trunk).toBeUndefined()
+  it('preview/production/archive 可选, 不配则不启用', () => {
+    const { config } = mergeConfig({ branches: { integration: ['develop'] } })
+    expect(config!.branches.preview).toBeUndefined()
+    expect(config!.branches.production).toBeUndefined()
+    expect(config!.branches.archive).toBeUndefined()
   })
 })
 
@@ -44,57 +47,54 @@ describe('config: 校验', () => {
     expect(mergeConfig(42).errors.length).toBeGreaterThan(0)
   })
 
-  it('branches 非字符串 → 按缺省报错', () => {
-    const { errors } = mergeConfig({ branches: { base: 123, preview: ['x'] } })
-    expect(errors.some((e) => e.includes('base'))).toBe(true)
-    expect(errors.some((e) => e.includes('preview'))).toBe(true)
+  it('缺 integration → 报错', () => {
+    const { errors } = mergeConfig({ branches: { preview: ['ita1'] } })
+    expect(errors.some((e) => e.includes('integration'))).toBe(true)
   })
 
-  it('enabled / ci.enabled 非 boolean → 静默忽略(不报错, 用默认值)', () => {
-    const a = mergeConfig({ enabled: 'yes', branches: { base: 'develop', preview: 'staging' } })
-    expect(a.errors).toEqual([])
-    expect(a.config!.enabled).toBe(false)
-    const b = mergeConfig({ ci: { enabled: 'yes' }, branches: { base: 'develop', preview: 'staging' } })
-    expect(b.errors).toEqual([])
-    expect(b.config!.ci.enabled).toBe(true)
+  it('integration 空数组 → 报错', () => {
+    const { errors } = mergeConfig({ branches: { integration: [] } })
+    expect(errors.some((e) => e.includes('integration'))).toBe(true)
   })
 
-  it('缺 branches → 报错', () => {
-    const { errors } = mergeConfig({})
-    expect(errors.length).toBeGreaterThan(0)
+  it('update/mergeBy 非法 → 报错', () => {
+    const { errors } = mergeConfig({ branches: { integration: { branches: ['develop'], update: 'weird' } } })
+    expect(errors.some((e) => e.includes('update'))).toBe(true)
+    const { errors: e2 } = mergeConfig({ branches: { integration: ['develop'], production: { branches: ['prd'], mergeBy: 'x' } } })
+    expect(e2.some((e) => e.includes('mergeBy'))).toBe(true)
   })
 
-  it('base 与 preview 相同 → 报错', () => {
-    const { errors } = mergeConfig({ branches: { base: 'develop', preview: 'develop' } })
-    expect(errors.some((e) => e.includes('base') && e.includes('preview'))).toBe(true)
-  })
-
-  it('trunk 与 base/preview 冲突 → 报错', () => {
-    const a = mergeConfig({ branches: { base: 'develop', preview: 'staging', trunk: 'develop' } })
-    expect(a.errors.length).toBeGreaterThan(0)
-    const b = mergeConfig({ branches: { base: 'develop', preview: 'staging', trunk: 'staging' } })
-    expect(b.errors.length).toBeGreaterThan(0)
-  })
-
-  it('mode 非法 → 报错', () => {
-    const { errors } = mergeConfig({ mode: 'weird', branches: { base: 'develop', preview: 'staging' } })
-    expect(errors.some((e) => e.includes('mode'))).toBe(true)
-  })
-
-  it('keywords 为空 → 报错', () => {
-    const { errors } = mergeConfig({ confirm: { keywords: [] }, branches: { base: 'develop', preview: 'staging' } })
-    expect(errors.some((e) => e.includes('keywords'))).toBe(true)
+  it('角色间分支重叠 → 报错', () => {
+    const { errors } = mergeConfig({ branches: { integration: ['develop'], preview: ['develop'] } })
+    expect(errors.some((e) => e.includes('integration') && e.includes('preview'))).toBe(true)
   })
 
   it('featurePattern 非法正则 → 报错', () => {
-    const { errors } = mergeConfig({ confirm: { featurePattern: '[' }, branches: { base: 'develop', preview: 'staging' } })
+    const { errors } = mergeConfig({ featurePattern: '[', branches: { integration: ['develop'] } })
     expect(errors.some((e) => e.includes('featurePattern'))).toBe(true)
   })
 
-  it('validateConfig 单独调用与 merge 结果一致', () => {
-    const raw = { branches: { base: 'develop', preview: 'staging' } }
+  it('validateConfig 与 merge 结果一致', () => {
+    const raw = { branches: { integration: ['develop'] } }
     const merged = mergeConfig(raw)
     expect(validateConfig(merged.config!)).toEqual(merged.errors)
+  })
+})
+
+describe('config: 分支匹配(条目支持正则)', () => {
+  it('精确名 match', () => {
+    expect(matchBranchSpec('develop', 'develop')).toBe(true)
+    expect(matchBranchSpec('developX', 'develop')).toBe(false)
+  })
+  it('正则 match(含元字符按正则)', () => {
+    expect(matchBranchSpec('topic/abc', 'topic/[\\w-]+')).toBe(true)
+    expect(matchBranchSpec('topic/abc/def', 'topic/[\\w-]+')).toBe(false)
+  })
+  it('roleMatches 命中任一条目', () => {
+    const role = { branches: ['develop', 'topic/[\\w-]+'], update: 'pr' as const }
+    expect(roleMatches('topic/xyz', role)).toBe(true)
+    expect(roleMatches('develop', role)).toBe(true)
+    expect(roleMatches('main', role)).toBe(false)
   })
 })
 
@@ -119,7 +119,7 @@ describe('config: 文件加载(opt-in)', () => {
   it('enabled=false → 未启用', async () => {
     const dir = tempRepo()
     try {
-      writeFileSync(join(dir, 'gitflow-guard.config.json'), JSON.stringify({ enabled: false, branches: { base: 'develop', preview: 'staging' } }))
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), JSON.stringify({ enabled: false, branches: { integration: ['develop'] } }))
       const { config } = await loadConfig(dir)
       expect(config?.enabled).toBe(false)
     } finally {
@@ -130,10 +130,10 @@ describe('config: 文件加载(opt-in)', () => {
   it('enabled=true → 启用并合并默认值', async () => {
     const dir = tempRepo()
     try {
-      writeFileSync(join(dir, 'gitflow-guard.config.json'), JSON.stringify({ enabled: true, branches: { base: 'develop', preview: 'staging' } }))
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), JSON.stringify({ enabled: true, branches: { integration: ['develop'] } }))
       const { config, errors } = await loadConfig(dir)
       expect(errors).toEqual([])
-      expect(config).toMatchObject({ enabled: true, mode: 'pr' })
+      expect(config).toMatchObject({ enabled: true })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -156,8 +156,7 @@ describe('config: 默认配置常量', () => {
   it('DEFAULT_CONFIG 结构完整', () => {
     const d = DEFAULT_CONFIG as GuardConfig
     expect(d.enabled).toBe(false)
-    expect(d.mode).toBe('pr')
-    expect(d.confirm.keywords.length).toBeGreaterThan(0)
+    expect(d.featurePattern.length).toBeGreaterThan(0)
     expect(d.ci.enabled).toBe(true)
   })
 })

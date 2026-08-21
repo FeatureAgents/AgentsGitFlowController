@@ -1,7 +1,8 @@
-// 状态层: 只读查询本地 git 仓库(可注入 runner; 平台适配器 gh 可选)
+// 状态层: 只读查询本地 git 仓库(可注入 runner; 平台适配器 gh/glab 可选)
 
 import { execFile } from 'node:child_process'
 import type { GuardConfig, PrTargetResolution } from './types'
+import { roleOfBranch } from './gate'
 
 export interface RunResult {
   code: number
@@ -29,8 +30,11 @@ function makeRunner(bin: string): Runner {
 
 export const gitRunner: Runner = makeRunner('git')
 
-/** gh 适配器: 解析 PR 目标分支(可选增强, 失败返回 null 由门禁保守处理) */
+/** GitHub 适配器: gh */
 export const ghRunner: Runner = makeRunner('gh')
+
+/** GitLab 适配器: glab */
+export const glabRunner: Runner = makeRunner('glab')
 
 export async function findRepoRoot(runner: Runner, cwd: string): Promise<string | null> {
   const r = await runner.run(['rev-parse', '--show-toplevel'], cwd)
@@ -51,12 +55,32 @@ export async function isAncestor(runner: Runner, cwd: string, ancestor: string, 
 /** gh pr view: 返回 base/head 分支名; PR 不存在或 gh 不可用 → null */
 export async function ghPrInfo(runner: Runner, cwd: string, pr: string | null): Promise<{ base: string; head: string } | null> {
   const args = pr ? ['pr', 'view', pr, '--json', 'baseRefName,headRefName'] : ['pr', 'view', '--json', 'baseRefName,headRefName']
+  return viewPrInfo(runner, args, cwd, ['baseRefName', 'headRefName'])
+}
+
+/** glab mr view: 返回 target(基地)/source(源) 分支名; 失败返回 null */
+export async function glabMrInfo(runner: Runner, cwd: string, mr: string | null): Promise<{ base: string; head: string } | null> {
+  const args = mr ? ['mr', 'view', mr, '--output', 'json'] : ['mr', 'view', '--output', 'json']
   const r = await runner.run(args, cwd)
   if (r.code !== 0) return null
   try {
-    const j = JSON.parse(r.stdout) as { baseRefName?: unknown; headRefName?: unknown }
-    if (typeof j.baseRefName === 'string' && typeof j.headRefName === 'string') {
-      return { base: j.baseRefName, head: j.headRefName }
+    const j = JSON.parse(r.stdout) as { target_branch?: unknown; source_branch?: unknown }
+    if (typeof j.target_branch === 'string' && typeof j.source_branch === 'string') {
+      return { base: j.target_branch, head: j.source_branch }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+async function viewPrInfo(runner: Runner, args: string[], cwd: string, fields: string[]): Promise<{ base: string; head: string } | null> {
+  const r = await runner.run(args, cwd)
+  if (r.code !== 0) return null
+  try {
+    const j = JSON.parse(r.stdout) as Record<string, unknown>
+    if (typeof j[fields[0]] === 'string' && typeof j[fields[1]] === 'string') {
+      return { base: j[fields[0]] as string, head: j[fields[1]] as string }
     }
     return null
   } catch {
@@ -82,10 +106,8 @@ export async function ghPrChecks(runner: Runner, cwd: string, pr: string | null)
   }
 }
 
-/** 把 PR 的 base 分支映射为角色; 无法解析返回 null */
+/** 把 PR/MR 的 base(target) 分支映射为角色; 无法解析返回 null */
 export function resolvePrTarget(info: { base: string; head: string } | null, config: GuardConfig): PrTargetResolution | null {
   if (!info) return null
-  const { base, preview, trunk } = config.branches
-  const target = info.base === base ? 'base' : info.base === preview ? 'preview' : info.base === trunk ? 'trunk' : 'other'
-  return { target, head: info.head }
+  return { target: info.base, role: roleOfBranch(info.base, config), head: info.head }
 }

@@ -1,27 +1,42 @@
 # Changelog
 
+本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
+
+## 0.0.6 (2026-08-21)
+
+- fix: Antigravity 拦截协议修正 —— Gemini CLI 已并入 Antigravity 2.0; 官方 decision 合法值仅 allow|deny|ask|force_ask, 拦截须输出 `{"decision":"deny","reason":...}` 且 **exit 0**(不能包 hookSpecificOutput、不能用非法值 "block")。
+- feat: Antigravity 支持(dogfood `.agents/hooks.json` + 参考文档 gemini.md → antigravity.md + HOOKS.md 同步; 宣传语/description/keywords 追加 Antigravity)。
+- docs: 平台清单补 Antigravity(位于 AGENTS.md §8 已管理的五个客户端)。
+
+## 0.0.5 (2026-08-21)
+
+- feat: OpenCode 支持 —— 新增 `.opencode/hook/hooks.yaml`(tool.before.bash → `gitflow-guard check --platform opencode`, stdin `tool_args.command`, bash action exit 2 阻断);`platform.ts` 加 opencode 判别/extract/encode, 单测与复测矩阵同步覆盖。
+- docs: 宣传语/description/keywords 追加上 OpenCode(hook 段补齐三方配置示例);USAGE 的平台枚举同步。
+
+## 0.0.4 (2026-08-21)
+
+- feat: Codex 支持 —— 新增 `.codex/hooks.json`(PreToolUse → `gitflow-guard check --platform codex`), 复用已有 `permissionDecision:"deny"` 协议; 宣传语从"for DSH"改口为"for AI coding agents (DSH / Claude Code / Codex)", keywords 补 claude-code/codex/hook。
+- tooling: 新增连续复测矩阵 `scripts/verify-matrix.mjs`(`npm run verify:matrix`)—— DSH 核心逻辑 + Claude Code / Codex / antigravity + zh 全链路回归, 已接入 CI 每次 push/PR 执行。
+- docs: AGENTS.md §8「客户端支持清单」固化"每加一个客户端必须逐项同步"的 9 项检查;README 双语补 Codex hook 配置与宣传语。
+
+## 0.0.3 (2026-08-20)
+
+- feat: i18n —— 拦截/CLI 文案默认英文, 项目可用 `"locale": "zh"` 切中文。
+- docs: README 首页改纯英文; 新增 `docs/verify-0.0.2.md` 普通用户端到端验证报告。
+
+## 0.0.2 (2026-08-19)
+
+- **feat: 可自由配置的分支角色守卫** —— 把固定「feature → 预览 → 基线 → 主干」模型重构为角色驱动:
+  - 配置入口 `gitflow-guard.config.json`:`integration` 为唯一必填;`preview` / `production` / `archive` 均为可选数组(支持精确分支名或正则), 按需启用。
+  - 每角色独立规则:`update`(pr=只走 PR/MR / flexible=允许直推)、`mergeBy`(production 默认 user=只能你点合并)。
+  - 门禁按角色驱动;受保护分支 = integration/preview/production/archive;生产与归档合并**仅限用户**(agent 可建 MR, 但合并必须你点)。
+  - 移除不再需要的特许系统(permit/confirm/session/permits), 以「你的合并点击」为唯一确认。
+  - 平台: 新增 GitLab `glab`(MR)适配, 与 GitHub `gh` 并存。
+  - CLI: 仅保留 status/audit/check;status 按角色列出本地分支。
+  - typecheck 0 Error, 106 个单元/集成测试全绿。
+- feat: Claude Code hook —— 新增 `gitflow-guard check` 子命令(读 hook payload 做门禁, exit 0=放行 / 2=拦截), `.claude/settings.json` 自带 PreToolUse + PostToolUse/PostToolUseFailure 配置; 非 git 命令快路径零开销, 内部错误 fail-open。
+
 ## 0.0.1 (2026-08-18)
 
-- chore: 包名更名 `dsh-gitflow-guard` → `agents-gitflow-guard`(跨平台方向, 与仓库 AgentsGitFlowController 对齐)。
+- 首版以 `agents-gitflow-guard` 发布 npm(由曾用包名更名而来)。
 - docs: `.agents/` 全部改英文(开源就绪), 子智能体去掉 `model:` 字段(模型选择本地化)。
-
-## 0.1.1 (2026-08-18)
-
-- fix: 拦截 `checkout && merge` 串联命令绕过分支状态判定(按段模拟分支切换, 无法绕序)。
-- fix: 拦截文案预览分支名硬编码——改用配置的自定义名(自定义命名时引导不再写错分支)。
-- fix: 审计目录不存在时静默失败(deny 无留痕), 补 mkdir。
-- ci: 打 `v*` 标签自动发布(release.yml: 校验版本 → 测试 → 构建 → npm publish → GitHub Release)。
-- ci: pnpm 改从 npm registry 安装, 避免 codeload 429 限流。
-- docs: README 出版级打磨(倒金字塔结构、双语 TOC、场景/原理/FAQ/术语/路线图)、服务器端分支保护对比章节、锚点修复。
-- 174 个单元/集成测试全绿。
-
-## 0.1.0 (2026-08-17)
-
-- 首个公开发布版本。DSH 插件: 基于本地 git 事实强制 feature → 预览 → 基线 合入顺序。
-- 门禁矩阵: 直推/强推/删除受保护分支、绕序合入基线、agent 自我授权 —— 全部硬拦截并引导。
-- 用户唯一例外权: 聊天确认(session/event, 仅真人消息)与终端 CLI 双通道特许(P1/P2/P3, 一次性消费, 可设有效期)。
-- 项目 opt-in 配置(gitflow-guard.config.json): 分支角色化(无硬编码分支名)、pr/flexible 双模式、确认关键词可自定义。
-- gh 适配器: `gh pr view` 解析 PR 目标、`gh pr checks` 日志参考(查不到自动跳过); 核心平台无关。
-- 审计留痕: `.git/gitflow-guard/`(audit.jsonl + state.json), deny/grant/consume 全记录。
-- 命令行拦截缺陷修复: `checkout && merge` 串联命令按段模拟分支状态, 无法绕序。
-- 172 个单元/集成测试(命令分类、门禁矩阵、配置、特许、会话解析、真实 git 集成)。

@@ -1,19 +1,24 @@
 // 共享类型: 分支角色 / 项目配置 / 命令分类 / 门禁决策
 
-/** 分支角色: 基线(合入需顺序+确认) / 预览(自动部署测试环境) / 主干(发布, 可选) */
-export interface BranchRoles {
-  base: string
-  preview: string
-  trunk?: string
+/** 角色更新方式: pr = 只能 PR/MR 合入; flexible = 允许 feature 直推/本地合入 */
+export type UpdateMode = 'pr' | 'flexible'
+
+/** 合并权限: user = 只能用户亲手点合并; anyone = 放行 agent 走 PR 合并 */
+export type MergeBy = 'user' | 'anyone'
+
+/** 单个角色的分支集合与规则(分支条目支持精确名或正则, 由 config 层规范化) */
+export interface BranchRole {
+  branches: string[]
+  update?: UpdateMode
+  mergeBy?: MergeBy
 }
 
-/** 模式: pr = 全程 PR, flexible = 允许直推/本地合入预览分支 */
-export type Mode = 'pr' | 'flexible'
-
-/** 确认配置: 聊天确认关键词 + feature 分支名匹配 */
-export interface ConfirmConfig {
-  keywords: string[]
-  featurePattern: string
+/** 分支角色: 必填 integration; 其余(preview/production/archive)可选, 配了才启用对应保护 */
+export interface BranchRoles {
+  integration: BranchRole
+  preview?: BranchRole
+  production?: BranchRole
+  archive?: BranchRole
 }
 
 /** CI 适配器开关(可选增强, 仅日志参考) */
@@ -21,27 +26,22 @@ export interface CiConfig {
   enabled: boolean
 }
 
+/** 文案语言: 默认 en; 'zh' 切中文 */
+export type Locale = 'en' | 'zh'
+
 /** 项目配置(来自 gitflow-guard.config.json, opt-in 启用) */
 export interface GuardConfig {
   enabled: boolean
-  mode: Mode
+  /** 自由开发的 feature/发布分支识别正则 */
+  featurePattern: string
   branches: BranchRoles
-  confirm: ConfirmConfig
   ci: CiConfig
+  /** 用户可见文案语言(默认 'en'; 缺失时按 'en' 处理) */
+  locale?: Locale
 }
 
-/** 特许类型: P1 提前建 PR / P2 确认合入 / P3 许可 trunk PR */
-export type PermitKind = 'early-pr' | 'confirm' | 'trunk-pr'
-
-/** 一条特许记录(一次性, 用后消费, 可设有效期) */
-export interface Permit {
-  id: string
-  kind: PermitKind
-  feature: string
-  grantedAt: number
-  expiresAt?: number
-  used: boolean
-}
+/** 分支角色名(门禁判定对象) */
+export type BranchRoleName = 'feature' | 'integration' | 'preview' | 'production' | 'archive' | 'other'
 
 /** 命令分类结果 */
 export interface PushClassified {
@@ -68,7 +68,7 @@ export interface PrCreateClassified {
 
 export interface PrMergeClassified {
   kind: 'pr-merge'
-  /** PR 号(未指定为 null) */
+  /** PR/MR 号(未指定为 null) */
   pr: string | null
 }
 
@@ -87,7 +87,7 @@ export interface CheckoutClassified {
 
 export interface GuardCliClassified {
   kind: 'guard-cli'
-  sub: 'permit' | 'confirm' | 'status' | 'other'
+  sub: 'status' | 'other'
 }
 
 export interface OtherClassified {
@@ -112,20 +112,14 @@ export interface ClassifyContext {
 /** 门禁所需的 git 事实(由插件/CLI 从本地 git 只读查询获得) */
 export interface GateFacts {
   currentBranch: string | null
-  /** feature 分支是否已合入预览(merge-base --is-ancestor) */
-  featureInPreview: (feature: string) => boolean
-  /** 是否存在指定特许 */
-  hasPermit: (kind: PermitKind, feature: string) => boolean
-  /** gh pr merge 目标解析(平台适配器); 解析失败返回 null */
+  /** PR/MR 目标解析(平台适配器); 解析失败返回 null */
   resolvePrTarget?: (pr: string | null) => PrTargetResolution | null
 }
 
-/** PR 目标分支角色(解析结果) */
-export type PrTarget = 'base' | 'preview' | 'trunk' | 'other'
-
-/** PR 解析结果: 目标角色 + head 分支(来自 gh pr view); head 缺失时回退当前分支 */
+/** PR 解析结果: 目标角色 + head 分支 + 目标分支名(来自 gh/glab view) */
 export interface PrTargetResolution {
-  target: PrTarget | null
+  role: BranchRoleName | null
+  target: string | null
   head?: string | null
 }
 

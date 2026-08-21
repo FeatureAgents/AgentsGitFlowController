@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { main } from '../src/cli'
-import { openPermitStore } from '../src/permits'
-import { stateDir } from '../src/index'
-import type { RunResult, Runner } from '../src/repo'
+import type { Runner } from '../src/repo'
 
 function tempRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'gfguard-cli-'))
@@ -14,22 +12,19 @@ function tempRepo(): string {
     join(dir, 'gitflow-guard.config.json'),
     JSON.stringify({
       enabled: true,
-      mode: 'pr',
-      branches: { base: 'develop', preview: 'staging', trunk: 'main' },
+      featurePattern: 'feature/[\\w-]+',
+      branches: { integration: ['develop'], preview: ['ita1'], archive: ['main'] },
     }),
   )
   return dir
 }
 
-/** 脚本化 runner: feature/dev-x-01 已合预览, 其余未合 */
 function scriptedRunner(): Runner {
   return {
     async run(args) {
       const key = args.join(' ')
       if (key === 'branch --show-current') return { code: 0, stdout: 'feature/dev-x-01\n', stderr: '' }
-      if (args[0] === 'for-each-ref') return { code: 0, stdout: 'feature/dev-x-01\nfeature/dev-x-02\n', stderr: '' }
-      if (args[0] === 'merge-base' && args.includes('feature/dev-x-01')) return { code: 0, stdout: '', stderr: '' }
-      if (args[0] === 'merge-base') return { code: 1, stdout: '', stderr: '' }
+      if (args[0] === 'for-each-ref') return { code: 0, stdout: 'develop\nmain\nita1\nfeature/dev-x-01\n', stderr: '' }
       if (args[0] === 'rev-parse') return { code: 0, stdout: '', stderr: '' }
       return { code: 0, stdout: '', stderr: '' }
     },
@@ -51,69 +46,47 @@ async function captureStdout(run: () => Promise<number>): Promise<{ code: number
   }
 }
 
-describe('cli: permit/confirm(用户终端专属)', () => {
-  it('permit 授权 early-pr 并落盘 + 审计', async () => {
-    const dir = tempRepo()
-    try {
-      const code = await main(['permit', 'feature/dev-x-01', '--kind', 'early-pr', '--repo', dir])
-      expect(code).toBe(0)
-      const store = await openPermitStore(join(stateDir(dir), 'state.json'))
-      expect(store.hasValid('early-pr', 'feature/dev-x-01')).toBe(true)
-      expect(readFileSync(join(stateDir(dir), 'audit.jsonl'), 'utf8')).toContain('grant')
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('confirm 是 permit 的 P2 快捷方式', async () => {
-    const dir = tempRepo()
-    try {
-      const code = await main(['confirm', 'feature/dev-x-01', '--repo', dir])
-      expect(code).toBe(0)
-      const store = await openPermitStore(join(stateDir(dir), 'state.json'))
-      expect(store.hasValid('confirm', 'feature/dev-x-01')).toBe(true)
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('非法 kind → 退出 1', async () => {
-    const dir = tempRepo()
-    try {
-      expect(await main(['permit', 'feature/dev-x-01', '--kind', 'weird', '--repo', dir])).toBe(1)
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('缺 feature → 退出 1', async () => {
-    expect(await main(['permit'])).toBe(1)
-  })
-
-  it('ttl 生效', async () => {
-    const dir = tempRepo()
-    try {
-      await main(['confirm', 'feature/dev-x-01', '--ttl', '10', '--repo', dir])
-      const store = await openPermitStore(join(stateDir(dir), 'state.json'))
-      const p = store.list().find((x) => x.kind === 'confirm' && x.feature === 'feature/dev-x-01')
-      expect(p?.expiresAt).toBeGreaterThan(Date.now())
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-})
+/** 捕获 process.stderr.write(check 的 deny 理由走 stderr) */
+async function captureStderr(run: () => Promise<number>): Promise<{ code: number; stderr: string }> {
+  const chunks: string[] = []
+  const write = process.stderr.write.bind(process.stderr)
+  const mockWrite = (chunk: unknown, ..._rest: unknown[]) => {
+    chunks.push(String(chunk))
+    return true
+  }
+  process.stderr.write = mockWrite as typeof process.stderr.write
+  try {
+    const code = await run()
+    return { code, stderr: chunks.join('') }
+  } finally {
+    process.stderr.write = write
+  }
+}
 
 describe('cli: status(只读状态一览)', () => {
-  it('输出当前分支 / 预览包含 feature / 特许记录', async () => {
+  it('输出角色配置 / 当前分支 / 本地分支角色', async () => {
     const dir = tempRepo()
     try {
-      await main(['confirm', 'feature/dev-x-01', '--repo', dir])
       const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner: scriptedRunner() }))
       expect(code).toBe(0)
-      expect(text).toContain('当前分支: feature/dev-x-01')
-      expect(text).toContain('feature/dev-x-01')
-      expect(text).toContain('confirm')
-      expect(text).toContain('feature/dev-x-02') // 未合预览也应列出
+      expect(text).toContain('Integration: develop')
+      expect(text).toContain('Preview: ita1')
+      expect(text).toContain('Archive: main')
+      expect(text).toContain('Current branch: feature/dev-x-01')
+      expect(text).toContain('develop → integration')
+      expect(text).toContain('feature/dev-x-01 → feature')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('disabled 项目 → 输出未启用', async () => {
+    const dir = tempRepo()
+    writeFileSync(join(dir, 'gitflow-guard.config.json'), JSON.stringify({ enabled: false, branches: { integration: ['develop'] } }))
+    try {
+      const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner: scriptedRunner() }))
+      expect(code).toBe(0)
+      expect(text).toContain('Config: not enabled')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -129,14 +102,13 @@ describe('cli: 其他', () => {
     expect(await main(['whatever'])).toBe(1)
   })
 
-  it('audit 输出审计记录(有记录时)', async () => {
+  it('audit 输出审计记录(先产生一条 deny)', async () => {
     const dir = tempRepo()
     try {
-      await main(['confirm', 'feature/dev-x-01', '--repo', dir])
+      await captureStderr(() => main(['check', '--command', 'git push origin develop', '--repo', dir]))
       const { code, text } = await captureStdout(() => main(['audit', '--repo', dir]))
       expect(code).toBe(0)
-      expect(text).toContain('grant')
-      expect(text).toContain('confirm')
+      expect(text).toContain('deny')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -145,8 +117,62 @@ describe('cli: 其他', () => {
   it('--lines 非数字不崩', async () => {
     const dir = tempRepo()
     try {
-      await main(['confirm', 'feature/dev-x-01', '--repo', dir])
       expect(await main(['audit', '--lines', 'abc', '--repo', dir])).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('cli: check(agent hook 门禁)', () => {
+  it('非 git 命令快路径 → exit 0(无需仓库)', async () => {
+    expect(await main(['check', '--command', 'npm test'])).toBe(0)
+    expect(await main(['check', '--command', 'ls -la'])).toBe(0)
+  })
+
+  it('推送到集成分支 → exit 2 + stderr 理由', async () => {
+    const dir = tempRepo()
+    try {
+      const { code, stderr } = await captureStderr(() => main(['check', '--command', 'git push origin develop', '--repo', dir]))
+      expect(code).toBe(2)
+      expect(stderr).toContain('blocked:')
+      expect(stderr).toContain('Protected branch')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('locale=zh → 拦截文案为中文', async () => {
+    const dir = tempRepo()
+    writeFileSync(
+      join(dir, 'gitflow-guard.config.json'),
+      JSON.stringify({ enabled: true, featurePattern: 'feature/[\\w-]+', locale: 'zh', branches: { integration: ['develop'] } }),
+    )
+    try {
+      const { code, stderr } = await captureStderr(() => main(['check', '--command', 'git push origin develop', '--repo', dir]))
+      expect(code).toBe(2)
+      expect(stderr).toContain('已拦截')
+      expect(stderr).toContain('受保护分支')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('推 feature / 建分支 → exit 0', async () => {
+    const dir = tempRepo()
+    try {
+      expect(await main(['check', '--command', 'git push origin feature/x', '--repo', dir])).toBe(0)
+      expect(await main(['check', '--command', 'git checkout -b feature/x', '--repo', dir])).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('未启用项目 → exit 0(opt-in 放行)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-check-off-'))
+    try {
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), JSON.stringify({ enabled: false, branches: { integration: ['develop'] } }))
+      expect(await main(['check', '--command', 'git push origin develop', '--repo', dir])).toBe(0)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
