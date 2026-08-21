@@ -2,7 +2,7 @@
 
 > **有没有受够了 agent 跳过你的合入流程?**
 
-一个可自由配置分支角色守卫的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH)插件。  
+一个可自由配置分支角色的流程守卫,为 AI 编码 agent 而生——[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH)、Claude Code、Codex。  
 你自己定义分支——**集成分支**(feature 经 PR/MR 合入)、**预览分支**(环境终点)、**生产分支**、**归档分支**——每个角色各自配规则。agent 无法跳过流程,敏感合并始终留在你手上。
 
 [English](README.md) · [许可证](LICENSE)
@@ -306,9 +306,10 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 
 包自带 `dsh.bundle.patch` 声明,`dsh plugin add` 自动把它挂为 profile 层,无需手工编辑 profile。
 
-**Claude Code hook**——同一守卫也能在 Claude Code 里跑,不依赖 DSH。本仓库已自带 `.claude/settings.json`;其他仓库加这些 hooks:
+**Claude Code / Codex hook**——同一守卫也能在这些 agent 里跑,不依赖 DSH。本仓库已自带 `.claude/settings.json`(Claude Code)和 `.codex/hooks.json`(Codex);其他仓库加自己的 hooks:
 
-```json
+```jsonc
+// Claude Code — .claude/settings.json
 {
   "hooks": {
     "PreToolUse": [
@@ -318,9 +319,20 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 }
 ```
 
-- hook 读 stdin payload,按 `exit 0`(放行)/ `exit 2`(拦截,stderr 展示给模型的原因 + "下一步"提示)作答。
+```jsonc
+// Codex — .codex/hooks.json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node bin/gitflow-guard.mjs check --platform codex" }] }
+    ]
+  }
+}
+```
+
+- hook 读 stdin payload,按**各平台协议**作答:Claude Code → `exit 2`(stderr 展示原因 + "下一步"提示);Codex → stdout 输出 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`(Codex 也兼容旧的 `{"decision":"block","reason":...}` 形状,`--platform antigravity` 用的就是它)。
 - 只需要 `PreToolUse`:守卫在命令执行*之前*拦截;没有特许可事后消费,因此无需 `PostToolUse` 钩子。
-- 用**绝对路径**指向二进制——hook 子进程不一定继承你的 shell PATH。`${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs`(`npm run build` 后)也可以。
+- 用**绝对路径**指向二进制——hook 子进程不一定继承你的 shell PATH。Claude Code 用 `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs`,Codex 用 `node bin/gitflow-guard.mjs`(在项目目录执行)也可以。
 - 完全 opt-in:仓库没有 `gitflow-guard.config.json`(或 `enabled` 非 true)时 hook 什么都不做。
 
 ---

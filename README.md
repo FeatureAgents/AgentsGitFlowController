@@ -2,7 +2,8 @@
 
 > **Are you tired of agents skipping your GitFlow?**
 
-A configurable branch-role guard for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH). You define your own branches —
+A configurable branch-role guard for AI coding agents — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, and Codex.
+You define your own branches —
 **integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Agents can't skip the flow, and sensitive merges stay in your hands.
 
 [中文文档](README.zh.md) · [License](LICENSE)
@@ -308,9 +309,10 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 
 The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes it a profile layer — no manual profile editing.
 
-**Claude Code hook** — the same guard inside Claude Code, no DSH required. This repo already ships the config at `.claude/settings.json`; for any other repo, add these hooks:
+**Claude Code / Codex hooks** — the same guard inside those agents, no DSH required. This repo ships project configs at `.claude/settings.json` (Claude Code) and `.codex/hooks.json` (Codex); any other repo adds its own:
 
-```json
+```jsonc
+// Claude Code — .claude/settings.json
 {
   "hooks": {
     "PreToolUse": [
@@ -320,9 +322,20 @@ The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes
 }
 ```
 
-- The hook reads the payload on stdin and answers `exit 0` (allow) or `exit 2` (block — stderr is the reason shown to the model, plus a "next step" hint).
+```jsonc
+// Codex — .codex/hooks.json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node bin/gitflow-guard.mjs check --platform codex" }] }
+    ]
+  }
+}
+```
+
+- The hook reads the payload on stdin and answers with that platform's protocol: Claude Code → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout (Codex also accepts the legacy `{"decision":"block","reason":...}` shape, which `--platform antigravity` uses).
 - Only `PreToolUse` is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no `PostToolUse` hooks are required.
-- Use an **absolute path** to the binary — hook subprocesses may not inherit your shell `PATH`. `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs` (after `npm run build`) also works from a checkout.
+- Use an **absolute path** to the binary — hook subprocesses may not inherit your shell `PATH`. `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs` (Claude Code) or `node bin/gitflow-guard.mjs` (Codex, runs from the project working directory) also work from a checkout.
 - Fully opt-in: the hook does nothing unless the repo has `gitflow-guard.config.json` with `enabled: true`.
 
 ---
@@ -435,9 +448,12 @@ npm install
 npm test          # unit tests: classify / gate / config / cli / repo / platform
 npm run typecheck     # tsc --noEmit, 0 errors
 npm run build         # tsdown → lib/ (CLI and plugin share the build)
+npm run verify:matrix # continuous cross-agent regression: DSH logic + Claude Code / Codex / antigravity hook wiring
 ```
 
-**Rule**: any logic change must pass a 0-error build + all green tests before done.
+**Rule**: any logic change must pass a 0-error build + all green tests + a green `verify:matrix` before done.
+
+**Adding a new agent client** (e.g. Gemini / OpenCode / Cursor): all of these must change in one commit — `src/platform.ts` (+tests, `HookPlatform` union), a repo hook config beside `.claude/settings.json` / `.codex/hooks.json`, `.agents/hooks/references/<tool>.md`, `scripts/verify-matrix.mjs`, the README hook section and the top tagline, `package.json` description/keywords, and `CHANGELOG`. Done only when `npm run verify:matrix` is green. (Same checklist in [AGENTS.md](AGENTS.md) §8.)
 
 ---
 
