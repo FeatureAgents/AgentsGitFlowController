@@ -94,6 +94,9 @@ function parsePush(args: string[], ctx: ClassifyContext): Classified[] {
       isDelete = true
     } else if (a === '--all' || a === '--mirror') {
       all = true
+    } else if (a === '--tags') {
+      // tag-only 推送不改变分支 refs; 不属分支角色守卫范围
+      return [{ kind: 'other' }]
     } else if (a.startsWith('-')) {
       // 其余 flag 忽略
     } else {
@@ -106,16 +109,22 @@ function parsePush(args: string[], ctx: ClassifyContext): Classified[] {
   const refspecs = nonFlag.slice(1)
   if (refspecs.length === 0) return [{ kind: 'push', dst: ctx.currentBranch ?? null, force, delete: false }]
   return refspecs.map((ref) => {
-    if (ref.startsWith(':')) return { kind: 'push', dst: stripRefPrefix(ref.slice(1)) || null, force, delete: true }
+    // '+' 前缀 = 强推(git push +src:dst), 剥离后再解析目标
+    let refForce = force
+    if (ref.startsWith('+')) {
+      refForce = true
+      ref = ref.slice(1)
+    }
+    if (ref.startsWith(':')) return { kind: 'push', dst: stripRefPrefix(ref.slice(1)) || null, force: refForce, delete: true }
     const colon = ref.indexOf(':')
     if (colon >= 0) {
       // 冒号结尾(develop: / HEAD:develop:) = 删除目标分支; dst 取冒号间部分, 空则回退前缀
       const deleteTarget = ref.endsWith(':')
       const dst = deleteTarget ? ref.slice(colon + 1, ref.length - 1) || ref.slice(0, colon) : ref.slice(colon + 1)
-      return { kind: 'push', dst: dst ? stripRefPrefix(dst) : null, force, delete: deleteTarget || isDelete }
+      return { kind: 'push', dst: dst ? stripRefPrefix(dst) : null, force: refForce, delete: deleteTarget || isDelete }
     }
-    if (ref === 'HEAD') return { kind: 'push', dst: ctx.currentBranch ?? null, force, delete: isDelete }
-    return { kind: 'push', dst: stripRefPrefix(ref), force, delete: isDelete }
+    if (ref === 'HEAD') return { kind: 'push', dst: ctx.currentBranch ?? null, force: refForce, delete: isDelete }
+    return { kind: 'push', dst: stripRefPrefix(ref), force: refForce, delete: isDelete }
   })
 }
 

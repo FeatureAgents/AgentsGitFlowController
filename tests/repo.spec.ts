@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
-import { mkdtempSync, realpathSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -85,8 +85,11 @@ describe('repo: 真实 git 集成', () => {
   let repo: string
 
   beforeAll(async () => {
-    repo = realpathSync(mkdtempSync(join(tmpdir(), 'gfguard-git-')))
-    await execFileP('git', ['init', '-b', 'develop', repo])
+    const raw = mkdtempSync(join(tmpdir(), 'gfguard-git-'))
+    await execFileP('git', ['init', '-b', 'develop', raw])
+    // 以 git 的权威规范化根路径为准: macOS /tmp 符号链接(→/private/tmp)、Windows 8.3 短名(RUNNER~1→runneradmin)
+    // 与 findRepoRoot 的返回拼写一致, 否则断言失败(见 AGENTS.md §7)
+    repo = (await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: raw })).stdout.trim()
     await execFileP('git', ['-C', repo, 'config', 'user.email', 'test@example.com'])
     await execFileP('git', ['-C', repo, 'config', 'user.name', 'Test'])
     writeFileSync(join(repo, 'a.txt'), '1')

@@ -18,8 +18,8 @@
 - 测试：`npm test`(vitest, 全绿才算完成)
 - 类型检查：`npm run typecheck`(tsc --noEmit, 0 Error 才算完成)
 - 安装进 DSH：`node scripts/install-dsh.mjs [profile]`(本机无 DSH 时跳过)
-- **发布(自动化)**：`npm version patch && git push origin develop && git push --tags`
-  —— develop 为打 tag 发布的集成分支; main 为发布成功后的归档分支, 不直接推版本
+- **发布(自动化)**：bump 在 `feature/release-<版本>` 分支执行(`npm version patch`, 版本提交与 tag 都落在该分支; feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ PR 到 develop(用户确认合并)→ 推 tag → CI 自动发布
+  —— 本地 develop 永不直接变更(§4); develop 的一切演进只经 GitHub 的 PR 合并与用户推送产生
   —— CI 自动: 校验 tag=package.json 版本 → 测试 → 构建 → npm publish → GitHub Release
   —— 前提: GitHub 仓库 Secrets 已配 `NPM_TOKEN`(Publish 类型 access token)
 
@@ -50,7 +50,9 @@ AgentsGitFlowController/
 - 测试驱动与代码实现之间按 TDD 循环迭代：先写失败测试（红）→ 最小实现（绿）→ 重构，循环直至完成。
 - 代码审查与测试审查在**合并前**执行，审查通过才进入收尾。
 - **本仓库自身开发也走 GitFlow**：`feature/<主题>` 分支开发 → 测试/矩阵全绿 → **PR 到 develop**【经用户确认合并】; **禁止直接 commit/push develop**。develop 只承载集成、发版 tag 与归档 PR 的源——这与插件对 `develop=integration (update=pr)` 的约束一致，规矩靠纪律执行，不靠插件兜底。
+- **本地 develop 零变更**：禁止对本地 develop 做任何变更操作(commit / amend / reset / cherry-pick / `npm version` / 打 tag / 拉取合并等一律不做)。develop 的一切演进只经 GitHub 的 PR 合并与用户推送产生; 需要基于 develop 的动作一律从 `origin/develop` 派生工作分支(如 `feature/release-<版本>`)。
 - 提交规范：Conventional Commits（feat / fix / docs / style / refactor / test / chore）；**PR 标题与正文一律英文**。
+- **CHANGELOG 随功能同一 PR 写入**(条目标注将发布的版本号), 发布 bump 时一次到位; 禁止发布后再补 changelog。
 - 遇到设计稿 / 报错截图 / 架构图等图片时，插入 vision 识别。
 
 <!-- 项目特定的开发流程、提交规范等在此补充 -->
@@ -76,7 +78,7 @@ AgentsGitFlowController/
 
 <!-- 记录踩过的坑，随项目成长追加 -->
 
-- macOS 下 `/tmp` 是 `/private/tmp` 的符号链接,git 返回真实路径:测试建临时仓库须 `realpathSync` 规范化,否则断言失败。
+- macOS 下 `/tmp` 是 `/private/tmp` 的符号链接;Windows 下临时目录可能是 8.3 短名(`RUNNER~1` → `runneradmin`):测试建临时仓库须以 `git rev-parse --show-toplevel` 的权威规范化路径为准, 否则断言失败。
 - vitest 会接管 stdout,`console.log` 不走 `process.stdout`:测试捕获输出须拦截 console.log。
 - npm 7+ 默认自动安装 peerDependencies; 本仓库仍将 DSH 类型包(@deepseek-ai/dsh-session 等)显式声明为 devDependencies, 保证类型面完整与锁文件可复现。
 - `{ ...DEFAULT_CONFIG }` 浅拷贝会共享嵌套对象,合并时修改会污染模块级默认值:必须深拷贝。
@@ -86,6 +88,7 @@ AgentsGitFlowController/
 ## 8. 客户端支持清单(新增 agent 平台时必须逐项同步)
 
 > 每次给守卫新增一个客户端接入(已有 DSH / Claude Code / Codex / OpenCode / Antigravity;未来如 Cursor 等),按以下清单逐项同步,最后 `npm run verify:matrix` 全绿才算完成。**漏一项就是隐性半成品**。
+> **例外: GitHub Copilot 不提供 hook** —— 其原生 allow/deny/ask 权限 + rules 已覆盖守卫场景(官方文档见 README),不得再为它造半个 hook/声称支持。
 
 1. **协议层** `src/platform.ts` + `tests/platform.spec.ts`:
    - `detectPlatform`: 加该平台 payload 判别字段;`extractHookPayload`: 加 stdin 形状;`encodeDeny`: 加拦截协议(exit 码 / stdout JSON 形状)。

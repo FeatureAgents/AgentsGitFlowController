@@ -1,0 +1,10 @@
+# 行尾规范: 文本强制 LF(脚本/JSON/YAML 在 Windows 检出时不被打成 CRLF)
+* text=auto
+*.ts text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.sh text eol=lf

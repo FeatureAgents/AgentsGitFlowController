@@ -201,7 +201,7 @@ archive(可选, 发布后你亲手归档)
 | **integration** | `branches.integration` | 必填 | 禁直推(默认 `pr`);feature 只经 PR/MR 合入 |
 | **preview** | `branches.preview`(数组) | 可选 | 禁直推;只走 PR/MR(环境终点) |
 | **production** | `branches.production`(数组) | 可选 | 只走 PR/MR;合并仅限你(`mergeBy: "user"`) |
-| **archive** | `branches.archive`(数组) | 可选 | 仅用户——agent 连建 PR 都不行 |
+| **archive** | `branches.archive`(数组) | 可选 | 允许 agent 创建指向它的 PR/MR; 合并仍限用户亲手 |
 
 ### 自定义分支名与规则——任何命名都可以
 
@@ -351,6 +351,12 @@ hooks:
 }
 ```
 
+**GitHub Copilot —— 故意不提供 hook**。Copilot 自带这套守卫的原生能力: 工具级 **allow/deny/ask** 权限 + 项目 **rules**(`rules.json` + `AGENTS.md`)。对 Copilot 用户,直接引官方文档即可,不需要我们的插件:
+
+- [允许和拒绝工具使用(GitHub Docs)](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools)
+- [为 Copilot coding agent 添加自定义规则(GitHub Docs)](https://docs.github.com/en/copilot/customizing-copilot/adding-custom-rules-for-the-copilot-coding-agent)
+- 可选: Copilot 也有官方 [hooks 系统](https://docs.github.com/en/copilot/reference/hooks-reference)(`preToolUse` → `permissionDecision:"deny"`),想要命令级拦截可以自己接。
+
 - hook 读 stdin payload,按**各平台协议**作答:Claude Code / OpenCode → `exit 2`(stderr 展示原因 + "下一步"提示);Codex → stdout 输出 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`;Antigravity → stdout 输出 `{"decision":"deny","reason":...}` 且 **exit 0**(Antigravity 要求 exit 0,拒绝 hookSpecificOutput/非 allow 值)。
 - 只需要**执行前事件**:守卫在命令执行*之前*拦截;没有特许可事后消费,因此无需执行后钩子。
 - 用**绝对路径**指向二进制——hook 子进程不一定继承你的 shell PATH。Claude Code 用 `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs`,Codex 用 `node bin/gitflow-guard.mjs`,OpenCode 用 `$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs`、Antigravity 用 `node bin/gitflow-guard.mjs`(相对 workspace `.agents/` 目录)也可以。
@@ -432,7 +438,7 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 | **integration** | 集成分支,唯一必填角色(`branches.integration`);feature 经 PR/MR 合入;受保护 |
 | **preview** | 可选环境终点分支(`branches.preview`,数组);只走 PR/MR 更新 |
 | **production** | 可选生产分支(`branches.production`,数组);PR/MR + 合并仅限用户 |
-| **archive** | 可选发布后归档分支(`branches.archive`);仅用户亲手 |
+| **archive** | `branches.archive`(数组) | 可选 | 允许 agent 创建指向它的 PR/MR; 合并仍限用户亲手 |
 | **feature 分支** | 你的工作分支,由 `featurePattern` 识别;自由区 |
 | **门禁矩阵** | 把每条被分类的命令映射为放行/拦截的判定表 |
 | **pre-execute** | 工具管线中拦截发生的钩子——在命令运行之前 |

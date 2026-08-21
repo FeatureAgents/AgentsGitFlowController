@@ -2,6 +2,20 @@
 
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 
+## 0.0.9 (待发布)
+
+- feat: 归档(archive)策略调整 —— agent 允许**创建**指向 archive 的 PR/MR(便于起草 develop→main 归档 PR), 合并仍限用户亲手; 移除旧「agent 不得创建归档 PR」限制。
+- fix: 命令解析准确性 —— `git push +src:dst` 的 `+` 前缀正确识别为强推; `git push --tags` 不再被误判为分支推送(消除受保护分支上的误拦); 新增 15 项对抗性回归测试。
+- ci: 跨平台矩阵 —— ubuntu / macOS / Windows × Node 22/24 全量运行(含 verify:matrix); .gitattributes 强制 LF; 修复 Windows 8.3 短名路径的测试规范化。
+
+## 0.0.8 (2026-08-21)
+
+- docs: GitHub Copilot 明确不提供 hook(原生规则覆盖) —— 移除 copilot 占位平台(3 行未完成分支), README 双语/AGENTS.md §8 说明原因并附官方文档链接; 同步 bump。
+
+## 0.0.7 (2026-08-21)
+
+- chore: 发布同步 —— PR #9(AGENTS.md 流程规范化) 合入后 bump 版本; 无功能变更(0.0.7 tarball 与 0.0.6 一致)。
+
 ## 0.0.6 (2026-08-21)
 
 - fix: Antigravity 拦截协议修正 —— Gemini CLI 已并入 Antigravity 2.0; 官方 decision 合法值仅 allow|deny|ask|force_ask, 拦截须输出 `{"decision":"deny","reason":...}` 且 **exit 0**(不能包 hookSpecificOutput、不能用非法值 "block")。

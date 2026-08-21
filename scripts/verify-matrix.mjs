@@ -73,7 +73,7 @@ console.log('[A] DSH plugin logic (evaluateCommand)')
       ['develop', 'git merge feature/x', 'deny'],
       ['develop', 'git merge main', 'allow'],
       ['develop', 'git branch -D main', 'deny'],
-      ['feature/x', 'gh pr create --base main', 'deny'],
+      ['feature/x', 'gh pr create --base main', 'allow'],
       ['feature/x', 'gh pr create --base develop', 'allow'],
       ['develop', 'git checkout -b feature/y', 'allow'],
       ['develop', 'echo hi', 'allow'],

@@ -204,7 +204,7 @@ archive (optional; you archive after release)
 | **integration** | `branches.integration` | always | no direct push (default `pr`); features merge in via PR/MR |
 | **preview** | `branches.preview` (array) | optional | no direct push; updates via PR/MR only (env endpoints) |
 | **production** | `branches.production` (array) | optional | PR/MR only; merge by user only (`mergeBy: "user"`) |
-| **archive** | `branches.archive` (array) | optional | user-hand only — agents cannot even create a PR |
+| **archive** | `branches.archive` (array) | optional | archive PR/MR may be created by agents; the merge stays user-hand only |
 
 ### Customizing branch names & rules — any naming works
 
@@ -274,7 +274,7 @@ archive (optional; you archive after release)
 | direct push / force-push / delete integration / preview / production / archive | 🚫 block (integration/preview `flexible` direct push allowed) |
 | PR/MR: feature → integration / preview | ✅ allow |
 | PR/MR: feature → production | ✅ allow to create; **merge blocked** (you merge in UI) |
-| PR/MR targeting archive | 🚫 block |
+| PR/MR into archive | ✅ create allowed; 🚫 merge blocked (you merge in UI) |
 | local `git merge feature/x` while on integration / preview | 🚫 block (PR/MR required); `update: flexible` allows |
 | chained commands (`checkout develop && merge feature/x`) | 🚫 blocked — branch switches are simulated per segment, no bypass |
 
@@ -353,6 +353,12 @@ hooks:
   }
 }
 ```
+
+**GitHub Copilot — deliberately no hook here.** Copilot ships its own guardrails for exactly this job: per-tool **allow/deny/ask** permissions and project **rules** (`rules.json` + `AGENTS.md`). Point Copilot users at the official docs instead of a plugin hook:
+
+- [Allowing and denying tool use (GitHub Docs)](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools)
+- [Adding custom rules for the Copilot coding agent (GitHub Docs)](https://docs.github.com/en/copilot/customizing-copilot/adding-custom-rules-for-the-copilot-coding-agent)
+- Optional: Copilot also has a [hooks system](https://docs.github.com/en/copilot/reference/hooks-reference) (`preToolUse` → `permissionDecision:"deny"`) if you want command-level interception.
 
 - The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout; Antigravity → JSON `{"decision":"deny","reason":...}` on stdout with `exit 0` (Antigravity requires exit 0 and rejects `hookSpecificOutput` / non-allow values).
 - Only the pre-tool event is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no post-tool hooks are required.
