@@ -78,7 +78,7 @@ AgentsGitFlowController/
 
 <!-- 记录踩过的坑，随项目成长追加 -->
 
-- macOS 下 `/tmp` 是 `/private/tmp` 的符号链接,git 返回真实路径:测试建临时仓库须 `realpathSync` 规范化,否则断言失败。
+- macOS 下 `/tmp` 是 `/private/tmp` 的符号链接;Windows 下临时目录可能是 8.3 短名(`RUNNER~1` → `runneradmin`):测试建临时仓库须以 `git rev-parse --show-toplevel` 的权威规范化路径为准, 否则断言失败。
 - vitest 会接管 stdout,`console.log` 不走 `process.stdout`:测试捕获输出须拦截 console.log。
 - npm 7+ 默认自动安装 peerDependencies; 本仓库仍将 DSH 类型包(@deepseek-ai/dsh-session 等)显式声明为 devDependencies, 保证类型面完整与锁文件可复现。
 - `{ ...DEFAULT_CONFIG }` 浅拷贝会共享嵌套对象,合并时修改会污染模块级默认值:必须深拷贝。
