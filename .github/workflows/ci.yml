@@ -20,3 +20,5 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # 连续复测矩阵: DSH 逻辑 + Claude Code / Codex / antigravity hook 编码回归
+      - run: npm run verify:matrix
