@@ -351,6 +351,12 @@ hooks:
 }
 ```
 
+**GitHub Copilot —— 故意不提供 hook**。Copilot 自带这套守卫的原生能力: 工具级 **allow/deny/ask** 权限 + 项目 **rules**(`rules.json` + `AGENTS.md`)。对 Copilot 用户,直接引官方文档即可,不需要我们的插件:
+
+- [允许和拒绝工具使用(GitHub Docs)](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools)
+- [为 Copilot coding agent 添加自定义规则(GitHub Docs)](https://docs.github.com/en/copilot/customizing-copilot/adding-custom-rules-for-the-copilot-coding-agent)
+- 可选: Copilot 也有官方 [hooks 系统](https://docs.github.com/en/copilot/reference/hooks-reference)(`preToolUse` → `permissionDecision:"deny"`),想要命令级拦截可以自己接。
+
 - hook 读 stdin payload,按**各平台协议**作答:Claude Code / OpenCode → `exit 2`(stderr 展示原因 + "下一步"提示);Codex → stdout 输出 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`;Antigravity → stdout 输出 `{"decision":"deny","reason":...}` 且 **exit 0**(Antigravity 要求 exit 0,拒绝 hookSpecificOutput/非 allow 值)。
 - 只需要**执行前事件**:守卫在命令执行*之前*拦截;没有特许可事后消费,因此无需执行后钩子。
 - 用**绝对路径**指向二进制——hook 子进程不一定继承你的 shell PATH。Claude Code 用 `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs`,Codex 用 `node bin/gitflow-guard.mjs`,OpenCode 用 `$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs`、Antigravity 用 `node bin/gitflow-guard.mjs`(相对 workspace `.agents/` 目录)也可以。

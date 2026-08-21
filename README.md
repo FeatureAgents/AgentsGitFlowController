@@ -354,6 +354,12 @@ hooks:
 }
 ```
 
+**GitHub Copilot — deliberately no hook here.** Copilot ships its own guardrails for exactly this job: per-tool **allow/deny/ask** permissions and project **rules** (`rules.json` + `AGENTS.md`). Point Copilot users at the official docs instead of a plugin hook:
+
+- [Allowing and denying tool use (GitHub Docs)](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools)
+- [Adding custom rules for the Copilot coding agent (GitHub Docs)](https://docs.github.com/en/copilot/customizing-copilot/adding-custom-rules-for-the-copilot-coding-agent)
+- Optional: Copilot also has a [hooks system](https://docs.github.com/en/copilot/reference/hooks-reference) (`preToolUse` → `permissionDecision:"deny"`) if you want command-level interception.
+
 - The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout; Antigravity → JSON `{"decision":"deny","reason":...}` on stdout with `exit 0` (Antigravity requires exit 0 and rejects `hookSpecificOutput` / non-allow values).
 - Only the pre-tool event is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no post-tool hooks are required.
 - Use an **absolute path** to the binary — hook subprocesses may not inherit your shell `PATH`. `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs` (Claude Code), `node bin/gitflow-guard.mjs` (Codex, runs from the project working directory), or `$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs` (OpenCode) or `node bin/gitflow-guard.mjs` (Antigravity, relative to the workspace `.agents/` dir) also work from a checkout.
