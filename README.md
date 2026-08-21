@@ -204,7 +204,7 @@ archive (optional; you archive after release)
 | **integration** | `branches.integration` | always | no direct push (default `pr`); features merge in via PR/MR |
 | **preview** | `branches.preview` (array) | optional | no direct push; updates via PR/MR only (env endpoints) |
 | **production** | `branches.production` (array) | optional | PR/MR only; merge by user only (`mergeBy: "user"`) |
-| **archive** | `branches.archive` (array) | optional | user-hand only — agents cannot even create a PR |
+| **archive** | `branches.archive` (array) | optional | archive PR/MR may be created by agents; the merge stays user-hand only |
 
 ### Customizing branch names & rules — any naming works
 
@@ -274,7 +274,7 @@ archive (optional; you archive after release)
 | direct push / force-push / delete integration / preview / production / archive | 🚫 block (integration/preview `flexible` direct push allowed) |
 | PR/MR: feature → integration / preview | ✅ allow |
 | PR/MR: feature → production | ✅ allow to create; **merge blocked** (you merge in UI) |
-| PR/MR targeting archive | 🚫 block |
+| PR/MR into archive | ✅ create allowed; 🚫 merge blocked (you merge in UI) |
 | local `git merge feature/x` while on integration / preview | 🚫 block (PR/MR required); `update: flexible` allows |
 | chained commands (`checkout develop && merge feature/x`) | 🚫 blocked — branch switches are simulated per segment, no bypass |
 

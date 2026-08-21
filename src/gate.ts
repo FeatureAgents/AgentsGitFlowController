@@ -128,10 +128,7 @@ function decidePrCreate(c: Extract<Classified, { kind: 'pr-create' }>, facts: Ga
   const head = facts.currentBranch
   const headRole = roleOfBranch(head, config)
 
-  // 指向 archive: agent 连建 PR 都不允许, 归档分支由用户亲手
-  if (targetRole === 'archive') {
-    return deny(t('prCreateArchive.why'), t('prCreateArchive.next'))
-  }
+  // 指向 archive: 允许创建 PR/MR(agent 可起草 develop→main 归档 PR); 合并仍限用户亲手(见 decidePrMerge)
 
   // 指向 integration/preview/production: 只能以 feature 分支为源走 PR/MR
   if (targetRole === 'integration' || targetRole === 'preview' || targetRole === 'production') {
