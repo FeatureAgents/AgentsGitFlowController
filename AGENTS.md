@@ -18,7 +18,8 @@
 - 测试：`npm test`(vitest, 全绿才算完成)
 - 类型检查：`npm run typecheck`(tsc --noEmit, 0 Error 才算完成)
 - 安装进 DSH：`node scripts/install-dsh.mjs [profile]`(本机无 DSH 时跳过)
-- **发布(自动化)**：bump 在 `feature/release-<版本>` 分支执行(`npm version patch`, 版本提交与 tag 都落在该分支; feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ PR 到 develop(用户确认合并)→ 推 tag → CI 自动发布
+- **发布(自动化)**：bump 叠加在**待合并的内容 PR 分支**上(`npm version patch`, 版本提交与 tag 落在该分支; feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ 用户合并该 PR(内容+changelog+版本号一次带进 develop)→ 推 tag → CI 自动发布
+  —— 仅当内容已合入后的纯补发(如版本同步)才开独立 `feature/release-<版本>` PR
   —— 本地 develop 永不直接变更(§4); develop 的一切演进只经 GitHub 的 PR 合并与用户推送产生
   —— CI 自动: 校验 tag=package.json 版本 → 测试 → 构建 → npm publish → GitHub Release
   —— 前提: GitHub 仓库 Secrets 已配 `NPM_TOKEN`(Publish 类型 access token)
