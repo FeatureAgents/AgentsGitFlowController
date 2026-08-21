@@ -59,11 +59,11 @@ dsh plugin --profile web add agents-gitflow-guard
 **第 3 步——验证**。让 agent 执行 `git push origin develop`,预期工具调用被拒绝:
 
 ```text
-Error: [gitflow-guard] 已拦截: 受保护分支「develop」禁止直推
-下一步: 集成分支(develop)由 PR/MR 合入 feature: 先推 feature 分支, 再 gh pr create --base develop / glab mr create --target-branch develop
+Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
+Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-拦截文案目前默认是中文(本地化在[路线图](#路线图));英文意思是:*blocked: protected branch `develop` — direct push forbidden. Next: integration branch is updated by PR/MR — push the feature branch first, then open a PR/MR into `develop`.*
+**文案默认是英文**(面向国际化)。要在你的项目里看中文,在 `gitflow-guard.config.json` 里加 `"locale": "zh"`;中文效果是:*已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……*
 
 **完成。** 守卫对该仓库生效。继续往下看[配置参考](#配置参考)映射自己的分支,或看[门禁矩阵](#门禁矩阵拦什么放什么)的完整判定表。
 
@@ -249,6 +249,7 @@ archive(可选, 发布后你亲手归档)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // 可选
     "archive":     ["main"]                                      // 可选
   },
+  "locale": "en",                      // 可选: 文案语言('en' 默认, 或 'zh')
   "ci": { "enabled": true }            // 可选: gh pr checks 作参考日志
 }
 ```
@@ -257,6 +258,7 @@ archive(可选, 发布后你亲手归档)
 - `update`:`pr`(默认)= 只能 PR/MR 合入;`flexible` = 允许直推/本地合入(小团队)。
 - `mergeBy`(生产):`user`(默认)= 只能你点合并;`anyone` = 放行 PR 合并。
 - 每条分支条目是精确名或正则(自动识别)。
+- **文案语言**:默认英文;加 `"locale": "zh"` 切中文。
 - **校验**:`integration` 必填;角色条目重叠会被拒;非法正则会报错。**任何错误都会让该项目的插件禁用并上报**(而不是用半吊子配置)。
 
 ---
@@ -407,7 +409,7 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 ## 路线图
 
-- **i18n——拦截文案本地化**:目前默认中文;让它跟随用户语言(和插件配置)。
+- **i18n——拦截文案本地化** ✅(0.0.3):默认英文,`"locale": "zh"` 切中文。
 - **v2——审计同步**:跨机器同步 `.git/gitflow-guard/audit.jsonl`(现仅本地)。
 - **v2——更多预制模板**:常用流程(solo `develop`、多环境企业)的现成配置模板,由社区贡献。
 - **v2——CI 硬门槛研究**:`pr checks` 能否在不伤平台无关核心的前提下变成真实门槛。

@@ -48,8 +48,8 @@ dsh plugin --profile web add agents-gitflow-guard
   "enabled": true,
   "featurePattern": "feature/[\\w-]+",
   "branches": {
-    "integration": ["develop"],   // 集成分支: feature 经 PR 合入, 受保护
-    "archive": ["main"]           // 归档分支: 发布后由你亲手合入
+    "integration": ["develop"],   // integration: features merge in via PR, protected
+    "archive": ["main"]           // archive: archived by you after release
   }
 }
 ```
@@ -59,11 +59,11 @@ This one file is the entire setup: `integration` is the **only required** role; 
 **Step 3 — verify.** Ask the agent (or run in a DSH session) to `git push origin develop`. Expect the tool call to be denied:
 
 ```text
-Error: [gitflow-guard] 已拦截: 受保护分支「develop」禁止直推
-下一步: 集成分支(develop)由 PR/MR 合入 feature: 先推 feature 分支, 再 gh pr create --base develop / glab mr create --target-branch develop
+Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
+Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-The block message is currently Chinese by default (localization is on the [Roadmap](#roadmap)); in English it means: *blocked: protected branch `develop` — direct push forbidden. Next: integration branch is updated by PR/MR — push the feature branch first, then open a PR/MR into `develop`.*
+Messages are English by default; add `"locale": "zh"` to the config to switch to Chinese (see [Configuration Reference](#configuration-reference)).
 
 **Done.** The guard is live for this repo. Keep reading for the [Configuration](#configuration-reference) to map your own branches, or the [Gate Matrix](#gate-matrix--what-gets-blocked-what-passes) for the full decision table.
 
@@ -189,12 +189,12 @@ No plugin code decides "is this merge OK?" for production or archive. The gate s
 Only **`integration`** is required. Every other role is optional — configure what your flow actually uses, and each entry is an exact branch name **or** a regex pattern.
 
 ```text
-feature branches ──(free)──> integration（集成分支, PR/MR 合入）
+feature branches ──(free)──> integration (integration branch; updates via PR/MR)
                                    │
-                                   ├──> preview（可选, 环境终点, PR/MR 更新）
+                                   ├──> preview (optional; env endpoints; updates via PR/MR)
                                    │
-                                   └──> production（可选, PR/MR + 只有你能点合并）
-archive（可选, 发布后你亲手归档）
+                                   └──> production (optional; PR/MR + only you click merge)
+archive (optional; you archive after release)
 ```
 
 | role | config key | required? | enforced behavior |
@@ -207,7 +207,7 @@ archive（可选, 发布后你亲手归档）
 
 ### Customizing branch names & rules — any naming works
 
-**小团队（个人 / 2-3 人）—— 最简，只有 integration：**
+**Small team (solo / 2–3 devs) — minimal: integration only:**
 
 ```jsonc
 {
@@ -217,7 +217,7 @@ archive（可选, 发布后你亲手归档）
 }
 ```
 
-**大团队（多预览环境 + 生产 + 归档）：**
+**Larger team (multiple preview envs + production + archive):**
 
 ```jsonc
 {
@@ -251,6 +251,7 @@ archive（可选, 发布后你亲手归档）
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // optional
     "archive":     ["main"]                                      // optional
   },
+  "locale": "en",                      // optional: message language ('en' default, or 'zh')
   "ci": { "enabled": true }            // optional: gh pr checks logged as reference
 }
 ```
@@ -259,6 +260,7 @@ archive（可选, 发布后你亲手归档）
 - `update`: `pr` (default) = updates only via PR/MR; `flexible` = allow direct/local merges (small teams).
 - `mergeBy` (production): `user` (default) = only you click merge; `anyone` = allow PR merge through.
 - Each branch entry is an exact name or a regex (auto-detected).
+- **Language**: messages are English by default; add `"locale": "zh"` for Chinese.
 - **Validation**: `integration` is required; overlapping role entries are rejected; invalid regex is rejected. **Any error disables the plugin for that project** (reported) rather than applying a half-guessed setup.
 
 ---
@@ -409,7 +411,7 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 
 ## Roadmap
 
-- **i18n — localized block messages**: deny messages are Chinese by default today; make them follow the user's language (and the plugin config).
+- **i18n — localized block messages** ✅ (0.0.3): English by default, `"locale": "zh"` for Chinese.
 - **v2 — audit sync**: sync `.git/gitflow-guard/audit.jsonl` across machines (audit is local-only today).
 - **v2 — more pre-built templates**: ready-made config templates for common flows (solo `develop`, multi-env enterprise) as community-contributed presets.
 - **v2 — CI hard-gating research**: whether `pr checks` could become a real gate without hurting the platform-agnostic core.
