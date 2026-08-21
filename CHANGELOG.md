@@ -2,6 +2,12 @@
 
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 
+## 0.0.6 (2026-08-21)
+
+- fix: Antigravity 拦截协议修正 —— Gemini CLI 已并入 Antigravity 2.0; 官方 decision 合法值仅 allow|deny|ask|force_ask, 拦截须输出 `{"decision":"deny","reason":...}` 且 **exit 0**(不能包 hookSpecificOutput、不能用非法值 "block")。
+- feat: Antigravity 支持(dogfood `.agents/hooks.json` + 参考文档 gemini.md → antigravity.md + HOOKS.md 同步; 宣传语/description/keywords 追加 Antigravity)。
+- docs: 平台清单补 Antigravity(位于 AGENTS.md §8 已管理的五个客户端)。
+
 ## 0.0.5 (2026-08-21)
 
 - feat: OpenCode 支持 —— 新增 `.opencode/hook/hooks.yaml`(tool.before.bash → `gitflow-guard check --platform opencode`, stdin `tool_args.command`, bash action exit 2 阻断);`platform.ts` 加 opencode 判别/extract/encode, 单测与复测矩阵同步覆盖。

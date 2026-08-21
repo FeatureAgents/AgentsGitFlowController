@@ -1,6 +1,6 @@
 # Hooks specification
 
-Hooks are commands triggered by agents at event points. Each tool's hooks mechanism is not interchangeable (Claude Code / Codex / OpenCode / Gemini each have their own). Scripts live in this directory and are registered per tool.
+Hooks are commands triggered by agents at event points. Each tool's hooks mechanism is not interchangeable (Claude Code / Codex / OpenCode / Antigravity each have their own). Scripts live in this directory and are registered per tool.
 
 ## Events
 
@@ -34,7 +34,7 @@ Each tool's registration is documented in its own reference doc:
 | Claude Code | `.claude/settings.json` | [claude-code.md](references/claude-code.md) |
 | OpenCode | `.opencode/hook/hooks.yaml` | [opencode.md](references/opencode.md) |
 | Codex | `.codex/hooks.json` or `.codex/config.toml` | [codex.md](references/codex.md) |
-| Gemini | `~/.gemini/settings.json` (hooks object) | [gemini.md](references/gemini.md) |
+| Antigravity | `.agents/hooks.json` | [antigravity.md](references/antigravity.md) |
 
 > The English keys and event names in the config are mandated by each format and cannot be changed. Meanings are in the glossary below.
 
@@ -48,8 +48,8 @@ Each tool's registration is documented in its own reference doc:
 | command | The command to execute |
 | tool.before.<tool> | Triggered before a specific tool executes (OpenCode) |
 | PreToolUse / PostToolUse | Triggered before / after tool use |
-| BeforeTool / AfterTool | Triggered before / after tool use (Gemini) |
+| PreToolUse / PostToolUse | Triggered before / after tool use (Antigravity) |
 | .claude/settings.json | Claude Code project-level config file |
 | .opencode/hook/hooks.yaml | OpenCode hooks config file |
 | .codex/hooks.json | Codex hooks config file |
-| ~/.gemini/settings.json | Gemini global config file |
+| .agents/hooks.json | Antigravity project hooks config file (global: ~/.gemini/config/) |

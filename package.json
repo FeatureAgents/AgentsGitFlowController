@@ -1,7 +1,7 @@
 {
   "name": "agents-gitflow-guard",
   "version": "0.0.5",
-  "description": "A configurable branch-role guard for AI coding agents (DSH / Claude Code / Codex / OpenCode) — integration/preview/production/archive, each with its own update rules",
+  "description": "A configurable branch-role guard for AI coding agents (DSH / Claude Code / Codex / OpenCode / Antigravity) — integration/preview/production/archive, each with its own update rules",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.mjs",
@@ -29,6 +29,7 @@
     "claude-code",
     "codex",
     "opencode",
+    "antigravity",
     "plugin",
     "hook",
     "gitflow",

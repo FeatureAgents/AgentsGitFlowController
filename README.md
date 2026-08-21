@@ -2,7 +2,7 @@
 
 > **Are you tired of agents skipping your GitFlow?**
 
-A configurable branch-role guard for AI coding agents — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, and OpenCode.
+A configurable branch-role guard for AI coding agents — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, OpenCode, and Antigravity.
 You define your own branches —
 **integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Agents can't skip the flow, and sensitive merges stay in your hands.
 
@@ -309,7 +309,7 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 
 The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes it a profile layer — no manual profile editing.
 
-**Claude Code / Codex / OpenCode hooks** — the same guard inside those agents, no DSH required. This repo ships project configs at `.claude/settings.json` (Claude Code), `.codex/hooks.json` (Codex) and `.opencode/hook/hooks.yaml` (OpenCode); any other repo adds its own:
+**Standalone agent hooks** — the same guard inside those agents, no DSH required. This repo ships project configs at `.claude/settings.json` (Claude Code), `.codex/hooks.json` (Codex), `.opencode/hook/hooks.yaml` (OpenCode) and `.agents/hooks.json` (Antigravity / Google); any other repo adds its own:
 
 ```jsonc
 // Claude Code — .claude/settings.json
@@ -343,9 +343,20 @@ hooks:
           node "$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs" check --platform opencode
 ```
 
-- The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout (Codex also accepts the legacy `{"decision":"block","reason":...}` shape, which `--platform antigravity` uses).
+```json
+// Antigravity (Google) — .agents/hooks.json
+{
+  "gitflow-guard": {
+    "PreToolUse": [
+      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node bin/gitflow-guard.mjs check --platform antigravity" } ] }
+    ]
+  }
+}
+```
+
+- The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout; Antigravity → JSON `{"decision":"deny","reason":...}` on stdout with `exit 0` (Antigravity requires exit 0 and rejects `hookSpecificOutput` / non-allow values).
 - Only the pre-tool event is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no post-tool hooks are required.
-- Use an **absolute path** to the binary — hook subprocesses may not inherit your shell `PATH`. `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs` (Claude Code), `node bin/gitflow-guard.mjs` (Codex, runs from the project working directory), or `$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs` (OpenCode) also work from a checkout.
+- Use an **absolute path** to the binary — hook subprocesses may not inherit your shell `PATH`. `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs` (Claude Code), `node bin/gitflow-guard.mjs` (Codex, runs from the project working directory), or `$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs` (OpenCode) or `node bin/gitflow-guard.mjs` (Antigravity, relative to the workspace `.agents/` dir) also work from a checkout.
 - Fully opt-in: the hook does nothing unless the repo has `gitflow-guard.config.json` with `enabled: true`.
 
 ---
