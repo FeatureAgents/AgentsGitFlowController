@@ -36,12 +36,16 @@ You define your own branches —
 
 ## Quick Start — 30 seconds to a guarded repo
 
-**Step 1 — install**, one command, then restart DSH (plugins load at process startup):
+**Step 1 — install**, then restart DSH (plugins load at process startup):
 
 ```bash
+# installs the latest release
 dsh plugin --profile web add agents-gitflow-guard
+# ...or pin an exact known-good version (recommended; also bypasses stale registry caches)
+dsh plugin --profile web add agents-gitflow-guard@0.0.9
 ```
 
+> **Version gotcha**: a bare `add` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. The peer-dependency *warning* pnpm may print is expected: DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup (the plugin works normally).
 **Step 2 — configure**, create `gitflow-guard.config.json` in your **project root**:
 
 ```jsonc
@@ -295,7 +299,7 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 **From the npm registry** — the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard
+dsh plugin --profile web add agents-gitflow-guard@0.0.9    # pin recommended, see note above
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.

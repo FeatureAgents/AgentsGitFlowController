@@ -35,12 +35,16 @@
 
 ## 快速开始——30 秒用上
 
-**第 1 步——安装**,一条命令,然后重启 DSH(插件在进程启动时加载):
+**第 1 步——安装**,然后重启 DSH(插件在进程启动时加载):
 
 ```bash
+# 安装最新版
 dsh plugin --profile web add agents-gitflow-guard
+# ...或锁定已知良好版本(推荐; 同时绕开 registry 陈旧缓存)
+dsh plugin --profile web add agents-gitflow-guard@0.0.9
 ```
 
+> **版本坑**: 裸 `add` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。pnpm 打印的 peer 依赖 *警告* 属预期: DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`(插件正常工作)。
 **第 2 步——配置**,在**项目根目录**创建 `gitflow-guard.config.json`:
 
 ```jsonc
@@ -292,7 +296,7 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 **从 npm registry**——标准路径,已在[快速开始](#快速开始30-秒用上)覆盖:
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard
+dsh plugin --profile web add agents-gitflow-guard@0.0.9    # 建议锁版本, 见上文提示
 ```
 
 然后重启 DSH。升级用同一命令,再重启一次。
