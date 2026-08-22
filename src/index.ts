@@ -13,6 +13,10 @@ import { currentBranch as queryCurrentBranch, findRepoRoot, ghPrChecks, ghPrInfo
 import type { Classified, GateFacts, PrTargetResolution } from './types'
 import type { Runner } from './repo'
 
+// 运行时语言扩展点(包根再导出): 下游经 registerLocale 注册自定义 locale 后, 即可在项目配置引用该 locale 名
+export { registerLocale } from './i18n'
+export type { Dict } from './i18n'
+
 export const name = 'gitflow-guard'
 
 export interface PluginConfig {
