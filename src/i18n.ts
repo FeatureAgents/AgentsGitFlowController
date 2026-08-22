@@ -1,7 +1,9 @@
-// i18n: 用户可见文案(en/zh)。默认 en; 项目可在 gitflow-guard.config.json 用 "locale" 切 zh。
+// i18n: 用户可见文案(内置 en/zh, 可经 registerLocale 运行时扩展)。默认 en; 项目可在 gitflow-guard.config.json 用 "locale" 切换。
 // 设计: 所有用户/agent 可见的拦截文案、CLI 输出都走 makeT(locale)(key, vars) 插值;
 // 配置文件校验报错属开发者诊断信息, 统一英文, 不随 locale 变。
 // 日志/异常信息遵循项目规范用英文。
+// 复数/ICU(P2-6 决策留档): Entry 保持 `(vars) => string` 单条目函数形态——当前全部文案无单复数变化,
+// 不引入 ICU 依赖; 未来扩展多复数语言(ja/es/de/ru)时可在 Entry 内部按 Intl.PluralRules 选变体, 或届时报数后再引入 MessageFormat 依赖。
 
 import type { Locale } from './types'
 
@@ -11,9 +13,10 @@ export type { Locale }
 export type I18nVars = Record<string, string>
 
 /** 单一文案条目: (vars) => 最终文本 */
-type Entry = (v: I18nVars) => string
+export type Entry = (v: I18nVars) => string
 
-type Dict = Record<string, Entry>
+/** 一门语言的文案字典: key 集合必须与内置 en 完全一致(registerLocale / 加载期校验) */
+export type Dict = Record<string, Entry>
 
 const en: Dict = {
   // —— 角色名(roleLabel 用) ——
@@ -29,6 +32,10 @@ const en: Dict = {
   'denyDeleteOrForce.why': (v) => `Protected branch "${v.branch}" may not be deleted or force-pushed`,
   'denyDeleteOrForce.next': () =>
     'Delete/force-push on a feature branch outside the protected branches; protected branches are managed by you.',
+  'refUpdateProtected.why': (v) => `Protected branch "${v.branch}" forbids direct ref updates (update-ref)`,
+  'refUpdateProtected.next': () => 'Update protected branches via PR/MR; they are managed by you.',
+  'refMoveProtected.why': () => 'Rewriting history on a protected branch (reset / rebase / commit --amend / filter-branch) is not allowed',
+  'refMoveProtected.next': () => 'Do history rewrites on a feature branch; protected branches advance via PR/MR and are managed by you.',
   'pushAll.why': () => '--all/--mirror push would include protected branches',
   'pushAll.next': () => 'Push branch by branch with an explicit refspec.',
   'pushDetached.why': () => 'Cannot determine the push target (detached HEAD?)',
@@ -52,8 +59,6 @@ const en: Dict = {
   'prMergeArchive.next': () => 'Let the user do the archive merge in their terminal or UI.',
   'prMergeUnknown.why': () => 'Cannot confirm the PR/MR target branch',
   'prMergeUnknown.next': () => 'Retry once gh/glab is available, or let the user handle it.',
-  'prMergeHead.why': () => 'Cannot confirm the PR/MR target, and the head is not a feature branch',
-  'prMergeHead.next': () => 'Confirm the platform CLI is available, or let the user handle it.',
 
   // —— branchNext(受保护分支被拦后的下一步) ——
   'next.integration': (v) =>
@@ -75,6 +80,7 @@ const en: Dict = {
   'cli.statusTitle': (v) => `[gitflow-guard] status — ${v.repo}`,
   'cli.statusDisabled': () => 'Config: not enabled (no gitflow-guard.config.json or enabled=false)',
   'cli.statusConfigError': (v) => `  config error: ${v.err}`,
+  'cli.statusConfigWarning': (v) => `  config warning: ${v.warn}`,
   'cli.statusEnabled': (v) => `Config: enabled | featurePattern: ${v.pattern}`,
   'cli.statusIntegration': (v) => `Integration: ${v.list} (update=${v.mode})`,
   'cli.statusPreview': (v) => `Preview: ${v.list} (update=${v.mode})`,
@@ -85,16 +91,22 @@ const en: Dict = {
   'cli.statusLocalBranches': () => 'Local branches (by role):',
   'cli.auditEmpty': () => '  No audit entries yet',
   'cli.checkInternalError': (v) => `[gitflow-guard] check internal error, allowed through: ${v.msg}`,
+  'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] guard disabled: invalid config: ${v.err}`,
+  'guardStrictConfigBroken.why': () => 'Guard config is invalid while strict mode is enabled',
+  'guardStrictConfigBroken.next': () => 'Fix gitflow-guard.config.json (or remove "strict": true) before retrying.',
+  'guardStrictInternalError.why': (v) => `Guard internal error while strict mode is enabled: ${v.msg}`,
+  'guardStrictInternalError.next': () => 'Fix or remove "strict": true in gitflow-guard.config.json.',
   'usage.text': () => `gitflow-guard — GitFlow guard CLI
 
 Usage:
-  gitflow-guard status [--repo <path>]
-  gitflow-guard audit [--lines <count>] [--repo <path>]
-  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity>] [--command "<cmd>"] [--repo <path>]
+  gitflow-guard status [--repo <path>] [--locale <en|zh>]
+  gitflow-guard audit [--lines <count>] [--repo <path>] [--locale <en|zh>]
+  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity>] [--command "<cmd>"] [--repo <path>] [--locale <en|zh>]
   gitflow-guard --help
 
 Notes:
   status/audit are read-only; the agent can self-inspect.
+  --locale overrides the message language for this invocation (flag > project config > English).
   check reads the hook payload on stdin (platform-specific protocol: claude/opencode exit 2,
   codex/antigravity JSON on stdout) and is meant for pre/post hooks of AI agents.`,
 }
@@ -110,6 +122,10 @@ const zh: Dict = {
 
   'denyDeleteOrForce.why': (v) => `受保护分支「${v.branch}」禁止删除或强推`,
   'denyDeleteOrForce.next': () => '删除/强推请到受保护分支外的 feature 分支上操作; 受保护分支由用户亲手管理',
+  'refUpdateProtected.why': (v) => `受保护分支「${v.branch}」禁止直接改写 refs(update-ref)`,
+  'refUpdateProtected.next': () => '请通过 PR/MR 更新受保护分支; 受保护分支由用户亲手管理',
+  'refMoveProtected.why': () => '受保护分支禁止本地改写历史(reset / rebase / commit --amend / filter-branch)',
+  'refMoveProtected.next': () => '历史改写请在 feature 分支上进行; 受保护分支仅经 PR/MR 推进, 由用户亲手管理',
   'pushAll.why': () => '--all/--mirror 推送会包含受保护分支',
   'pushAll.next': () => '请逐分支推送并显式指定 refspec',
   'pushDetached.why': () => '无法确定推送目标分支(可能处于 detached HEAD)',
@@ -131,8 +147,6 @@ const zh: Dict = {
   'prMergeArchive.next': () => '请让用户在自己终端或 UI 完成归档合并',
   'prMergeUnknown.why': () => '无法确认 PR/MR 的目标分支',
   'prMergeUnknown.next': () => '请确认 gh/glab 可用后重试, 或让用户亲手处理',
-  'prMergeHead.why': () => '无法确认 PR/MR 目标, 且 head 不是 feature 分支',
-  'prMergeHead.next': () => '请确认平台 CLI 可用, 或让用户亲手处理',
 
   'next.integration': (v) =>
     `集成分支(${v.branch})由 PR/MR 合入 feature: 先推 feature 分支, 再 gh pr create --base ${v.branch} / glab mr create --target-branch ${v.branch}`,
@@ -150,6 +164,7 @@ const zh: Dict = {
   'cli.statusTitle': (v) => `[gitflow-guard] status — ${v.repo}`,
   'cli.statusDisabled': () => '配置: 未启用(不存在 gitflow-guard.config.json 或 enabled=false)',
   'cli.statusConfigError': (v) => `  配置错误: ${v.err}`,
+  'cli.statusConfigWarning': (v) => `  配置警告: ${v.warn}`,
   'cli.statusEnabled': (v) => `配置: 已启用 | featurePattern: ${v.pattern}`,
   'cli.statusIntegration': (v) => `集成分支: ${v.list} (update=${v.mode})`,
   'cli.statusPreview': (v) => `预览分支: ${v.list} (update=${v.mode})`,
@@ -160,31 +175,59 @@ const zh: Dict = {
   'cli.statusLocalBranches': () => '本地分支(按角色):',
   'cli.auditEmpty': () => '  暂无审计记录',
   'cli.checkInternalError': (v) => `[gitflow-guard] check 内部错误, 已放行: ${v.msg}`,
+  'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] 守卫未启用: 配置无效: ${v.err}`,
+  'guardStrictConfigBroken.why': () => '守卫配置无效, 且已启用 strict 模式',
+  'guardStrictConfigBroken.next': () => '请先修复 gitflow-guard.config.json(或移除 "strict": true)后重试',
+  'guardStrictInternalError.why': (v) => `守卫内部错误, 且已启用 strict 模式: ${v.msg}`,
+  'guardStrictInternalError.next': () => '请修复 gitflow-guard.config.json 或移除 "strict": true',
   'usage.text': () => `gitflow-guard — GitFlow 流程守卫 CLI
 
 用法:
-  gitflow-guard status [--repo <路径>]
-  gitflow-guard audit [--lines <数量>] [--repo <路径>]
-  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity>] [--command "<cmd>"] [--repo <路径>]
+  gitflow-guard status [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard audit [--lines <数量>] [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity>] [--command "<cmd>"] [--repo <路径>] [--locale <en|zh>]
   gitflow-guard --help
 
 说明:
   status/audit 只读, agent 可自查。
+  --locale 可临时覆盖本次调用的文案语言(旗标 > 项目配置 > 英文)。
   check 读 stdin hook payload 做门禁(平台协议: claude/opencode exit 2, codex/antigravity stdout JSON),
   供 Claude Code / Codex / OpenCode 等 agent 的 pre/post hook 调用。`,
 }
 
-const MESSAGE_KEYS = Object.keys(en)
-/** key 合法性与 en/zh 双字典完整性检查(开发期一次) */
-if (Object.keys(zh).length !== MESSAGE_KEYS.length || MESSAGE_KEYS.some((k) => !(k in zh))) {
-  throw new Error('i18n: en/zh 字典键不一致')
+/** 内置文案注册表: en 为兜底语言; 下游可经 registerLocale 追加 */
+const dicts = new Map<string, Dict>([
+  ['en', en],
+  ['zh', zh],
+])
+
+export const MESSAGE_KEYS: readonly string[] = Object.keys(en)
+
+/** 字典键一致性校验(与内置 en 完全一致), 失败抛英文异常(P0-2: 异常信息遵循语言规范) */
+function assertDictKeys(name: string, dict: Dict): void {
+  const keys = Object.keys(dict)
+  if (keys.length !== MESSAGE_KEYS.length || MESSAGE_KEYS.some((k) => !(k in dict))) {
+    throw new Error(`i18n: locale "${name}" dictionary keys mismatch the built-in "en" dictionary`)
+  }
+}
+
+// 内置 en/zh 键一致性校验(加载期一次)
+assertDictKeys('zh', zh)
+
+/**
+ * 注册一门新语言(运行时扩展点, P2-2): key 集合必须与内置 en 完全一致, 否则抛英文异常。
+ * 注册后 makeT/resolveLocale 即接受该 locale; 未注册的 locale 一律回退英文。
+ */
+export function registerLocale(name: string, dict: Dict): void {
+  assertDictKeys(name, dict)
+  dicts.set(name, dict)
 }
 
 /**
- * 生成翻译函数。未知 key 回退英文原文(开发/防御性)。
+ * 生成翻译函数。未注册 locale / 未知 key 均回退英文(开发/防御性)。
  */
 export function makeT(locale: Locale): (key: string, vars?: I18nVars) => string {
-  const dict: Dict = locale === 'zh' ? zh : en
+  const dict = dicts.get(locale) ?? en
   return (key, vars = {}) => {
     const entry = dict[key] ?? en[key]
     if (!entry) return key
@@ -196,7 +239,7 @@ export function makeT(locale: Locale): (key: string, vars?: I18nVars) => string 
   }
 }
 
-/** 解析配置里的 locale 值: 仅 'zh' 视为中文, 其余(含未定义)一律英文 */
+/** 解析配置里的 locale 值: 白名单语义 = 已注册语言原样通过, 其余(含未定义)一律英文(P2-2 后白名单随注册表扩展) */
 export function resolveLocale(v: unknown): Locale {
-  return v === 'zh' ? 'zh' : 'en'
+  return typeof v === 'string' && dicts.has(v) ? v : 'en'
 }

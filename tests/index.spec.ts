@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { evaluateCommand } from '../src/index'
+import { apply, evaluateCommand, registerLocale } from '../src/index'
+import type { Context } from '@deepseek-ai/cordis'
 import type { RunResult, Runner } from '../src/repo'
 
 /** 小团队配置: 仅 integration */
@@ -117,6 +118,22 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
+  it('gh pr merge: gh 失败 + feature head(PR 可能实际指向 production)→ deny', async () => {
+    const dir = tempRepo()
+    try {
+      const r = await evaluateCommand('gh pr merge 15', {
+        repoRoot: dir,
+        runner: scriptedRunner(),
+        ghRunner: scriptedRunner(), // gh 查询失败: 未安装/未认证/离线
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(r.outcome).toBe('deny')
+      expect(r.reason?.why).toMatch(/cannot confirm the pr\/mr target/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('&& 串联: 切到集成分支再 merge feature → deny(按模拟分支判定)', async () => {
     const dir = tempRepo()
     try {
@@ -129,6 +146,20 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
       expect(r.outcome).toBe('deny')
       expect(r.reason?.why).toContain('PR')
       expect(r.segmentCount).toBe(2)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('&& 串联: 从 feature 切到集成分支后裸推 → 按模拟分支 deny(dst 延迟解析)', async () => {
+    const dir = tempRepo()
+    try {
+      const r = await evaluateCommand('git switch develop && git push', {
+        repoRoot: dir,
+        runner: scriptedRunner(),
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(r.outcome).toBe('deny')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -169,5 +200,42 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('apply: DSH 插件降级路径(P0-1)', () => {
+  it('内部错误 → 英文降级日志(与 cli.checkInternalError 口径一致)+ 放行不阻断', async () => {
+    const warnings: string[] = []
+    type PreExecuteHandler = (exec: unknown, next: () => Promise<unknown>) => Promise<unknown>
+    let handler: PreExecuteHandler | undefined
+    const ctx = {
+      on: (_event: string, fn: PreExecuteHandler) => {
+        handler = fn
+      },
+      logger: { warn: (msg: string) => warnings.push(msg) },
+    }
+    apply(ctx as unknown as Context)
+    expect(handler).toBeTypeOf('function')
+    // exec.agent 属性访问即抛错 → 命中 apply 的 catch 降级路径
+    const exec = { name: 'bash', arguments: { command: 'git status' }, get agent(): unknown { throw new Error('boom') } }
+    const next = async () => 'passed-through'
+    await expect(handler!(exec, next)).resolves.toBe('passed-through')
+    expect(warnings).toEqual(['gitflow-guard: gate internal error, allowed through: boom'])
+  })
+})
+
+describe('包根再导出 registerLocale(P1-1) / MESSAGE_KEYS(P2-6)', () => {
+  it('registerLocale 从插件入口可导入(下游注册自定义 locale 的公开契约)', () => {
+    // 行为覆盖在 i18n.spec.ts / cli.spec.ts; 此处只断言「包根可导入」这一导出面契约
+    expect(registerLocale).toBeTypeOf('function')
+  })
+  it('MESSAGE_KEYS 从包根可导入: 自定义字典的必需键清单可发现(与内置 en 键集一致)', async () => {
+    const { MESSAGE_KEYS } = await import('../src/index')
+    const en = await import('../src/i18n')
+    expect(MESSAGE_KEYS).toBeTypeOf('object')
+    expect(MESSAGE_KEYS.length).toBeGreaterThan(0)
+    // 与 i18n 模块导出的键清单同源同值
+    expect([...MESSAGE_KEYS]).toEqual([...en.MESSAGE_KEYS])
+    expect(MESSAGE_KEYS).toContain('deny.header')
   })
 })

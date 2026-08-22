@@ -26,8 +26,8 @@ export interface CiConfig {
   enabled: boolean
 }
 
-/** 文案语言: 默认 en; 'zh' 切中文 */
-export type Locale = 'en' | 'zh'
+/** 文案语言: 默认 en; 'zh' 切中文; 可经 registerLocale 运行时扩展(保留字面量提示的宽字符串) */
+export type Locale = 'en' | 'zh' | (string & {})
 
 /** 项目配置(来自 gitflow-guard.config.json, opt-in 启用) */
 export interface GuardConfig {
@@ -38,6 +38,8 @@ export interface GuardConfig {
   ci: CiConfig
   /** 用户可见文案语言(默认 'en'; 缺失时按 'en' 处理) */
   locale?: Locale
+  /** fail-closed 策略位: true 时配置异常/内部异常改为拦截(默认 fail-open 放行) */
+  strict?: boolean
 }
 
 /** 分支角色名(门禁判定对象) */
@@ -90,6 +92,19 @@ export interface GuardCliClassified {
   sub: 'status' | 'other'
 }
 
+/** git update-ref 直改 refs(plumbing): 受保护分支一律拒绝 */
+export interface RefUpdateClassified {
+  kind: 'ref-update'
+  /** 目标分支(剥离 refs/heads/ 前缀后, 供角色比对) */
+  branch: string | null
+  delete: boolean
+}
+
+/** 本地改写当前分支 tip 的命令(reset / rebase / commit --amend / filter-branch): 门禁按(模拟)当前分支角色判定 */
+export interface RefMoveClassified {
+  kind: 'ref-move'
+}
+
 export interface OtherClassified {
   kind: 'other'
 }
@@ -102,6 +117,8 @@ export type Classified =
   | BranchDeleteClassified
   | CheckoutClassified
   | GuardCliClassified
+  | RefUpdateClassified
+  | RefMoveClassified
   | OtherClassified
 
 /** 分类所需上下文(解析 HEAD / 无 refspec 等歧义) */

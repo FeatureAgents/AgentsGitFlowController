@@ -16,10 +16,18 @@ describe('classify: git push', () => {
     expect(first('git push -f origin prd')).toMatchObject({ kind: 'push', dst: 'prd', force: true })
   })
 
-  it('推 feature 分支 / 无 refspec → 回退当前分支', () => {
+  it('推 feature 分支 → push(dst)', () => {
     expect(first('git push origin feature/dev-x-01')).toMatchObject({ kind: 'push', dst: 'feature/dev-x-01' })
-    expect(first('git push origin', 'develop')).toMatchObject({ kind: 'push', dst: 'develop' })
-    expect(first('git push origin HEAD', 'feature/dev-x-01')).toMatchObject({ kind: 'push', dst: 'feature/dev-x-01' })
+  })
+
+  it('单个非 flag 参数歧义(remote 或 refspec): 双解释都送分类, 门禁任一命中即拦', () => {
+    const r = classify('git push origin', { currentBranch: 'feature/dev-x-01' })
+    expect(r[0]).toMatchObject({ kind: 'push', dst: 'origin' }) // refspec 解释(origin 不像受保护分支则放行)
+    expect(r[1]).toMatchObject({ kind: 'push', dst: null }) // 裸推解释(门禁按模拟当前分支判定)
+  })
+
+  it('HEAD 推送 → dst 延迟为 null(支持切分支串联)', () => {
+    expect(first('git push origin HEAD', 'feature/dev-x-01')).toMatchObject({ kind: 'push', dst: null })
   })
 
   it('--delete / 冒号删除 / --all', () => {
@@ -100,11 +108,14 @@ describe('classify: 分支切换 / 其余命令', () => {
     'git log --oneline -5',
     'git commit -m "feat: x"',
     'git fetch origin',
-    'git rebase develop',
     'ls -la',
     'npm test',
   ])('%s → other', (cmd) => {
     expect(first(cmd)).toMatchObject({ kind: 'other' })
+  })
+
+  it('git rebase → ref-move(P1-1 收编: 受保护分支上拒绝, feature 自由)', () => {
+    expect(first('git rebase develop')).toMatchObject({ kind: 'ref-move' })
   })
 
   it('多段命令(&&)每段都分类', () => {

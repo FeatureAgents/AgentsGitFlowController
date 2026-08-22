@@ -35,11 +35,16 @@
 
 ## 快速开始——30 秒用上
 
-**第 1 步——安装**,一条命令,然后重启 DSH(插件在进程启动时加载):
+**第 1 步——安装**,然后重启 DSH(插件在进程启动时加载):
 
 ```bash
+# 安装最新版
 dsh plugin --profile web add agents-gitflow-guard
+# ...或锁定已知良好版本(推荐; 同时绕开 registry 陈旧缓存)
+dsh plugin --profile web add agents-gitflow-guard@0.0.13
 ```
+
+> **版本坑**: 裸 `add` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。pnpm 打印的 peer 依赖 *警告* 属预期: DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`(插件正常工作)。
 
 **第 2 步——配置**,在**项目根目录**创建 `gitflow-guard.config.json`:
 
@@ -249,7 +254,8 @@ archive(可选, 发布后你亲手归档)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // 可选
     "archive":     ["main"]                                      // 可选
   },
-  "locale": "en",                      // 可选: 文案语言('en' 默认, 或 'zh')
+  "locale": "en",                      // 可选: 文案语言——任意已注册 locale('en'/'zh' 内置); 未注册值在 status 告警并回退英文
+  "strict": false,                     // 可选: fail-closed —— 配置异常/内部错误改为拦截, 而非告警放行
   "ci": { "enabled": true }            // 可选: gh pr checks 作参考日志
 }
 ```
@@ -257,9 +263,19 @@ archive(可选, 发布后你亲手归档)
 - 每个角色既可用**数组**(简写),也可用**对象** `{ branches, update?, mergeBy? }`。
 - `update`:`pr`(默认)= 只能 PR/MR 合入;`flexible` = 允许直推/本地合入(小团队)。
 - `mergeBy`(生产):`user`(默认)= 只能你点合并;`anyone` = 放行 PR 合并。
-- 每条分支条目是精确名或正则(自动识别)。
-- **文案语言**:默认英文;加 `"locale": "zh"` 切中文。
+- 每条分支条目是精确名或正则(自动识别)。**正则安全**:分支正则由项目作者提供并按原样编译——`featurePattern` 与分支条目请避免灾难性回溯写法(如 `(\w+)+` 这类嵌套量词)。
+- **文案语言**:默认英文;加 `"locale": "zh"` 切中文,或给任意 `gitflow-guard` 子命令传 `--locale <en|zh>`(优先级:CLI 旗标 > 项目配置 > 英文)。全部用户可见文案都跟随 locale——包括 `--help`、未知子命令提示、审计为空的提示等 CLI 框架文案。
+- **自定义语言**:下游包可在运行时追加语言——`import { registerLocale } from 'agents-gitflow-guard'`,调用 `registerLocale('fr', frDict)` 注册一份与内置英文键完全一致的字典(注册时校验),再在项目配置写 `"locale": "fr"` 即生效。
+
+  ```js
+  import { registerLocale, MESSAGE_KEYS } from 'agents-gitflow-guard'
+  // MESSAGE_KEYS 列出字典必须覆盖的全部键(与内置英文同一键集);缺键/多键注册即抛错。
+  const fr = { /* 每个 MESSAGE_KEYS 一条, 如 */ 'deny.header': ({ why }) => `[gitflow-guard] bloqué : ${why}` }
+  registerLocale('fr', fr)
+  ```
+- **未注册语言**:拦截路径对未注册的 `"locale"` 静默回退英文(设计如此——hook 不因文案缺失卡死),笔误因此容易被忽略;一行告警在 `gitflow-guard status` 中可见。
 - **校验**:`integration` 必填;角色条目重叠会被拒;非法正则会报错。**任何错误都会让该项目的插件禁用并上报**(而不是用半吊子配置)。
+- **strict 模式**:默认配置损坏时 stderr 告警一次后放行(fail-open,避免一个笔误卡死工具管道);`"strict": true` 把配置异常与内部错误翻转为**拦截**(fail-closed)——供高风险仓库选用。文件不存在或显式 `enabled: false` 两种模式下都保持静默。
 
 ---
 
@@ -271,7 +287,7 @@ archive(可选, 发布后你亲手归档)
 | 直推 / 强推 / 删除 integration / preview / production / archive | 🚫 拦(integration/preview 配 `flexible` 时直推放行) |
 | PR/MR: feature → integration / preview | ✅ 放行 |
 | PR/MR: feature → production | ✅ 可创建;**合并被拦**(你在 UI 合并) |
-| 指向 archive 的 PR/MR | 🚫 拦 |
+| 指向 archive 的 PR/MR | ✅ 可创建;🚫 合并被拦(你在 UI 合并) |
 | 在 integration / preview 上 `git merge feature/x`(本地) | 🚫 拦(须 PR/MR);`update: flexible` 则放行 |
 | 串联命令(`checkout develop && merge feature/x`) | 🚫 拦——逐段模拟分支切换,无法绕序 |
 
@@ -287,12 +303,12 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 ---
 ## 安装详解
 
-**前置**:一个可用的 [DSH](https://github.com/deepseek-ai/deepseek-harness) 安装。
+**前置**:一个可用的 [DSH](https://github.com/deepseek-ai/deepseek-harness) 安装,且 `PATH` 上有 **Node.js ≥ 22**(与包 `engines` 及 CI 矩阵最低档一致——独立 hook 用户不经 npm 安装,同样需要运行时)。
 
 **从 npm registry**——标准路径,已在[快速开始](#快速开始30-秒用上)覆盖:
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard
+dsh plugin --profile web add agents-gitflow-guard@0.0.13    # 建议锁版本, 见上文提示
 ```
 
 然后重启 DSH。升级用同一命令,再重启一次。
@@ -384,19 +400,21 @@ hooks:
 
 不是,请注意别把它当安全工具。它是工作流守卫:把既定流程变成可机制执行的东西。基于文本的命令识别天然是尽力而为——铁心混淆命令的 agent 可以绕过解析器。
 
-但**角色边界本身**无法绕过:合入受保护角色分支(integration / preview / production / archive)必须走配置好的路径(PR/MR,或生产/归档的人工合并)。要真正防恶意 agent,那属于你托管服务的分支保护设置。
+在其支持的命令形态内,角色边界在本地强制生效:合入受保护角色分支(integration / preview / production / archive)必须走配置好的路径(PR/MR,或生产/归档的人工合并)。常见混淆包装已纳入分类与拦截——shell 包装(`sh -c` / `bash -lc`)、子 shell 与反引号/`$()` 内嵌、`env`/`command`/`nohup`/`xargs` 前缀与 `VAR=x` 赋值、绝对路径、管道与 `||` 后半段、git 全局选项(`-C .`、`--git-dir=…`)、通配 refspec(`refs/heads/*:refs/heads/*`)、当 fetch+merge 用的 `git pull`,以及 `send-pack`/`update-ref` 等 plumbing。可执行对抗语料见 `tests/accuracy-audit.spec.ts`。
+
+已知**本地不可防**的通道:直连 forge API(`gh api repos/…/pulls/N/merge`、`curl`)与解释器子进程内嵌(`node -e "child_process.exec('git push …')"`);任意深度的引号/编码变换天然只能尽力而为。真正不可绕过的边界在你托管服务的分支保护设置。两边都用——把本守卫当作即时反馈与审计留痕,而不是安全边界。
 
 ---
 
 ### 为什么 agent 不能自己合并进生产/归档?
 
-因为门禁把那些动作判定为**仅用户**。agent 可以创建 PR/MR,但对生产的*合并*、对归档的*建 PR 与合并*插件一律拒绝。唯一路径是**你**点合并——不存在 agent 能用来给自己授权的特许、令牌或聊天消息。
+因为门禁把那些动作判定为**仅用户**。插件对生产的*合并*、归档的*合并*一律拦截——*建 PR/MR 允许*,agent 仍可替你起草 develop→main 归档 PR。但合并本身只有一条路径:**你**亲手点合并——不存在 agent 能用来给自己授权的特许、令牌或聊天消息。
 
 ---
 
 ### 必须装 `gh` 或 `glab` CLI 吗?
 
-不用。它们只是可选适配器,用来解析 `pr merge` / `mr merge` 到底指向哪个分支,好让门禁区分"合入 integration/preview"(放行)与"合入 production/archive"(拦截)。没有时插件走保守路径——无法确认目标就拒绝——其余一切照常。核心校验不碰任何托管服务,所以它在 GitHub、GitLab、自托管或离线环境里行为一致。
+不用。它们只是可选适配器,用来解析 `pr merge` / `mr merge` 到底指向哪个分支,好让门禁区分"合入 integration/preview"(放行)与"合入 production/archive"(拦截)。当两个 CLI 都无法确认目标——未安装、未认证、离线或查询失败——门禁**一律拒绝合并**,即使在 feature 分支上执行也照拦:该 PR 可能实际指向生产/归档分支。等 CLI 可用后重试,或由用户亲手点合并。其余一切照常。核心校验不碰任何托管服务,所以它在 GitHub、GitLab、自托管或离线环境里行为一致。
 
 ---
 
@@ -410,7 +428,7 @@ hooks:
 
 ### 配置写错了会怎样?
 
-插件偏好 fail-closed:任何校验错误都会让该项目的守卫禁用并上报错误,半吊子配置绝不会意外生效。
+半吊子配置绝不会意外生效:任何校验错误都会让该项目的守卫禁用并上报错误。
 
 常见错误:`integration` 缺失(必填)、同一个分支被配到两个角色里(显式拒绝)、`featurePattern` 写不成合法正则(报错)。失败提示很明确,文件又是一个 JSON 对象,通常三十秒改好。
 
@@ -438,7 +456,7 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 | **integration** | 集成分支,唯一必填角色(`branches.integration`);feature 经 PR/MR 合入;受保护 |
 | **preview** | 可选环境终点分支(`branches.preview`,数组);只走 PR/MR 更新 |
 | **production** | 可选生产分支(`branches.production`,数组);PR/MR + 合并仅限用户 |
-| **archive** | `branches.archive`(数组) | 可选 | 允许 agent 创建指向它的 PR/MR; 合并仍限用户亲手 |
+| **archive** | 可选的发布后归档分支(`branches.archive`,数组);允许 agent 创建指向它的 PR/MR,合并仍限用户亲手 |
 | **feature 分支** | 你的工作分支,由 `featurePattern` 识别;自由区 |
 | **门禁矩阵** | 把每条被分类的命令映射为放行/拦截的判定表 |
 | **pre-execute** | 工具管线中拦截发生的钩子——在命令运行之前 |
@@ -469,12 +487,15 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 ```bash
 npm install
-npm test          # 单测: classify / gate / config / cli / repo / platform
+npm test          # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit
 npm run typecheck     # tsc --noEmit, 0 Error
 npm run build         # tsdown → lib/(CLI 与插件共用)
+npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claude Code / Codex / OpenCode / Antigravity hook 编码
 ```
 
-**铁律**:任何逻辑改动必须 0 Error 构建 + 单测全绿后才算完成。
+**铁律**:任何逻辑改动必须 0 Error 构建 + 单测全绿 + 连续复测矩阵(`verify:matrix`)全绿后才算完成。
+
+**接入新的 agent 客户端**(如 Cursor / Windsurf):以下各项必须在同一个 commit 内完成——`src/platform.ts`(含测试与 `HookPlatform` 联合类型)、`.claude/settings.json` / `.codex/hooks.json` 旁新增一份仓库级 hook 配置、`.agents/hooks/references/<tool>.md`、`scripts/verify-matrix.mjs`、README 双语 hook 段与开头宣传语、`package.json` 的 description/keywords,以及 `CHANGELOG`。`npm run verify:matrix` 全绿才算完成。(同一清单见 [AGENTS.md](AGENTS.md) §8;DSH 为进程内插件不走 stdin-hook 清单,见该节例外说明。)
 
 ---
 
@@ -482,4 +503,4 @@ npm run build         # tsdown → lib/(CLI 与插件共用)
 
 [MIT](LICENSE) © FeatureAgents
 
-设计规格(中文,决策记录):[docs/design.md](docs/design.md)。
+v0 历史设计决策(中文;已被 0.0.2 角色驱动模型取代——现行行为以本 README 为准):[docs/design.md](docs/design.md)。

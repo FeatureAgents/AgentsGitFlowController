@@ -161,9 +161,12 @@ describe('gate: 合并 PR/MR', () => {
     expect(decide({ kind: 'pr-merge', pr: '5' }, facts({ resolvePrTarget: resolve('other', 'random', 'feature/x') }), config).kind).toBe('allow')
   })
 
-  it('目标无法解析: head 为 feature → allow, 否则 deny', () => {
-    expect(decide({ kind: 'pr-merge', pr: '6' }, facts({ currentBranch: 'feature/x' }), config).kind).toBe('allow')
+  it('目标无法解析(gh/glab 查询失败)一律 deny —— head 是 feature 也不放行(PR 可能实际指向 production)', () => {
+    const d = decide({ kind: 'pr-merge', pr: '6' }, facts({ currentBranch: 'feature/x' }), config)
+    expect(d.kind).toBe('deny')
+    if (d.kind === 'deny') expect(d.reason).toMatch(/cannot confirm the pr\/mr target/i)
     expect(decide({ kind: 'pr-merge', pr: '6' }, facts({ currentBranch: 'develop' }), config).kind).toBe('deny')
+    expect(decide({ kind: 'pr-merge', pr: '6' }, facts({ currentBranch: null }), config).kind).toBe('deny')
   })
 })
 

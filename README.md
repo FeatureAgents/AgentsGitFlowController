@@ -36,11 +36,16 @@ You define your own branches —
 
 ## Quick Start — 30 seconds to a guarded repo
 
-**Step 1 — install**, one command, then restart DSH (plugins load at process startup):
+**Step 1 — install**, then restart DSH (plugins load at process startup):
 
 ```bash
+# installs the latest release
 dsh plugin --profile web add agents-gitflow-guard
+# ...or pin an exact known-good version (recommended; also bypasses stale registry caches)
+dsh plugin --profile web add agents-gitflow-guard@0.0.13
 ```
+
+> **Version gotcha**: a bare `add` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. The peer-dependency *warning* pnpm may print is expected: DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup (the plugin works normally).
 
 **Step 2 — configure**, create `gitflow-guard.config.json` in your **project root**:
 
@@ -252,7 +257,8 @@ archive (optional; you archive after release)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // optional
     "archive":     ["main"]                                      // optional
   },
-  "locale": "en",                      // optional: message language ('en' default, or 'zh')
+  "locale": "en",                      // optional: message language — any registered locale ('en'/'zh' built-in); unknown values warn in status and fall back to English
+  "strict": false,                     // optional: fail-closed — invalid config / internal errors block instead of warn-and-allow
   "ci": { "enabled": true }            // optional: gh pr checks logged as reference
 }
 ```
@@ -260,9 +266,20 @@ archive (optional; you archive after release)
 - Roles accept either an **array** (shorthand) or an **object** `{ branches, update?, mergeBy? }`.
 - `update`: `pr` (default) = updates only via PR/MR; `flexible` = allow direct/local merges (small teams).
 - `mergeBy` (production): `user` (default) = only you click merge; `anyone` = allow PR merge through.
-- Each branch entry is an exact name or a regex (auto-detected).
-- **Language**: messages are English by default; add `"locale": "zh"` for Chinese.
+- Each branch entry is an exact name or a regex (auto-detected). **Regex safety**: branch patterns are authored by you and compiled as-is — avoid catastrophic-backtracking constructs (e.g. nested quantifiers like `(\w+)+`) in `featurePattern` and branch entries.
+- **Language**: messages are English by default; add `"locale": "zh"` for Chinese, or pass `--locale <en|zh>` to any `gitflow-guard` subcommand (priority: CLI flag > project config > English). All user-facing text follows the locale — including CLI framework messages such as `--help`, unknown-command notices, and the empty-audit line.
+- **Custom locales**: downstream packages can add a language at runtime — `import { registerLocale } from 'agents-gitflow-guard'`, call `registerLocale('fr', frDict)` with a dictionary covering exactly the same keys as built-in English (validated on registration), then set `"locale": "fr"` in the project config to activate it.
+
+  ```js
+  import { registerLocale, MESSAGE_KEYS } from 'agents-gitflow-guard'
+  // MESSAGE_KEYS lists every key a dictionary must define (same set as built-in English);
+  // registration throws if a key is missing or extra.
+  const fr = { /* one entry per MESSAGE_KEYS, e.g. */ 'deny.header': ({ why }) => `[gitflow-guard] bloqué : ${why}` }
+  registerLocale('fr', fr)
+  ```
+- **Unknown locales**: an unregistered `"locale"` value falls back to English during interception (by design — hooks never stall on wording), so a typo is easy to miss; the one-line warning shows up in `gitflow-guard status`.
 - **Validation**: `integration` is required; overlapping role entries are rejected; invalid regex is rejected. **Any error disables the plugin for that project** (reported) rather than applying a half-guessed setup.
+- **Strict mode**: by default a broken config warns on stderr once and lets the command pass (fail-open, so a typo can't wedge your tooling). `"strict": true` flips config errors and internal errors to **block** (fail-closed) — for high-risk repos. A missing file or explicit `enabled: false` stays silent either way.
 
 ---
 
@@ -290,12 +307,12 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 ---
 ## Installation in detail
 
-**Prerequisite**: a working [DSH](https://github.com/deepseek-ai/deepseek-harness) installation.
+**Prerequisite**: a working [DSH](https://github.com/deepseek-ai/deepseek-harness) installation and **Node.js ≥ 22** on your `PATH` (matches the package `engines` floor and the lowest CI matrix tier — standalone hook users bypass npm but still need the runtime).
 
 **From the npm registry** — the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard
+dsh plugin --profile web add agents-gitflow-guard@0.0.13    # pin recommended, see note above
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.
@@ -387,19 +404,21 @@ No. Add only the roles your flow actually has. A solo repo with just `develop` c
 
 No, and it is important that you don't treat it as one. It is a workflow guard: it makes an agreed process mechanically enforceable. Text-based command recognition is inherently best-effort — an agent determined to obfuscate a command can slip past the parser.
 
-But what cannot be bypassed is the **role boundary itself**: merging into a protected role branch (integration / preview / production / archive) requires the configured path (PR/MR, or a human merge for production/archive). If you need real protection against hostile agents, that belongs in branch-protection rules on your hosting service.
+Within its supported command forms, the role boundary is enforced locally: merging into a protected role branch (integration / preview / production / archive) requires the configured path (PR/MR, or a human merge for production/archive). Standard obfuscation wrappers are classified and blocked — shell wrappers (`sh -c` / `bash -lc`), subshells and backtick/`$()` nesting, `env`/`command`/`nohup`/`xargs` prefixes and `VAR=x` assignments, absolute paths, pipelines and `||` tails, git global options (`-C .`, `--git-dir=…`), wildcard refspecs (`refs/heads/*:refs/heads/*`), `git pull` used as fetch+merge, and the `send-pack`/`update-ref` plumbing. The executable adversarial corpus lives in `tests/accuracy-audit.spec.ts`.
+
+What remains **locally non-defensible**: direct forge-API calls (`gh api repos/…/pulls/N/merge`, `curl`) and commands inside interpreter subprocesses (`node -e "child_process.exec('git push …')"`); arbitrarily deep quoting or encoding stays best-effort by nature. The real, non-bypassable boundary lives in branch-protection rules on your hosting service. Use both — treat this guard as instant feedback and audit trail, not as a security boundary.
 
 ---
 
 ### Why can't the agent just merge into production/archive itself?
 
-Because the gate classifies those as **user-only** actions. An agent may create the PR/MR, but the plugin denies the *merge* for production and the *PR creation* (and merge) for archive. The only path is for **you** to click merge — there is no permit, token, or chat message an agent could use to confer that power on itself.
+Because the gate classifies those as **user-only** actions. The plugin denies the *merge* for production and for archive — creating a PR/MR stays allowed, so an agent can still draft a `develop` → `main` archive PR for you. The merge itself, however, has exactly one path: **you** clicking it — there is no permit, token, or chat message an agent could use to confer that power on itself.
 
 ---
 
 ### Do I need the `gh` or `glab` CLI?
 
-No. They are optional adapters used only to resolve what a `pr merge` / `mr merge` is targeting, so the gate can tell "merge into integration/preview" (okay) from "merge into production/archive" (blocked). Without them, the plugin takes a conservative path — it refuses when it can't confirm the target — and everything else works the same. The core enforcement never touches a hosting service, which is why it works identically on GitHub, GitLab, self-hosted, or offline.
+No. They are optional adapters used only to resolve what a `pr merge` / `mr merge` is targeting, so the gate can tell "merge into integration/preview" (okay) from "merge into production/archive" (blocked). When neither CLI can confirm the target — missing, unauthenticated, offline, or the query fails — the gate **refuses the merge**, even when run from a feature branch: that PR could actually point at production/archive. Retry once the CLI works, or let the user click merge. Everything else works the same. The core enforcement never touches a hosting service, which is why it works identically on GitHub, GitLab, self-hosted, or offline.
 
 ---
 
@@ -413,7 +432,7 @@ The blocks are reserved for: (1) direct writes to protected role branches, and (
 
 ### What if my config has a mistake?
 
-The plugin prefers failing closed: any validation error disables the guard for that project and reports the errors, so a half-guessed setup never applies by accident.
+A half-guessed setup is never applied by accident: any validation error disables the guard for that project and reports the errors.
 
 Common mistakes: missing `integration` (required), overlapping a branch across two roles (rejected explicitly), and a `featurePattern` that doesn't compile (rejected as invalid regex). The failure is loud and the file is one JSON object, so the fix is usually a thirty-second correction.
 
@@ -472,15 +491,15 @@ The plugin is free and open source (MIT). If it saves you and your team from a s
 
 ```bash
 npm install
-npm test          # unit tests: classify / gate / config / cli / repo / platform
+npm test          # unit tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit
 npm run typecheck     # tsc --noEmit, 0 errors
 npm run build         # tsdown → lib/ (CLI and plugin share the build)
-npm run verify:matrix # continuous cross-agent regression: DSH logic + Claude Code / Codex / antigravity hook wiring
+npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale regression + Claude Code / Codex / OpenCode / Antigravity hook wiring
 ```
 
 **Rule**: any logic change must pass a 0-error build + all green tests + a green `verify:matrix` before done.
 
-**Adding a new agent client** (e.g. Gemini / OpenCode / Cursor): all of these must change in one commit — `src/platform.ts` (+tests, `HookPlatform` union), a repo hook config beside `.claude/settings.json` / `.codex/hooks.json`, `.agents/hooks/references/<tool>.md`, `scripts/verify-matrix.mjs`, the README hook section and the top tagline, `package.json` description/keywords, and `CHANGELOG`. Done only when `npm run verify:matrix` is green. (Same checklist in [AGENTS.md](AGENTS.md) §8.)
+**Adding a new agent client** (e.g. Cursor / Windsurf): all of these must change in one commit — `src/platform.ts` (+tests, `HookPlatform` union), a repo hook config beside `.claude/settings.json` / `.codex/hooks.json`, `.agents/hooks/references/<tool>.md`, `scripts/verify-matrix.mjs`, the README hook section and the top tagline, `package.json` description/keywords, and `CHANGELOG`. Done only when `npm run verify:matrix` is green. (Same checklist in [AGENTS.md](AGENTS.md) §8.)
 
 ---
 
@@ -488,4 +507,4 @@ npm run verify:matrix # continuous cross-agent regression: DSH logic + Claude Co
 
 [MIT](LICENSE) © FeatureAgents
 
-Design specification (Chinese, decision record): [docs/design.md](docs/design.md).
+Historical v0 design decisions (Chinese; superseded by the role-driven model shipped in 0.0.2 — current behavior is documented in this README): [docs/design.md](docs/design.md).

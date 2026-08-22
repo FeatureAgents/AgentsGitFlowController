@@ -74,10 +74,34 @@ describe('config: 校验', () => {
     expect(errors.some((e) => e.includes('featurePattern'))).toBe(true)
   })
 
+  it('角色条目非法正则 → 校验期报错(不再静默永不命中, P1-2)', () => {
+    const { config, errors } = mergeConfig({ enabled: true, branches: { integration: ['develop'], preview: ['release/('] } })
+    expect(config).toBeNull()
+    expect(errors.some((e) => e.includes('branches.preview') && e.includes('not a valid regex') && e.includes('release/('))).toBe(true)
+    // 合法正则与纯字面量不受影响
+    const ok = mergeConfig({ branches: { integration: ['develop', 'release/.+'] } })
+    expect(ok.errors).toEqual([])
+    // integration 角色的非法条目同样报错
+    const integ = mergeConfig({ branches: { integration: ['main['] } })
+    expect(integ.errors.some((e) => e.includes('branches.integration'))).toBe(true)
+  })
+
   it('validateConfig 与 merge 结果一致', () => {
     const raw = { branches: { integration: ['develop'] } }
     const merged = mergeConfig(raw)
     expect(validateConfig(merged.config!)).toEqual(merged.errors)
+  })
+
+  it('locale 放开为任意字符串: 未注册语言告警不报错, 原值保留(P2-2)', () => {
+    const { config, errors, warnings } = mergeConfig({ enabled: true, locale: 'fr', branches: { integration: ['develop'] } })
+    expect(errors).toEqual([])
+    expect(config!.locale).toBe('fr')
+    expect(warnings.some((w) => w.includes('"fr"') && w.includes('en'))).toBe(true)
+  })
+
+  it('locale 非字符串 → 仍属配置错误', () => {
+    const { errors } = mergeConfig({ locale: 42, branches: { integration: ['develop'] } })
+    expect(errors.some((e) => e.includes('locale'))).toBe(true)
   })
 })
 
@@ -146,6 +170,49 @@ describe('config: 文件加载(opt-in)', () => {
       const { config, errors } = await loadConfig(dir)
       expect(config).toBeNull()
       expect(errors.length).toBeGreaterThan(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('config: strict 位(fail-open/fail-closed 策略)', () => {
+  const base = { enabled: true, branches: { integration: ['develop'] } }
+
+  it('缺省不启用(strict 未定义), true/false 正常解析', () => {
+    expect(mergeConfig(base).config?.strict).toBeUndefined()
+    expect(mergeConfig({ ...base, strict: true }).config?.strict).toBe(true)
+    expect(mergeConfig({ ...base, strict: false }).config?.strict).toBe(false)
+  })
+
+  it('非 boolean → 校验错误', () => {
+    const { config, errors } = mergeConfig({ ...base, strict: 'yes' })
+    expect(config).toBeNull()
+    expect(errors.join(' ')).toMatch(/strict/)
+  })
+
+  it('配置损坏时仍能提取原文中的 strict=true(fail-closed 判定依据)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-config-strict-'))
+    try {
+      // update 拼错(校验失败)+ strict: true
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), '{"enabled":true,"strict":true,"branches":{"integration":{"branches":["develop"],"update":"prx"}}}')
+      const loaded = await loadConfig(dir)
+      expect(loaded.config).toBeNull()
+      expect(loaded.errors.length).toBeGreaterThan(0)
+      expect(loaded.strict).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('JSON 整体损坏(parse 失败)同样提取 strict=true', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-config-parsefail-'))
+    try {
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), '{"enabled":true,"strict":true,branches:[}')
+      const loaded = await loadConfig(dir)
+      expect(loaded.config).toBeNull()
+      expect(loaded.errors.length).toBeGreaterThan(0)
+      expect(loaded.strict).toBe(true)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

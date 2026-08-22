@@ -46,6 +46,16 @@ describe('platform: extractHookPayload', () => {
     const raw = JSON.stringify({ tool_args: { cmd: 'git push origin develop' }, cwd: '/r' })
     expect(extractHookPayload(raw, 'opencode')?.command).toBe('git push origin develop')
   })
+
+  it('codex 显式平台: tool_input.command + turn_id payload(§8.1 显式分支用例)', () => {
+    const raw = JSON.stringify({ hook_event_name: 'PreToolUse', turn_id: 't1', tool_input: { command: 'git push origin develop' }, cwd: '/r', tool_use_id: 'c1' })
+    expect(extractHookPayload(raw, 'codex')).toEqual({ command: 'git push origin develop', cwd: '/r', toolUseId: 'c1', event: 'pre' })
+  })
+
+  it('antigravity 显式平台: toolCall.args.CommandLine envelope(§8.1 显式分支用例)', () => {
+    const raw = JSON.stringify({ hook_event_name: 'PreToolUse', toolCall: { name: 'run_command', args: { CommandLine: 'git merge feature/x' } }, cwd: '/r' })
+    expect(extractHookPayload(raw, 'antigravity')).toEqual({ command: 'git merge feature/x', cwd: '/r', toolUseId: undefined, event: 'pre' })
+  })
 })
 
 describe('platform: detectPlatform', () => {
@@ -53,6 +63,12 @@ describe('platform: detectPlatform', () => {
   it('toolCall → antigravity', () => expect(detectPlatform('{"toolCall":{}}')).toBe('antigravity'))
   it('tool_args → opencode', () => expect(detectPlatform('{"tool_args":{"command":"git push"}}')).toBe('opencode'))
   it('默认 → claude', () => expect(detectPlatform('{"tool_name":"Bash"}')).toBe('claude'))
+  it('空 payload(CLI --command 模式 raw="")→ 回退 claude, deny 走 exit 2 协议(P2-5)', () => {
+    expect(detectPlatform('')).toBe('claude')
+    const enc = encodeDeny(detectPlatform(''), 'blocked: x')
+    expect(enc.exitCode).toBe(2)
+    expect(enc.stderr).toBe('blocked: x')
+  })
 })
 
 describe('platform: encodeDeny', () => {
