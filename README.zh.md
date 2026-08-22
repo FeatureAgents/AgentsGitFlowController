@@ -41,7 +41,7 @@
 # 安装最新版
 dsh plugin --profile web add agents-gitflow-guard
 # ...或锁定已知良好版本(推荐; 同时绕开 registry 陈旧缓存)
-dsh plugin --profile web add agents-gitflow-guard@0.0.9
+dsh plugin --profile web add agents-gitflow-guard@0.0.12
 ```
 
 > **版本坑**: 裸 `add` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。pnpm 打印的 peer 依赖 *警告* 属预期: DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`(插件正常工作)。
@@ -253,7 +253,7 @@ archive(可选, 发布后你亲手归档)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // 可选
     "archive":     ["main"]                                      // 可选
   },
-  "locale": "en",                      // 可选: 文案语言('en' 默认, 或 'zh')
+  "locale": "en",                      // 可选: 文案语言——任意已注册 locale('en'/'zh' 内置); 未注册值在 status 告警并回退英文
   "strict": false,                     // 可选: fail-closed —— 配置异常/内部错误改为拦截, 而非告警放行
   "ci": { "enabled": true }            // 可选: gh pr checks 作参考日志
 }
@@ -264,6 +264,8 @@ archive(可选, 发布后你亲手归档)
 - `mergeBy`(生产):`user`(默认)= 只能你点合并;`anyone` = 放行 PR 合并。
 - 每条分支条目是精确名或正则(自动识别)。**正则安全**:分支正则由项目作者提供并按原样编译——`featurePattern` 与分支条目请避免灾难性回溯写法(如 `(\w+)+` 这类嵌套量词)。
 - **文案语言**:默认英文;加 `"locale": "zh"` 切中文,或给任意 `gitflow-guard` 子命令传 `--locale <en|zh>`(优先级:CLI 旗标 > 项目配置 > 英文)。全部用户可见文案都跟随 locale——包括 `--help`、未知子命令提示、审计为空的提示等 CLI 框架文案。
+- **自定义语言**:下游包可在运行时追加语言——`import { registerLocale } from 'agents-gitflow-guard'`,调用 `registerLocale('fr', frDict)` 注册一份与内置英文键完全一致的字典(注册时校验),再在项目配置写 `"locale": "fr"` 即生效。
+- **未注册语言**:拦截路径对未注册的 `"locale"` 静默回退英文(设计如此——hook 不因文案缺失卡死),笔误因此容易被忽略;一行告警在 `gitflow-guard status` 中可见。
 - **校验**:`integration` 必填;角色条目重叠会被拒;非法正则会报错。**任何错误都会让该项目的插件禁用并上报**(而不是用半吊子配置)。
 - **strict 模式**:默认配置损坏时 stderr 告警一次后放行(fail-open,避免一个笔误卡死工具管道);`"strict": true` 把配置异常与内部错误翻转为**拦截**(fail-closed)——供高风险仓库选用。文件不存在或显式 `enabled: false` 两种模式下都保持静默。
 
@@ -298,7 +300,7 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 **从 npm registry**——标准路径,已在[快速开始](#快速开始30-秒用上)覆盖:
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.9    # 建议锁版本, 见上文提示
+dsh plugin --profile web add agents-gitflow-guard@0.0.12    # 建议锁版本, 见上文提示
 ```
 
 然后重启 DSH。升级用同一命令,再重启一次。
@@ -418,7 +420,7 @@ hooks:
 
 ### 配置写错了会怎样?
 
-插件偏好 fail-closed:任何校验错误都会让该项目的守卫禁用并上报错误,半吊子配置绝不会意外生效。
+半吊子配置绝不会意外生效:任何校验错误都会让该项目的守卫禁用并上报错误。
 
 常见错误:`integration` 缺失(必填)、同一个分支被配到两个角色里(显式拒绝)、`featurePattern` 写不成合法正则(报错)。失败提示很明确,文件又是一个 JSON 对象,通常三十秒改好。
 
@@ -480,9 +482,10 @@ npm install
 npm test          # 单测: classify / gate / config / cli / repo / platform
 npm run typecheck     # tsc --noEmit, 0 Error
 npm run build         # tsdown → lib/(CLI 与插件共用)
+npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claude Code / Codex / OpenCode / Antigravity hook 编码
 ```
 
-**铁律**:任何逻辑改动必须 0 Error 构建 + 单测全绿后才算完成。
+**铁律**:任何逻辑改动必须 0 Error 构建 + 单测全绿 + 连续复测矩阵(`verify:matrix`)全绿后才算完成。
 
 ---
 
