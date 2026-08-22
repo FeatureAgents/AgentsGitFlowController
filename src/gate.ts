@@ -147,9 +147,12 @@ function decidePrCreate(c: Extract<Classified, { kind: 'pr-create' }>, facts: Ga
 
 function decidePrMerge(c: Extract<Classified, { kind: 'pr-merge' }>, facts: GateFacts, config: GuardConfig, t: T): GateDecision {
   const resolved = facts.resolvePrTarget?.(c.pr) ?? null
-  const role = resolved?.role ?? null
-  const head = resolved?.head ?? facts.currentBranch
 
+  // 目标无法解析(gh/glab 未装/未认证/离线)一律保守拒绝: 无法确认 PR 目标就不能按 head 推断放行,
+  // 否则「production mergeBy:user 仅用户点合并」在 feature head 场景失效
+  if (!resolved) return deny(t('prMergeUnknown.why'), t('prMergeUnknown.next'))
+
+  const role = resolved.role
   if (role === 'production') {
     const prod = config.branches.production
     if (prod?.mergeBy === 'user') {
@@ -158,13 +161,7 @@ function decidePrMerge(c: Extract<Classified, { kind: 'pr-merge' }>, facts: Gate
     return { kind: 'allow' }
   }
   if (role === 'archive') return deny(t('prMergeArchive.why'), t('prMergeArchive.next'))
-  if (role === 'integration' || role === 'preview') return { kind: 'allow' }
-  if (role === 'feature' || role === 'other') return { kind: 'allow' }
-
-  // 目标无法解析(gh/glab 查询失败): 保守 —— head 为 feature 按合入集成分支放行
-  if (head == null) return deny(t('prMergeUnknown.why'), t('prMergeUnknown.next'))
-  if (roleOfBranch(head, config) === 'feature') return { kind: 'allow' }
-  return deny(t('prMergeHead.why'), t('prMergeHead.next'))
+  return { kind: 'allow' }
 }
 
 /** 受保护分支被拦后的下一步引导 */
