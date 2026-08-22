@@ -53,7 +53,7 @@ AgentsGitFlowController/
 - **本仓库自身开发也走 GitFlow**：`feature/<主题>` 分支开发 → 测试/矩阵全绿 → **PR 到 develop**【经用户确认合并】; **禁止直接 commit/push develop**。develop 只承载集成、发版 tag 与归档 PR 的源——这与插件对 `develop=integration (update=pr)` 的约束一致，规矩靠纪律执行，不靠插件兜底。
 - **本地 develop 零变更**：禁止对本地 develop 做任何变更操作(commit / amend / reset / cherry-pick / `npm version` / 打 tag / 拉取合并等一律不做)。develop 的一切演进只经 GitHub 的 PR 合并与用户推送产生; 需要基于 develop 的动作一律从 `origin/develop` 派生工作分支(如 `feature/release-<版本>`)。
 - 提交规范：Conventional Commits（feat / fix / docs / style / refactor / test / chore）；**PR 标题与正文一律英文**。
-- **CHANGELOG 随功能同一 PR 写入**(条目标注将发布的版本号; 发布日期**按合并当日预写**, 使 PR 合并时本次版本内容即为最终态), 发布 bump 时一次到位; 禁止发版后再为本次版本单独开修正 PR(含日期标注)——若发版确实延后, 日期更正随下一个内容 PR 顺带处理。
+- **CHANGELOG 随功能同一 PR 写入**, 标题仅用版本号、不写日期(发布时间由 git tag / GitHub Release 承载), 发布 bump 时一次到位; 禁止发版后再为本次版本单独开修正 PR。
 - 遇到设计稿 / 报错截图 / 架构图等图片时，插入 vision 识别。
 
 <!-- 项目特定的开发流程、提交规范等在此补充 -->
