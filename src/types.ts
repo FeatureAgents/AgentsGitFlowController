@@ -100,6 +100,11 @@ export interface RefUpdateClassified {
   delete: boolean
 }
 
+/** 本地改写当前分支 tip 的命令(reset / rebase / commit --amend / filter-branch): 门禁按(模拟)当前分支角色判定 */
+export interface RefMoveClassified {
+  kind: 'ref-move'
+}
+
 export interface OtherClassified {
   kind: 'other'
 }
@@ -113,6 +118,7 @@ export type Classified =
   | CheckoutClassified
   | GuardCliClassified
   | RefUpdateClassified
+  | RefMoveClassified
   | OtherClassified
 
 /** 分类所需上下文(解析 HEAD / 无 refspec 等歧义) */
