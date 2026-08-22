@@ -113,3 +113,72 @@ describe('accuracy: 门禁判定刁难样本(集成=develop, 归档=main)', () =
     expect(roleOfBranch('topic/x', cfg)).toBe('other')
   })
 })
+
+// —— 对抗回归语料: 来自 docs/整改.md §1.1 实测(24 样本中被静默放行的部分), 逐项收编 ——
+const isPushTo = (dst: string) => (c: { kind: string; dst?: string | null }) => c.kind === 'push' && c.dst === dst
+
+describe('accuracy: 对抗语料(整改 §1.1)—— shell 包装', () => {
+  const cfg = config()
+
+  it('sh -c / bash -lc 脚本文本递归分类', () => {
+    expect(classify('sh -c "git push origin develop"')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(classify('bash -lc "git push origin develop"')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(classify('sh -c "git merge feature/x"', { currentBranch: 'develop' })[0]).toMatchObject({ kind: 'local-merge', source: 'feature/x' })
+  })
+
+  it('子 shell 括号包裹', () => {
+    expect(classify('(git push origin develop)')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
+  })
+
+  it('绝对路径 git 取 basename 后识别', () => {
+    expect(classify('/usr/bin/git push origin develop')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(classify('/opt/homebrew/bin/gh pr merge 3')[0]).toMatchObject({ kind: 'pr-merge', pr: '3' })
+  })
+
+  it('env / command / nohup / xargs / VAR=x 前缀剥壳', () => {
+    for (const cmd of [
+      'env git push origin develop',
+      'command git push origin develop',
+      'nohup git push origin develop',
+      'xargs git push origin develop',
+      'env LC_ALL=C.UTF-8 git push origin develop',
+      'VAR=x git push origin develop',
+    ]) {
+      expect(classify(cmd)[0], cmd).toMatchObject({ kind: 'push', dst: 'develop' })
+    }
+  })
+
+  it('反引号与 $() 内嵌命令一并送分类; 单引号内不展开(与 shell 语义一致)', () => {
+    expect(classify('echo `git push origin develop`').some(isPushTo('develop'))).toBe(true)
+    expect(classify('echo $(git push origin develop)').some(isPushTo('develop'))).toBe(true)
+    expect(classify("echo '$(git push origin develop)'").some(isPushTo('develop'))).toBe(false)
+  })
+
+  it('|| 与 | 后半段不再失明', () => {
+    expect(classify('true || git push origin develop')[1]).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(classify('echo hi | git push origin develop')[1]).toMatchObject({ kind: 'push', dst: 'develop' })
+  })
+
+  it('门禁级: 包装后的推送同样 deny; 正常用法不误伤', () => {
+    for (const cmd of ['sh -c "git push origin develop"', 'env git push origin develop', '(git push origin develop)']) {
+      const d = decide(classify(cmd)[0], { currentBranch: 'feature/x' }, cfg, t)
+      expect(d.kind, cmd).toBe('deny')
+    }
+    expect(classify('git log --oneline | head -5').every((c) => c.kind === 'other')).toBe(true)
+    expect(classify('git commit -m "chore: bump $(date)"').every((c) => c.kind === 'other')).toBe(true)
+  })
+})
+
+describe('accuracy: 对抗语料(整改 §1.1)—— git 全局选项', () => {
+  it('子命令前的全局选项剥离后再取子命令', () => {
+    expect(classify('git -C . push origin develop')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(classify('git --git-dir=.git push origin develop')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(classify('git --work-tree . push origin develop')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(classify('git -c core.hooksPath=/dev/null push origin develop')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
+  })
+
+  it('全局选项不影响无选项命令; 非全局的 flag 仍判 other', () => {
+    expect(classify('git push origin feature/x')[0]).toMatchObject({ kind: 'push', dst: 'feature/x' })
+    expect(classify('git status --short')[0].kind).toBe('other')
+  })
+})
