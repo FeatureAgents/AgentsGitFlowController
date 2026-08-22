@@ -46,6 +46,7 @@ dsh plugin --profile web add agents-gitflow-guard@0.0.12
 ```
 
 > **Version gotcha**: a bare `add` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. The peer-dependency *warning* pnpm may print is expected: DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup (the plugin works normally).
+
 **Step 2 — configure**, create `gitflow-guard.config.json` in your **project root**:
 
 ```jsonc
@@ -268,6 +269,14 @@ archive (optional; you archive after release)
 - Each branch entry is an exact name or a regex (auto-detected). **Regex safety**: branch patterns are authored by you and compiled as-is — avoid catastrophic-backtracking constructs (e.g. nested quantifiers like `(\w+)+`) in `featurePattern` and branch entries.
 - **Language**: messages are English by default; add `"locale": "zh"` for Chinese, or pass `--locale <en|zh>` to any `gitflow-guard` subcommand (priority: CLI flag > project config > English). All user-facing text follows the locale — including CLI framework messages such as `--help`, unknown-command notices, and the empty-audit line.
 - **Custom locales**: downstream packages can add a language at runtime — `import { registerLocale } from 'agents-gitflow-guard'`, call `registerLocale('fr', frDict)` with a dictionary covering exactly the same keys as built-in English (validated on registration), then set `"locale": "fr"` in the project config to activate it.
+
+  ```js
+  import { registerLocale, MESSAGE_KEYS } from 'agents-gitflow-guard'
+  // MESSAGE_KEYS lists every key a dictionary must define (same set as built-in English);
+  // registration throws if a key is missing or extra.
+  const fr = { /* one entry per MESSAGE_KEYS, e.g. */ 'deny.header': ({ why }) => `[gitflow-guard] bloqué : ${why}` }
+  registerLocale('fr', fr)
+  ```
 - **Unknown locales**: an unregistered `"locale"` value falls back to English during interception (by design — hooks never stall on wording), so a typo is easy to miss; the one-line warning shows up in `gitflow-guard status`.
 - **Validation**: `integration` is required; overlapping role entries are rejected; invalid regex is rejected. **Any error disables the plugin for that project** (reported) rather than applying a half-guessed setup.
 - **Strict mode**: by default a broken config warns on stderr once and lets the command pass (fail-open, so a typo can't wedge your tooling). `"strict": true` flips config errors and internal errors to **block** (fail-closed) — for high-risk repos. A missing file or explicit `enabled: false` stays silent either way.
@@ -298,7 +307,7 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 ---
 ## Installation in detail
 
-**Prerequisite**: a working [DSH](https://github.com/deepseek-ai/deepseek-harness) installation.
+**Prerequisite**: a working [DSH](https://github.com/deepseek-ai/deepseek-harness) installation and **Node.js ≥ 22** on your `PATH` (matches the package `engines` floor and the lowest CI matrix tier — standalone hook users bypass npm but still need the runtime).
 
 **From the npm registry** — the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo):
 
@@ -403,7 +412,7 @@ What remains **locally non-defensible**: direct forge-API calls (`gh api repos/�
 
 ### Why can't the agent just merge into production/archive itself?
 
-Because the gate classifies those as **user-only** actions. An agent may create the PR/MR, but the plugin denies the *merge* for production and the *PR creation* (and merge) for archive. The only path is for **you** to click merge — there is no permit, token, or chat message an agent could use to confer that power on itself.
+Because the gate classifies those as **user-only** actions. The plugin denies the *merge* for production and for archive — creating a PR/MR stays allowed, so an agent can still draft a `develop` → `main` archive PR for you. The merge itself, however, has exactly one path: **you** clicking it — there is no permit, token, or chat message an agent could use to confer that power on itself.
 
 ---
 
@@ -482,7 +491,7 @@ The plugin is free and open source (MIT). If it saves you and your team from a s
 
 ```bash
 npm install
-npm test          # unit tests: classify / gate / config / cli / repo / platform
+npm test          # unit tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit
 npm run typecheck     # tsc --noEmit, 0 errors
 npm run build         # tsdown → lib/ (CLI and plugin share the build)
 npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale regression + Claude Code / Codex / OpenCode / Antigravity hook wiring
@@ -490,7 +499,7 @@ npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale
 
 **Rule**: any logic change must pass a 0-error build + all green tests + a green `verify:matrix` before done.
 
-**Adding a new agent client** (e.g. Gemini / OpenCode / Cursor): all of these must change in one commit — `src/platform.ts` (+tests, `HookPlatform` union), a repo hook config beside `.claude/settings.json` / `.codex/hooks.json`, `.agents/hooks/references/<tool>.md`, `scripts/verify-matrix.mjs`, the README hook section and the top tagline, `package.json` description/keywords, and `CHANGELOG`. Done only when `npm run verify:matrix` is green. (Same checklist in [AGENTS.md](AGENTS.md) §8.)
+**Adding a new agent client** (e.g. Cursor / Windsurf): all of these must change in one commit — `src/platform.ts` (+tests, `HookPlatform` union), a repo hook config beside `.claude/settings.json` / `.codex/hooks.json`, `.agents/hooks/references/<tool>.md`, `scripts/verify-matrix.mjs`, the README hook section and the top tagline, `package.json` description/keywords, and `CHANGELOG`. Done only when `npm run verify:matrix` is green. (Same checklist in [AGENTS.md](AGENTS.md) §8.)
 
 ---
 
@@ -498,4 +507,4 @@ npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale
 
 [MIT](LICENSE) © FeatureAgents
 
-Design specification (Chinese, decision record): [docs/design.md](docs/design.md).
+Historical v0 design decisions (Chinese; superseded by the role-driven model shipped in 0.0.2 — current behavior is documented in this README): [docs/design.md](docs/design.md).

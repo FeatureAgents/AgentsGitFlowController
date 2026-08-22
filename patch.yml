@@ -1,5 +1,5 @@
-# agents-gitflow-guard 插件挂载层(dsh plugin add 后自动成为 profile 层)
-# 行配置可在 profile 的 cordis.patch.yml 中按 id 覆盖
+# agents-gitflow-guard DSH mount layer (applied into the profile after `dsh plugin add`)
+# Rows here can be overridden per-id in the profile's cordis.patch.yml
 
 - insert:
     - id: gitflow-guard

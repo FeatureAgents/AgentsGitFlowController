@@ -45,6 +45,7 @@ dsh plugin --profile web add agents-gitflow-guard@0.0.12
 ```
 
 > **版本坑**: 裸 `add` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。pnpm 打印的 peer 依赖 *警告* 属预期: DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`(插件正常工作)。
+
 **第 2 步——配置**,在**项目根目录**创建 `gitflow-guard.config.json`:
 
 ```jsonc
@@ -265,6 +266,13 @@ archive(可选, 发布后你亲手归档)
 - 每条分支条目是精确名或正则(自动识别)。**正则安全**:分支正则由项目作者提供并按原样编译——`featurePattern` 与分支条目请避免灾难性回溯写法(如 `(\w+)+` 这类嵌套量词)。
 - **文案语言**:默认英文;加 `"locale": "zh"` 切中文,或给任意 `gitflow-guard` 子命令传 `--locale <en|zh>`(优先级:CLI 旗标 > 项目配置 > 英文)。全部用户可见文案都跟随 locale——包括 `--help`、未知子命令提示、审计为空的提示等 CLI 框架文案。
 - **自定义语言**:下游包可在运行时追加语言——`import { registerLocale } from 'agents-gitflow-guard'`,调用 `registerLocale('fr', frDict)` 注册一份与内置英文键完全一致的字典(注册时校验),再在项目配置写 `"locale": "fr"` 即生效。
+
+  ```js
+  import { registerLocale, MESSAGE_KEYS } from 'agents-gitflow-guard'
+  // MESSAGE_KEYS 列出字典必须覆盖的全部键(与内置英文同一键集);缺键/多键注册即抛错。
+  const fr = { /* 每个 MESSAGE_KEYS 一条, 如 */ 'deny.header': ({ why }) => `[gitflow-guard] bloqué : ${why}` }
+  registerLocale('fr', fr)
+  ```
 - **未注册语言**:拦截路径对未注册的 `"locale"` 静默回退英文(设计如此——hook 不因文案缺失卡死),笔误因此容易被忽略;一行告警在 `gitflow-guard status` 中可见。
 - **校验**:`integration` 必填;角色条目重叠会被拒;非法正则会报错。**任何错误都会让该项目的插件禁用并上报**(而不是用半吊子配置)。
 - **strict 模式**:默认配置损坏时 stderr 告警一次后放行(fail-open,避免一个笔误卡死工具管道);`"strict": true` 把配置异常与内部错误翻转为**拦截**(fail-closed)——供高风险仓库选用。文件不存在或显式 `enabled: false` 两种模式下都保持静默。
@@ -279,7 +287,7 @@ archive(可选, 发布后你亲手归档)
 | 直推 / 强推 / 删除 integration / preview / production / archive | 🚫 拦(integration/preview 配 `flexible` 时直推放行) |
 | PR/MR: feature → integration / preview | ✅ 放行 |
 | PR/MR: feature → production | ✅ 可创建;**合并被拦**(你在 UI 合并) |
-| 指向 archive 的 PR/MR | 🚫 拦 |
+| 指向 archive 的 PR/MR | ✅ 可创建;🚫 合并被拦(你在 UI 合并) |
 | 在 integration / preview 上 `git merge feature/x`(本地) | 🚫 拦(须 PR/MR);`update: flexible` 则放行 |
 | 串联命令(`checkout develop && merge feature/x`) | 🚫 拦——逐段模拟分支切换,无法绕序 |
 
@@ -295,7 +303,7 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 ---
 ## 安装详解
 
-**前置**:一个可用的 [DSH](https://github.com/deepseek-ai/deepseek-harness) 安装。
+**前置**:一个可用的 [DSH](https://github.com/deepseek-ai/deepseek-harness) 安装,且 `PATH` 上有 **Node.js ≥ 22**(与包 `engines` 及 CI 矩阵最低档一致——独立 hook 用户不经 npm 安装,同样需要运行时)。
 
 **从 npm registry**——标准路径,已在[快速开始](#快速开始30-秒用上)覆盖:
 
@@ -400,7 +408,7 @@ hooks:
 
 ### 为什么 agent 不能自己合并进生产/归档?
 
-因为门禁把那些动作判定为**仅用户**。agent 可以创建 PR/MR,但对生产的*合并*、对归档的*建 PR 与合并*插件一律拒绝。唯一路径是**你**点合并——不存在 agent 能用来给自己授权的特许、令牌或聊天消息。
+因为门禁把那些动作判定为**仅用户**。插件对生产的*合并*、归档的*合并*一律拦截——*建 PR/MR 允许*,agent 仍可替你起草 develop→main 归档 PR。但合并本身只有一条路径:**你**亲手点合并——不存在 agent 能用来给自己授权的特许、令牌或聊天消息。
 
 ---
 
@@ -448,7 +456,7 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 | **integration** | 集成分支,唯一必填角色(`branches.integration`);feature 经 PR/MR 合入;受保护 |
 | **preview** | 可选环境终点分支(`branches.preview`,数组);只走 PR/MR 更新 |
 | **production** | 可选生产分支(`branches.production`,数组);PR/MR + 合并仅限用户 |
-| **archive** | `branches.archive`(数组) | 可选 | 允许 agent 创建指向它的 PR/MR; 合并仍限用户亲手 |
+| **archive** | 可选的发布后归档分支(`branches.archive`,数组);允许 agent 创建指向它的 PR/MR,合并仍限用户亲手 |
 | **feature 分支** | 你的工作分支,由 `featurePattern` 识别;自由区 |
 | **门禁矩阵** | 把每条被分类的命令映射为放行/拦截的判定表 |
 | **pre-execute** | 工具管线中拦截发生的钩子——在命令运行之前 |
@@ -479,7 +487,7 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 ```bash
 npm install
-npm test          # 单测: classify / gate / config / cli / repo / platform
+npm test          # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit
 npm run typecheck     # tsc --noEmit, 0 Error
 npm run build         # tsdown → lib/(CLI 与插件共用)
 npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claude Code / Codex / OpenCode / Antigravity hook 编码
@@ -487,10 +495,12 @@ npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claud
 
 **铁律**:任何逻辑改动必须 0 Error 构建 + 单测全绿 + 连续复测矩阵(`verify:matrix`)全绿后才算完成。
 
+**接入新的 agent 客户端**(如 Cursor / Windsurf):以下各项必须在同一个 commit 内完成——`src/platform.ts`(含测试与 `HookPlatform` 联合类型)、`.claude/settings.json` / `.codex/hooks.json` 旁新增一份仓库级 hook 配置、`.agents/hooks/references/<tool>.md`、`scripts/verify-matrix.mjs`、README 双语 hook 段与开头宣传语、`package.json` 的 description/keywords,以及 `CHANGELOG`。`npm run verify:matrix` 全绿才算完成。(同一清单见 [AGENTS.md](AGENTS.md) §8;DSH 为进程内插件不走 stdin-hook 清单,见该节例外说明。)
+
 ---
 
 ## 许可证
 
 [MIT](LICENSE) © FeatureAgents
 
-设计规格(中文,决策记录):[docs/design.md](docs/design.md)。
+v0 历史设计决策(中文;已被 0.0.2 角色驱动模型取代——现行行为以本 README 为准):[docs/design.md](docs/design.md)。
