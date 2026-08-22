@@ -391,7 +391,9 @@ No. Add only the roles your flow actually has. A solo repo with just `develop` c
 
 No, and it is important that you don't treat it as one. It is a workflow guard: it makes an agreed process mechanically enforceable. Text-based command recognition is inherently best-effort — an agent determined to obfuscate a command can slip past the parser.
 
-But what cannot be bypassed is the **role boundary itself**: merging into a protected role branch (integration / preview / production / archive) requires the configured path (PR/MR, or a human merge for production/archive). If you need real protection against hostile agents, that belongs in branch-protection rules on your hosting service.
+Within its supported command forms, the role boundary is enforced locally: merging into a protected role branch (integration / preview / production / archive) requires the configured path (PR/MR, or a human merge for production/archive). But the local layer itself **can** be bypassed by a determined agent — adversarial testing against this implementation measured 20 of 24 obfuscated samples slipping past the text layer (`sh -c "git push …"`, `bash -lc "…"`, absolute-path `git`, `env`/`command` wrappers, `$(...)` nesting, `git -C . push origin develop`, wildcard refspecs like `refs/heads/*:refs/heads/*`, `git pull origin <protected>`). Known non-defensible channels: direct forge-API calls (`gh api repos/…/pulls/N/merge`, `curl`) and interpreter subprocesses (`node -e "child_process.exec('git push …')"`).
+
+The real, non-bypassable boundary lives in branch-protection rules on your hosting service. Use both — treat this guard as instant feedback and audit trail, not as a security boundary.
 
 ---
 
@@ -403,7 +405,7 @@ Because the gate classifies those as **user-only** actions. An agent may create 
 
 ### Do I need the `gh` or `glab` CLI?
 
-No. They are optional adapters used only to resolve what a `pr merge` / `mr merge` is targeting, so the gate can tell "merge into integration/preview" (okay) from "merge into production/archive" (blocked). Without them, the plugin takes a conservative path — it refuses when it can't confirm the target — and everything else works the same. The core enforcement never touches a hosting service, which is why it works identically on GitHub, GitLab, self-hosted, or offline.
+No. They are optional adapters used only to resolve what a `pr merge` / `mr merge` is targeting, so the gate can tell "merge into integration/preview" (okay) from "merge into production/archive" (blocked). When neither CLI can confirm the target — missing, unauthenticated, offline, or the query fails — the gate **refuses the merge**, even when run from a feature branch: that PR could actually point at production/archive. Retry once the CLI works, or let the user click merge. Everything else works the same. The core enforcement never touches a hosting service, which is why it works identically on GitHub, GitLab, self-hosted, or offline.
 
 ---
 
