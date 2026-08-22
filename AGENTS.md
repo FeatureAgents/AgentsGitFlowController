@@ -89,7 +89,7 @@ AgentsGitFlowController/
 ## 8. 客户端支持清单(新增 agent 平台时必须逐项同步)
 
 > 每次给守卫新增一个客户端接入(已有 DSH / Claude Code / Codex / OpenCode / Antigravity;未来如 Cursor 等),按以下清单逐项同步,最后 `npm run verify:matrix` 全绿才算完成。**漏一项就是隐性半成品**。
-> **例外: GitHub Copilot 不提供 hook** —— 其原生 allow/deny/ask 权限 + rules 已覆盖守卫场景(官方文档见 README),不得再为它造半个 hook/声称支持。
+> **例外: GitHub Copilot 不在本插件接入范围** —— 其原生 allow/deny/ask 权限 + rules 已覆盖守卫场景; 官方另有 hooks 系统可由用户自行接入(官方文档见 README)。本插件不为它造半个 hook,也不声称支持该平台。
 
 1. **协议层** `src/platform.ts` + `tests/platform.spec.ts`:
    - `detectPlatform`: 加该平台 payload 判别字段;`extractHookPayload`: 加 stdin 形状;`encodeDeny`: 加拦截协议(exit 码 / stdout JSON 形状)。

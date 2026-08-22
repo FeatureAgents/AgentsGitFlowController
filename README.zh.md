@@ -388,7 +388,9 @@ hooks:
 
 不是,请注意别把它当安全工具。它是工作流守卫:把既定流程变成可机制执行的东西。基于文本的命令识别天然是尽力而为——铁心混淆命令的 agent 可以绕过解析器。
 
-但**角色边界本身**无法绕过:合入受保护角色分支(integration / preview / production / archive)必须走配置好的路径(PR/MR,或生产/归档的人工合并)。要真正防恶意 agent,那属于你托管服务的分支保护设置。
+在其支持的命令形态内,角色边界在本地强制生效:合入受保护角色分支(integration / preview / production / archive)必须走配置好的路径(PR/MR,或生产/归档的人工合并)。但本地这一层**可以**被刻意绕过——对本实现做的对抗实测中,24 个混淆样本有 20 个穿透了文本层(`sh -c "git push …"`、`bash -lc "…"`、绝对路径 git、`env`/`command` 包装、`$(...)` 内嵌、`git -C . push origin develop`、`refs/heads/*:refs/heads/*` 通配 refspec、`git pull origin <受保护分支>`)。已知本地不可防的通道:直连 forge API(`gh api repos/…/pulls/N/merge`、`curl`)与解释器子进程内嵌(`node -e "child_process.exec('git push …')"`).
+
+真正不可绕过的边界在你托管服务的分支保护设置。两边都用——把本守卫当作即时反馈与审计留痕,而不是安全边界。
 
 ---
 
@@ -400,7 +402,7 @@ hooks:
 
 ### 必须装 `gh` 或 `glab` CLI 吗?
 
-不用。它们只是可选适配器,用来解析 `pr merge` / `mr merge` 到底指向哪个分支,好让门禁区分"合入 integration/preview"(放行)与"合入 production/archive"(拦截)。没有时插件走保守路径——无法确认目标就拒绝——其余一切照常。核心校验不碰任何托管服务,所以它在 GitHub、GitLab、自托管或离线环境里行为一致。
+不用。它们只是可选适配器,用来解析 `pr merge` / `mr merge` 到底指向哪个分支,好让门禁区分"合入 integration/preview"(放行)与"合入 production/archive"(拦截)。当两个 CLI 都无法确认目标——未安装、未认证、离线或查询失败——门禁**一律拒绝合并**,即使在 feature 分支上执行也照拦:该 PR 可能实际指向生产/归档分支。等 CLI 可用后重试,或由用户亲手点合并。其余一切照常。核心校验不碰任何托管服务,所以它在 GitHub、GitLab、自托管或离线环境里行为一致。
 
 ---
 

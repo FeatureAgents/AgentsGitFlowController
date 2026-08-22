@@ -2,6 +2,11 @@
 
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 
+## 0.0.11 (待发布)
+
+- fix: pr-merge 目标无法解析(gh/glab 未装/未认证/离线)时一律拒绝 —— 原先按 feature head 放行,而该场景下 PR 可能实际指向 production/archive,「生产仅用户点合并」的承诺曾在此失效; 同步移除失效文案键。
+- docs: README 双语「安全工具」问答如实化 —— 移除「角色边界本身无法绕过」过度承诺,列出实测穿透文本层的混淆形态与已知本地不可防通道(forge API 直连、解释器子进程内嵌),明确服务端分支保护为最终边界; gh/glab FAQ 改为与新行为一致; AGENTS.md §8 Copilot 口径对齐官方 hooks 现状。
+
 ## 0.0.10 (待发布)
 
 - docs: 安装文档准确性 —— 快速开始/registry 安装补「锁版本」姿势与版本坑提示(registry 缓存/镜像陈旧时裸 add 可能拿旧版); 说明 pnpm peer WARN 属预期(DSH 启动经共享回退提供 cordis/dsh-tools)。README 双语随包发布。
