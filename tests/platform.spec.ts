@@ -46,6 +46,16 @@ describe('platform: extractHookPayload', () => {
     const raw = JSON.stringify({ tool_args: { cmd: 'git push origin develop' }, cwd: '/r' })
     expect(extractHookPayload(raw, 'opencode')?.command).toBe('git push origin develop')
   })
+
+  it('codex 显式平台: tool_input.command + turn_id payload(§8.1 显式分支用例)', () => {
+    const raw = JSON.stringify({ hook_event_name: 'PreToolUse', turn_id: 't1', tool_input: { command: 'git push origin develop' }, cwd: '/r', tool_use_id: 'c1' })
+    expect(extractHookPayload(raw, 'codex')).toEqual({ command: 'git push origin develop', cwd: '/r', toolUseId: 'c1', event: 'pre' })
+  })
+
+  it('antigravity 显式平台: toolCall.args.CommandLine envelope(§8.1 显式分支用例)', () => {
+    const raw = JSON.stringify({ hook_event_name: 'PreToolUse', toolCall: { name: 'run_command', args: { CommandLine: 'git merge feature/x' } }, cwd: '/r' })
+    expect(extractHookPayload(raw, 'antigravity')).toEqual({ command: 'git merge feature/x', cwd: '/r', toolUseId: undefined, event: 'pre' })
+  })
 })
 
 describe('platform: detectPlatform', () => {
