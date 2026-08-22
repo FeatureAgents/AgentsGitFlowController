@@ -45,7 +45,12 @@ export function roleMatches(branch: string | null | undefined, role: BranchRole)
 }
 
 /** 规范化用户输入的某个角色: 数组 或 {branches:[...], update?, mergeBy?} */
-function normalizeRole(raw: unknown, defaultUpdate: UpdateMode, defaultMergeBy: MergeBy): { role: BranchRole; errors: string[] } {
+function normalizeRole(
+  raw: unknown,
+  roleName: 'integration' | 'preview' | 'production' | 'archive',
+  defaultUpdate: UpdateMode,
+  defaultMergeBy: MergeBy,
+): { role: BranchRole; errors: string[] } {
   const errors: string[] = []
   let arr: unknown
   let update: unknown = undefined
@@ -64,6 +69,15 @@ function normalizeRole(raw: unknown, defaultUpdate: UpdateMode, defaultMergeBy: 
     errors.push('branches must be a non-empty array of strings')
   }
   const role: BranchRole = { branches: (Array.isArray(arr) ? arr : []).filter((x): x is string => typeof x === 'string' && x !== '') }
+  // 每条分支条目按运行时同款形态预编译(P1-2): 非法正则在校验期报错, 而不是 matchBranchSpec 里
+  // catch → return false 静默永不命中(保护无声消失是最坏失效形态)
+  for (const spec of role.branches) {
+    try {
+      new RegExp(`^(?:${spec})$`)
+    } catch {
+      errors.push(`branches.${roleName} entry is not a valid regex: ${spec}`)
+    }
+  }
   if (update === undefined || update === 'pr' || update === 'flexible') {
     role.update = update === undefined ? defaultUpdate : (update as UpdateMode)
   } else {
@@ -106,24 +120,24 @@ export function mergeConfig(raw: unknown): ConfigLoadResult {
 
   const b = (r.branches ?? {}) as Record<string, unknown>
   if ('integration' in b) {
-    const { role, errors: e } = normalizeRole(b.integration, 'pr', 'anyone')
+    const { role, errors: e } = normalizeRole(b.integration, 'integration', 'pr', 'anyone')
     config.branches.integration = role
     errors.push(...e)
   } else {
     errors.push('branches.integration is required')
   }
   if (b.preview !== undefined) {
-    const { role, errors: e } = normalizeRole(b.preview, 'pr', 'anyone')
+    const { role, errors: e } = normalizeRole(b.preview, 'preview', 'pr', 'anyone')
     config.branches.preview = role
     errors.push(...e)
   }
   if (b.production !== undefined) {
-    const { role, errors: e } = normalizeRole(b.production, 'pr', 'user')
+    const { role, errors: e } = normalizeRole(b.production, 'production', 'pr', 'user')
     config.branches.production = role
     errors.push(...e)
   }
   if (b.archive !== undefined) {
-    const { role, errors: e } = normalizeRole(b.archive, 'pr', 'user')
+    const { role, errors: e } = normalizeRole(b.archive, 'archive', 'pr', 'user')
     config.branches.archive = role
     errors.push(...e)
   }
@@ -136,7 +150,7 @@ export function mergeConfig(raw: unknown): ConfigLoadResult {
   return { config: errors.length > 0 ? null : config, errors, warnings, ...(strict !== undefined ? { strict } : {}) }
 }
 
-/** 配置校验: 角色分支重叠 / 正则合法等 */
+/** 配置校验: 角色分支重叠等(角色条目正则合法性已在 normalizeRole 预编译报错) */
 export function validateConfig(config: GuardConfig): string[] {
   const errors: string[] = []
   if (config.branches.integration.branches.length === 0) errors.push('branches.integration.branches is required')
