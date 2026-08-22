@@ -61,6 +61,12 @@ export function decide(classified: Classified, facts: GateFacts, config: GuardCo
       return classified.branch != null && isProtected(roleOfBranch(classified.branch, config))
         ? deny(t('refUpdateProtected.why', { branch: classified.branch }), t('refUpdateProtected.next'))
         : { kind: 'allow' }
+    case 'ref-move':
+      // 本地改写当前分支 tip(reset/rebase/amend/filter-branch): 与 local-merge 同型 ——
+      // 受保护分支上一律拒绝(改写即绕过 PR/MR), feature/other 上自由
+      return isProtected(roleOfBranch(facts.currentBranch, config))
+        ? deny(t('refMoveProtected.why'), t('refMoveProtected.next'))
+        : { kind: 'allow' }
     case 'guard-cli':
       // status/audit 只读, 放行
       return { kind: 'allow' }

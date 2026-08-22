@@ -5,6 +5,7 @@
 //   C) Codex hook       (gitflow-guard check --platform codex)
 //   D) zh locale
 //   E) antigravity 编码
+//   F) OpenCode hook    (gitflow-guard check --platform opencode)
 // 用法: npm run verify:matrix (内含 npm run build + 本脚本)
 
 import { execFileSync } from 'node:child_process'
@@ -77,6 +78,15 @@ console.log('[A] DSH plugin logic (evaluateCommand)')
       ['feature/x', 'gh pr create --base develop', 'allow'],
       ['develop', 'git checkout -b feature/y', 'allow'],
       ['develop', 'echo hi', 'allow'],
+      // 本地改写 refs 命令族(P1-1 收编): 受保护分支拒绝 / feature 自由
+      ['develop', 'git reset --hard HEAD~1', 'deny'],
+      ['feature/x', 'git reset --hard HEAD~1', 'allow'],
+      ['develop', 'git rebase main', 'deny'],
+      ['develop', 'git commit --amend -m x', 'deny'],
+      ['feature/x', 'git commit --amend -m x', 'allow'],
+      ['develop', 'git filter-branch -- --all', 'deny'],
+      ['develop', 'git branch -m develop x', 'deny'],
+      ['develop', 'git branch --delete --force develop', 'deny'],
     ]
     for (const [branch, cmd, want] of cases) {
       const r = await evaluateCommand(cmd, { repoRoot: repo, currentBranch: branch })
@@ -139,6 +149,8 @@ console.log('[E] antigravity encoding')
     const deny = runCheck('antigravity', JSON.stringify({ hook_event_name: 'PreToolUse', toolCall: { args: { CommandLine: 'git branch -D main' } }, cwd: repo }), repo)
     check('拦截: exit 0', deny.code === 0, `code=${deny.code}`)
     check('拦截: stdout decision=deny', /"decision":"deny"/.test(deny.stdout), deny.stdout)
+    const ok = runCheck('antigravity', JSON.stringify({ hook_event_name: 'PreToolUse', toolCall: { args: { CommandLine: 'ls -la' } }, cwd: repo }), repo)
+    check('放行: exit 0 且无输出(快路径)', ok.code === 0 && ok.stdout === '', `code=${ok.code} out=${ok.stdout}`)
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }
