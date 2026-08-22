@@ -257,6 +257,7 @@ archive (optional; you archive after release)
     "archive":     ["main"]                                      // optional
   },
   "locale": "en",                      // optional: message language ('en' default, or 'zh')
+  "strict": false,                     // optional: fail-closed — invalid config / internal errors block instead of warn-and-allow
   "ci": { "enabled": true }            // optional: gh pr checks logged as reference
 }
 ```
@@ -267,6 +268,7 @@ archive (optional; you archive after release)
 - Each branch entry is an exact name or a regex (auto-detected).
 - **Language**: messages are English by default; add `"locale": "zh"` for Chinese.
 - **Validation**: `integration` is required; overlapping role entries are rejected; invalid regex is rejected. **Any error disables the plugin for that project** (reported) rather than applying a half-guessed setup.
+- **Strict mode**: by default a broken config warns on stderr once and lets the command pass (fail-open, so a typo can't wedge your tooling). `"strict": true` flips config errors and internal errors to **block** (fail-closed) — for high-risk repos. A missing file or explicit `enabled: false` stays silent either way.
 
 ---
 
