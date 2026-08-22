@@ -150,6 +150,20 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
+  it('&& 串联: 从 feature 切到集成分支后裸推 → 按模拟分支 deny(dst 延迟解析)', async () => {
+    const dir = tempRepo()
+    try {
+      const r = await evaluateCommand('git switch develop && git push', {
+        repoRoot: dir,
+        runner: scriptedRunner(),
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(r.outcome).toBe('deny')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('合法串联: 切新分支并推 feature → allow', async () => {
     const dir = tempRepo()
     try {

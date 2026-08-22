@@ -171,9 +171,12 @@ function tokenize(segment: string): string[] {
 function classifyGit(args: string[], ctx: ClassifyContext): Classified[] {
   const [sub, ...rest] = stripGlobalOptions(args)
   if (sub === 'push') return parsePush(rest, ctx)
+  if (sub === 'pull') return parsePull(rest)
   if (sub === 'merge') return parseMerge(rest)
   if (sub === 'branch') return parseBranch(rest)
   if (sub === 'checkout' || sub === 'switch') return parseCheckout(rest)
+  if (sub === 'send-pack') return parseSendPack(rest)
+  if (sub === 'update-ref') return parseUpdateRef(rest)
   return [{ kind: 'other' }]
 }
 
@@ -234,32 +237,91 @@ function parsePush(args: string[], ctx: ClassifyContext): Classified[] {
   }
   // --all/--mirror 推送全部本地分支(含受保护分支), 门禁一律拒绝
   if (all) return [{ kind: 'push', dst: null, force, delete: false, all: true }]
-  // 第一个非 flag 参数是 remote, 其余是 refspec
-  const refspecs = nonFlag.slice(1)
-  if (refspecs.length === 0) return [{ kind: 'push', dst: ctx.currentBranch ?? null, force, delete: false }]
-  return refspecs.map((ref) => {
-    // '+' 前缀 = 强推(git push +src:dst), 剥离后再解析目标
-    let refForce = force
-    if (ref.startsWith('+')) {
+  const [first, second] = nonFlag
+  if (first == null) return [{ kind: 'push', dst: null, force, delete: false }]
+  // 单个非 flag 参数有歧义(git 按名字消歧: 是 remote 则裸推当前分支, 否则作为 refspec):
+  // 纯文本无法消歧, 两种解释都送分类 —— 门禁对多段分类任一 deny 即整体拦截
+  if (second == null) {
+    return [
+      { kind: 'push', dst: stripRefPrefix(first), force, delete: isDelete },
+      { kind: 'push', dst: null, force, delete: isDelete },
+    ]
+  }
+  // 首个非 flag 参数是 remote, 其余是 refspec; 无 refspec 时目标在执行时才确定, 延迟到门禁按(模拟)当前分支解析
+  return mapRefspecs(nonFlag.slice(1), { force, delete: isDelete }, ctx)
+}
+
+/** refspec → push 分类。含 * 视为批量推送(与 --all 同级); HEAD/空 dst 延迟为 null(门禁按模拟分支解析) */
+function mapRefspecs(refspecs: string[], base: { force: boolean; delete: boolean }, ctx?: ClassifyContext): Classified[] {
+  return refspecs.map((raw) => {
+    let refForce = base.force
+    if (raw.startsWith('+')) {
       refForce = true
-      ref = ref.slice(1)
+      raw = raw.slice(1)
     }
-    if (ref.startsWith(':')) return { kind: 'push', dst: stripRefPrefix(ref.slice(1)) || null, force: refForce, delete: true }
-    const colon = ref.indexOf(':')
+    // 通配 refspec(refs/heads/*:refs/heads/* 等)= 推送全部分支, 门禁一律拒绝
+    if (raw.includes('*')) return { kind: 'push', dst: null, force: refForce, delete: false, all: true }
+    if (raw.startsWith(':')) return { kind: 'push', dst: stripRefPrefix(raw.slice(1)) || null, force: refForce, delete: true }
+    const colon = raw.indexOf(':')
     if (colon >= 0) {
       // 冒号结尾(develop: / HEAD:develop:) = 删除目标分支; dst 取冒号间部分, 空则回退前缀
-      const deleteTarget = ref.endsWith(':')
-      const dst = deleteTarget ? ref.slice(colon + 1, ref.length - 1) || ref.slice(0, colon) : ref.slice(colon + 1)
-      return { kind: 'push', dst: dst ? stripRefPrefix(dst) : null, force: refForce, delete: deleteTarget || isDelete }
+      const deleteTarget = raw.endsWith(':')
+      const dst = deleteTarget ? raw.slice(colon + 1, raw.length - 1) || raw.slice(0, colon) : raw.slice(colon + 1)
+      return { kind: 'push', dst: dst ? stripRefPrefix(dst) : null, force: refForce, delete: deleteTarget || base.delete }
     }
-    if (ref === 'HEAD') return { kind: 'push', dst: ctx.currentBranch ?? null, force: refForce, delete: isDelete }
-    return { kind: 'push', dst: stripRefPrefix(ref), force: refForce, delete: isDelete }
+    if (raw === 'HEAD') return { kind: 'push', dst: null, force: refForce, delete: base.delete }
+    return { kind: 'push', dst: stripRefPrefix(raw), force: refForce, delete: base.delete }
   })
 }
 
 /** 全限定 refspec(refs/heads/x)剥离前缀, 与角色分支名比对 */
 function stripRefPrefix(branch: string): string {
   return branch.startsWith('refs/heads/') ? branch.slice('refs/heads/'.length) : branch
+}
+
+/** git pull = fetch+merge: 取最后一个非 flag 参数为远端分支名(source), 交给本地合入门禁; 无 refspec 时 source=null(同步上游语义) */
+function parsePull(args: string[]): Classified[] {
+  const nonFlags = args.filter((a) => !a.startsWith('-'))
+  const last = nonFlags[nonFlags.length - 1]
+  // 形态: [remote [refspec]]; remote 在前 refspec 在后, 故取末个非 flag; 剥离可能的 '+' 强制前缀
+  const source = nonFlags.length >= 2 && last ? last.replace(/^\+/, '') : null
+  return [{ kind: 'local-merge', source }]
+}
+
+/** git send-pack(push 的底层等价物): 首个非 flag 是 host:path, 其后 refspec 按推送语义分类 */
+function parseSendPack(args: string[]): Classified[] {
+  let force = false
+  let all = false
+  const nonFlag: string[] = []
+  for (const a of args) {
+    if (a === '-f' || a === '--force') force = true
+    else if (a === '--all') all = true
+    else if (!a.startsWith('-')) nonFlag.push(a)
+    // 其余 flag 忽略
+  }
+  if (all) return [{ kind: 'push', dst: null, force, delete: false, all: true }]
+  const refspecs = nonFlag.slice(1)
+  if (refspecs.length === 0) return [{ kind: 'other' }] // 仅 host 无 refspec: 不推任何分支
+  return mapRefspecs(refspecs, { force, delete: false })
+}
+
+/** git update-ref 直改 refs(plumbing): 提取目标 ref(剥 refs/heads/ 前缀供角色比对); -d 为删除 */
+function parseUpdateRef(args: string[]): Classified[] {
+  let isDelete = false
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (a === '-d') {
+      isDelete = true
+      continue
+    }
+    if (a === '-m' || a === '--message') {
+      i++ // 消费 -m 的值, 不能当作 ref
+      continue
+    }
+    if (a.startsWith('-')) continue
+    return [{ kind: 'ref-update', branch: stripRefPrefix(a), delete: isDelete }]
+  }
+  return [{ kind: 'other' }]
 }
 
 function parseMerge(args: string[]): Classified[] {

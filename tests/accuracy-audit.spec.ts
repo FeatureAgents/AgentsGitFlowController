@@ -182,3 +182,49 @@ describe('accuracy: 对抗语料(整改 §1.1)—— git 全局选项', () => {
     expect(classify('git status --short')[0].kind).toBe('other')
   })
 })
+
+describe('accuracy: 对抗语料(整改 §1.1)—— git 形态第二批(通配/pull/plumbing)', () => {
+  const cfg = config()
+
+  it('通配 refspec 视为推送全部分支, 按 --all 同级拦截', () => {
+    const c = classify('git push origin refs/heads/*:refs/heads/*')[0]
+    expect(c).toMatchObject({ kind: 'push', all: true })
+    expect(decide(c, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    expect(classify('git push origin +refs/heads/*:refs/heads/*')[0]).toMatchObject({ kind: 'push', all: true })
+    expect(classify('git push origin "refs/heads/feature/*:refs/heads/feature/*"')[0]).toMatchObject({ kind: 'push', all: true })
+  })
+
+  it('git pull = fetch+merge: refspec 目标走本地合入门禁(source 是远端分支名)', () => {
+    expect(classify('git pull origin feature/x')[0]).toMatchObject({ kind: 'local-merge', source: 'feature/x' })
+    expect(classify('git pull --rebase origin feature/x')[0]).toMatchObject({ kind: 'local-merge', source: 'feature/x' })
+    expect(decide(classify('git pull origin feature/x')[0], { currentBranch: 'develop' }, cfg, t).kind).toBe('deny')
+    // 无参 / 仅 remote: 同步上游语义(source null), 门禁放行
+    expect(classify('git pull')[0]).toMatchObject({ kind: 'local-merge', source: null })
+    expect(classify('git pull origin')[0]).toMatchObject({ kind: 'local-merge', source: null })
+    expect(decide(classify('git pull origin')[0], { currentBranch: 'feature/x' }, cfg, t).kind).toBe('allow')
+  })
+
+  it('plumbing 收编: send-pack 按推送语义分类', () => {
+    expect(classify('git send-pack host:path refs/heads/f:refs/heads/develop')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(classify('git send-pack --all host:path')[0]).toMatchObject({ kind: 'push', all: true })
+    expect(decide(classify('git send-pack host:path refs/heads/main:refs/heads/main')[0], { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    expect(classify('git send-pack host:path')[0].kind).toBe('other')
+  })
+
+  it('plumbing 收编: update-ref 直改受保护分支 refs 一律拒绝', () => {
+    const c = classify('git update-ref refs/heads/develop HEAD')[0]
+    expect(c).toMatchObject({ kind: 'ref-update', branch: 'develop', delete: false })
+    expect(decide(c, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    const d = classify('git update-ref -d refs/heads/main')[0]
+    expect(d).toMatchObject({ kind: 'ref-update', branch: 'main', delete: true })
+    expect(decide(d, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    // feature 分支的 ref 更新放行
+    expect(decide(classify('git update-ref refs/heads/feature/x HEAD')[0], { currentBranch: 'feature/x' }, cfg, t).kind).toBe('allow')
+  })
+
+  it('裸推/HEAD 的 dst 延迟解析: 切到受保护分支后裸推按模拟分支判定', () => {
+    expect(classify('git switch develop && git push', { currentBranch: 'feature/x' })[1]).toMatchObject({ kind: 'push', dst: null })
+    expect(decide({ kind: 'push', dst: null, force: false, delete: false }, { currentBranch: 'develop' }, cfg, t).kind).toBe('deny')
+    expect(decide({ kind: 'push', dst: null, force: false, delete: false }, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('allow')
+  })
+})

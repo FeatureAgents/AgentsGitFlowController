@@ -29,6 +29,8 @@ const en: Dict = {
   'denyDeleteOrForce.why': (v) => `Protected branch "${v.branch}" may not be deleted or force-pushed`,
   'denyDeleteOrForce.next': () =>
     'Delete/force-push on a feature branch outside the protected branches; protected branches are managed by you.',
+  'refUpdateProtected.why': (v) => `Protected branch "${v.branch}" forbids direct ref updates (update-ref)`,
+  'refUpdateProtected.next': () => 'Update protected branches via PR/MR; they are managed by you.',
   'pushAll.why': () => '--all/--mirror push would include protected branches',
   'pushAll.next': () => 'Push branch by branch with an explicit refspec.',
   'pushDetached.why': () => 'Cannot determine the push target (detached HEAD?)',
@@ -108,6 +110,8 @@ const zh: Dict = {
 
   'denyDeleteOrForce.why': (v) => `受保护分支「${v.branch}」禁止删除或强推`,
   'denyDeleteOrForce.next': () => '删除/强推请到受保护分支外的 feature 分支上操作; 受保护分支由用户亲手管理',
+  'refUpdateProtected.why': (v) => `受保护分支「${v.branch}」禁止直接改写 refs(update-ref)`,
+  'refUpdateProtected.next': () => '请通过 PR/MR 更新受保护分支; 受保护分支由用户亲手管理',
   'pushAll.why': () => '--all/--mirror 推送会包含受保护分支',
   'pushAll.next': () => '请逐分支推送并显式指定 refspec',
   'pushDetached.why': () => '无法确定推送目标分支(可能处于 detached HEAD)',

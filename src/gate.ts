@@ -56,6 +56,11 @@ export function decide(classified: Classified, facts: GateFacts, config: GuardCo
       return isProtected(roleOfBranch(classified.branch, config))
         ? deny(t('denyDeleteOrForce.why', { branch: classified.branch ?? '' }), t('denyDeleteOrForce.next'))
         : { kind: 'allow' }
+    case 'ref-update':
+      // update-ref 直改受保护分支 refs(plumbing 绕过面), 一律拒绝
+      return classified.branch != null && isProtected(roleOfBranch(classified.branch, config))
+        ? deny(t('refUpdateProtected.why', { branch: classified.branch }), t('refUpdateProtected.next'))
+        : { kind: 'allow' }
     case 'guard-cli':
       // status/audit 只读, 放行
       return { kind: 'allow' }
