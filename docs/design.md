@@ -1,12 +1,15 @@
-# agents-gitflow-guard 设计定稿(唯一规格)
+# agents-gitflow-guard v0 设计定稿(历史决策记录)
 
-> 状态: **已定稿**(五轮交互对齐完成)
-> 本文件为**唯一设计规格**, 已吸收原 `docs/proposal.md` 全部内容(原文件删除)。
+> ⚠ **历史文档**: 本文是 0.0.2 之前的 v0 设计(permit/confirm 特许系统、base/trunk 角色、permits.ts/session.ts 结构等),
+> 已被 0.0.2 的**角色驱动模型**(integration / preview / production / archive)整体取代。
+> **现行行为以双语 README 为准**, 本文仅作设计决策追溯, 不描述当前实现。
+>
+> 状态: **已归档**(v0 定稿于 2026-08-17, 五轮交互对齐完成; 0.0.2 起不再代表实现规格)
+> 已吸收原 `docs/proposal.md` 全部内容(原文件删除)。
 > 快速导航: 设计定稿 §4 · 项目结构 §5 · 里程碑 §9 · 决策过程见附录。
 >
 > **公开说明(2026-08-17)**: 文中 `D:\...` 等 Windows 路径为设计期环境路径, 与本仓库实际位置
 > 无关; 包名现为 `agents-gitflow-guard`(曾用 `@freehappyteam/dsh-gitflow-guard` / `dsh-gitflow-guard`, 见 §10 决策记录)。
-> 其余设计内容仍为当前实现规格。
 
 ---
 
