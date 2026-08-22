@@ -26,8 +26,8 @@ export interface CiConfig {
   enabled: boolean
 }
 
-/** 文案语言: 默认 en; 'zh' 切中文 */
-export type Locale = 'en' | 'zh'
+/** 文案语言: 默认 en; 'zh' 切中文; 可经 registerLocale 运行时扩展(保留字面量提示的宽字符串) */
+export type Locale = 'en' | 'zh' | (string & {})
 
 /** 项目配置(来自 gitflow-guard.config.json, opt-in 启用) */
 export interface GuardConfig {

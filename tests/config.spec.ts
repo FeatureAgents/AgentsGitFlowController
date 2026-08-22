@@ -79,6 +79,18 @@ describe('config: 校验', () => {
     const merged = mergeConfig(raw)
     expect(validateConfig(merged.config!)).toEqual(merged.errors)
   })
+
+  it('locale 放开为任意字符串: 未注册语言告警不报错, 原值保留(P2-2)', () => {
+    const { config, errors, warnings } = mergeConfig({ enabled: true, locale: 'fr', branches: { integration: ['develop'] } })
+    expect(errors).toEqual([])
+    expect(config!.locale).toBe('fr')
+    expect(warnings.some((w) => w.includes('"fr"') && w.includes('en'))).toBe(true)
+  })
+
+  it('locale 非字符串 → 仍属配置错误', () => {
+    const { errors } = mergeConfig({ locale: 42, branches: { integration: ['develop'] } })
+    expect(errors.some((e) => e.includes('locale'))).toBe(true)
+  })
 })
 
 describe('config: 分支匹配(条目支持正则)', () => {
