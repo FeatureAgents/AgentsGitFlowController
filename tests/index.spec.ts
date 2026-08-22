@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apply, evaluateCommand } from '../src/index'
+import { apply, evaluateCommand, registerLocale } from '../src/index'
 import type { Context } from '@deepseek-ai/cordis'
 import type { RunResult, Runner } from '../src/repo'
 
@@ -221,5 +221,12 @@ describe('apply: DSH 插件降级路径(P0-1)', () => {
     const next = async () => 'passed-through'
     await expect(handler!(exec, next)).resolves.toBe('passed-through')
     expect(warnings).toEqual(['gitflow-guard: gate internal error, allowed through: boom'])
+  })
+})
+
+describe('包根再导出 registerLocale(P1-1)', () => {
+  it('registerLocale 从插件入口可导入(下游注册自定义 locale 的公开契约)', () => {
+    // 行为覆盖在 i18n.spec.ts / cli.spec.ts; 此处只断言「包根可导入」这一导出面契约
+    expect(registerLocale).toBeTypeOf('function')
   })
 })
