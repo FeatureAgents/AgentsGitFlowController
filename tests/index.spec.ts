@@ -224,9 +224,18 @@ describe('apply: DSH 插件降级路径(P0-1)', () => {
   })
 })
 
-describe('包根再导出 registerLocale(P1-1)', () => {
+describe('包根再导出 registerLocale(P1-1) / MESSAGE_KEYS(P2-6)', () => {
   it('registerLocale 从插件入口可导入(下游注册自定义 locale 的公开契约)', () => {
     // 行为覆盖在 i18n.spec.ts / cli.spec.ts; 此处只断言「包根可导入」这一导出面契约
     expect(registerLocale).toBeTypeOf('function')
+  })
+  it('MESSAGE_KEYS 从包根可导入: 自定义字典的必需键清单可发现(与内置 en 键集一致)', async () => {
+    const { MESSAGE_KEYS } = await import('../src/index')
+    const en = await import('../src/i18n')
+    expect(MESSAGE_KEYS).toBeTypeOf('object')
+    expect(MESSAGE_KEYS.length).toBeGreaterThan(0)
+    // 与 i18n 模块导出的键清单同源同值
+    expect([...MESSAGE_KEYS]).toEqual([...en.MESSAGE_KEYS])
+    expect(MESSAGE_KEYS).toContain('deny.header')
   })
 })
