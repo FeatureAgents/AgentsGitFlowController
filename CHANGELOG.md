@@ -3,7 +3,7 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
-## 0.0.12
+## 0.0.13
 
 - fix(guard): the classifier now covers the local ref-rewrite command family — `git reset` / `git rebase` / `git commit --amend` / `git filter-branch` classify as a new `ref-move` kind (denied on protected branches, free on feature branches, mirroring local-merge semantics); `git branch -m/-M/--move` renames and `-f/--force` pointer resets go through the ref-update gate; branch parsing scans all flags, closing the combined-flag bypass (`git branch -d --force develop`, `--delete --force`) —— 分类器收编「本地改写 refs」命令族(reset/rebase/amend/filter-branch → ref-move, 受保护分支上一律拒绝、feature 自由, 与 local-merge 同型)；branch 改名(移动受保护 ref)与强制复位按 ref-update 同级处理；parseBranch 改为全旗标扫描，堵住组合长旗标绕过。对抗语料同步进 accuracy-audit 与复测矩阵 A 节。
 - fix(config): invalid regexes in role branch entries now fail validation at load time instead of silently never matching —— 角色条目非法正则在 normalizeRole 预编译报错(此前 matchBranchSpec 对编译失败 catch→return false，条目静默永不命中、保护无声消失且 status 无告警)；按既有 strict/fail-open 分级生效。
@@ -13,6 +13,8 @@
 - docs(design): design.md now carries a historical banner (v0 decisions superseded by the role-driven model shipped in 0.0.2) instead of claiming to be the current spec; verify-0.0.2.md got a time-point banner; stale local handoff notes removed —— design.md 顶部改历史横幅并修正「唯一规格/当前实现规格」表述，双语 README 链接文案同步为「已被 0.0.2 取代」；verify-0.0.2.md 加时点横幅(§3.4 记录 0.0.9 反转前行为)；删除过期本地交接记录(.gitignore 条目保留防复发)。
 - chore(test): verify-matrix header comment lists all six sections (A-F); section E gains an allow case so all five hook platforms assert deny+allow pairs; explicit extract tests for codex/antigravity platforms —— 复测矩阵头注释补 F 节；E 节(Antigravity)补放行用例(五平台拦截+放行成对，27→36 PASS)；platform.spec 补 codex/antigravity 显式平台分支用例。
 - chore(release): `npm publish --provenance` for supply-chain attestation at zero cost under GitHub Actions; patch.yml comments switched to English as part of the published file surface —— release.yml 发布加 provenance；patch.yml 注释改英文(该文件经 files 白名单随包发布)。
+
+## 0.0.12
 - fix(i18n): plugin degrade log and i18n load-time validation error are now English (`gitflow-guard: gate internal error, allowed through: …` / `dictionary keys mismatch`), aligned with the CLI wording —— 插件降级日志与 i18n 加载期校验异常统一为英文(与 CLI 口径一致), 遵循项目语言规范; `tests/index.spec.ts` 补 apply 降级日志断言。
 - feat(cli): all CLI framework text (`--help`, unknown-command notice, repo-not-found, empty-audit) now follows the message locale instead of hardcoded English, and every subcommand accepts `--locale <en|zh>` (priority: CLI flag > project config > English) —— CLI 框架文案不再硬编码英文, 与 status 输出同口径; 新增 `--locale` 旗标(优先级: 旗标 > 项目配置 > en), 并同步传入门禁保证拦截正文与封装同语言。
 - feat(i18n): new `registerLocale(name, dict)` runtime extension point for downstream packages; `Locale` widened to a hinted string; config `locale` accepts any string — unregistered locales warn (not error) and fall back to English —— 新增 `registerLocale(name, dict)` 运行时扩展点(键一致性复用内置校验); `Locale` 类型放宽; 配置 locale 放开为任意字符串, 未注册语言告警不禁用并回退英文(status 可见告警)。Entry 形态维持 `(vars) => string`, 复数/ICU 留待真实多语言需求(决策留档 docs/issues.md P2-6)。
