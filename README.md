@@ -42,7 +42,7 @@ You define your own branches —
 # installs the latest release
 dsh plugin --profile web add agents-gitflow-guard
 # ...or pin an exact known-good version (recommended; also bypasses stale registry caches)
-dsh plugin --profile web add agents-gitflow-guard@0.0.9
+dsh plugin --profile web add agents-gitflow-guard@0.0.12
 ```
 
 > **Version gotcha**: a bare `add` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. The peer-dependency *warning* pnpm may print is expected: DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup (the plugin works normally).
@@ -256,7 +256,7 @@ archive (optional; you archive after release)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // optional
     "archive":     ["main"]                                      // optional
   },
-  "locale": "en",                      // optional: message language ('en' default, or 'zh')
+  "locale": "en",                      // optional: message language — any registered locale ('en'/'zh' built-in); unknown values warn in status and fall back to English
   "strict": false,                     // optional: fail-closed — invalid config / internal errors block instead of warn-and-allow
   "ci": { "enabled": true }            // optional: gh pr checks logged as reference
 }
@@ -267,6 +267,8 @@ archive (optional; you archive after release)
 - `mergeBy` (production): `user` (default) = only you click merge; `anyone` = allow PR merge through.
 - Each branch entry is an exact name or a regex (auto-detected). **Regex safety**: branch patterns are authored by you and compiled as-is — avoid catastrophic-backtracking constructs (e.g. nested quantifiers like `(\w+)+`) in `featurePattern` and branch entries.
 - **Language**: messages are English by default; add `"locale": "zh"` for Chinese, or pass `--locale <en|zh>` to any `gitflow-guard` subcommand (priority: CLI flag > project config > English). All user-facing text follows the locale — including CLI framework messages such as `--help`, unknown-command notices, and the empty-audit line.
+- **Custom locales**: downstream packages can add a language at runtime — `import { registerLocale } from 'agents-gitflow-guard'`, call `registerLocale('fr', frDict)` with a dictionary covering exactly the same keys as built-in English (validated on registration), then set `"locale": "fr"` in the project config to activate it.
+- **Unknown locales**: an unregistered `"locale"` value falls back to English during interception (by design — hooks never stall on wording), so a typo is easy to miss; the one-line warning shows up in `gitflow-guard status`.
 - **Validation**: `integration` is required; overlapping role entries are rejected; invalid regex is rejected. **Any error disables the plugin for that project** (reported) rather than applying a half-guessed setup.
 - **Strict mode**: by default a broken config warns on stderr once and lets the command pass (fail-open, so a typo can't wedge your tooling). `"strict": true` flips config errors and internal errors to **block** (fail-closed) — for high-risk repos. A missing file or explicit `enabled: false` stays silent either way.
 
@@ -301,7 +303,7 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 **From the npm registry** — the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.9    # pin recommended, see note above
+dsh plugin --profile web add agents-gitflow-guard@0.0.12    # pin recommended, see note above
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.
@@ -421,7 +423,7 @@ The blocks are reserved for: (1) direct writes to protected role branches, and (
 
 ### What if my config has a mistake?
 
-The plugin prefers failing closed: any validation error disables the guard for that project and reports the errors, so a half-guessed setup never applies by accident.
+A half-guessed setup is never applied by accident: any validation error disables the guard for that project and reports the errors.
 
 Common mistakes: missing `integration` (required), overlapping a branch across two roles (rejected explicitly), and a `featurePattern` that doesn't compile (rejected as invalid regex). The failure is loud and the file is one JSON object, so the fix is usually a thirty-second correction.
 
@@ -483,7 +485,7 @@ npm install
 npm test          # unit tests: classify / gate / config / cli / repo / platform
 npm run typecheck     # tsc --noEmit, 0 errors
 npm run build         # tsdown → lib/ (CLI and plugin share the build)
-npm run verify:matrix # continuous cross-agent regression: DSH logic + Claude Code / Codex / antigravity hook wiring
+npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale regression + Claude Code / Codex / OpenCode / Antigravity hook wiring
 ```
 
 **Rule**: any logic change must pass a 0-error build + all green tests + a green `verify:matrix` before done.
