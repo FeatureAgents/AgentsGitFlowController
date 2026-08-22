@@ -90,6 +90,14 @@ export interface GuardCliClassified {
   sub: 'status' | 'other'
 }
 
+/** git update-ref 直改 refs(plumbing): 受保护分支一律拒绝 */
+export interface RefUpdateClassified {
+  kind: 'ref-update'
+  /** 目标分支(剥离 refs/heads/ 前缀后, 供角色比对) */
+  branch: string | null
+  delete: boolean
+}
+
 export interface OtherClassified {
   kind: 'other'
 }
@@ -102,6 +110,7 @@ export type Classified =
   | BranchDeleteClassified
   | CheckoutClassified
   | GuardCliClassified
+  | RefUpdateClassified
   | OtherClassified
 
 /** 分类所需上下文(解析 HEAD / 无 refspec 等歧义) */
