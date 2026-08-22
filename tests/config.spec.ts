@@ -180,6 +180,19 @@ describe('config: strict 位(fail-open/fail-closed 策略)', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('JSON 整体损坏(parse 失败)同样提取 strict=true', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-config-parsefail-'))
+    try {
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), '{"enabled":true,"strict":true,branches:[}')
+      const loaded = await loadConfig(dir)
+      expect(loaded.config).toBeNull()
+      expect(loaded.errors.length).toBeGreaterThan(0)
+      expect(loaded.strict).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('config: 默认配置常量', () => {

@@ -153,11 +153,21 @@ export function validateConfig(config: GuardConfig): string[] {
 
 /** 从项目根加载配置; 无文件 = 未启用(opt-in) */
 export async function loadConfig(repoRoot: string): Promise<ConfigLoadResult> {
+  let text: string
   try {
-    const text = await readFile(join(repoRoot, CONFIG_FILE), 'utf8')
-    return mergeConfig(JSON.parse(text))
+    text = await readFile(join(repoRoot, CONFIG_FILE), 'utf8')
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { config: null, errors: [] }
     return { config: null, errors: [`Failed to read config file: ${(e as Error).message}`] }
   }
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch (e) {
+    // JSON 整体损坏(mergeConfig 无从运行): strict 位按原文保守提取(仅匹配 "strict": true),
+    // 保证 fail-closed 判定在配置最坏形态下仍然生效
+    const strict = /"strict"\s*:\s*true/.test(text) || undefined
+    return { config: null, errors: [`Failed to read config file: ${(e as Error).message}`], ...(strict ? { strict } : {}) }
+  }
+  return mergeConfig(raw)
 }

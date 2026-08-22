@@ -221,4 +221,16 @@ describe('cli: check(agent hook 门禁)', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('strict + JSON 整体损坏(parse 失败)→ 同样 fail-closed', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-check-parsefail-'))
+    try {
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), '{"enabled":true,"strict":true,branches:[}')
+      const { code, stderr } = await captureStderr(() => main(['check', '--command', 'git push origin develop', '--repo', dir]))
+      expect(code).toBe(2)
+      expect(stderr).toContain('blocked:')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
