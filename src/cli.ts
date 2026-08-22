@@ -6,6 +6,7 @@ import { classify } from './classify'
 import { loadConfig, roleMatches } from './config'
 import { evaluateCommand, formatDeny, stateDir } from './index'
 import { makeT, resolveLocale } from './i18n'
+import type { Locale } from './i18n'
 import { detectPlatform, encodeDeny, extractHookPayload } from './platform'
 import { currentBranch, findRepoRoot, gitRunner } from './repo'
 import type { HookPayload, HookPlatform } from './platform'
@@ -138,15 +139,25 @@ function readStdin(): Promise<string> {
   })
 }
 
+/** 按平台编码并输出 deny, 返回退出码 */
+function emitDeny(platform: HookPlatform, why: string, next: string, locale: Locale = 'en'): number {
+  const enc = encodeDeny(platform, formatDeny(locale, why, next))
+  if (enc.stdout) process.stdout.write(enc.stdout + '\n')
+  if (enc.stderr) process.stderr.write(enc.stderr + '\n')
+  return enc.exitCode
+}
+
 /** check: agent hook 门禁。读 stdin hook payload(或 --command), exit 0=放行 / 2=拦截(按平台编码) */
 async function check(flags: Flags): Promise<number> {
-  const platform = (flags.platform ?? 'auto') as HookPlatform | 'auto'
+  const platformFlag = (flags.platform ?? 'auto') as HookPlatform | 'auto'
+  let raw = ''
+  let strict = false
   try {
-    const raw = flags.command != null ? '' : await readStdin()
+    raw = flags.command != null ? '' : await readStdin()
     const payload: HookPayload | null =
       flags.command != null
         ? { command: flags.command, cwd: flags.repo, event: 'pre' }
-        : extractHookPayload(raw, platform)
+        : extractHookPayload(raw, platformFlag)
     if (!payload?.command) return 0
 
     // 快路径: 非 git/gh/glab/gitflow-guard 命令直接放行, 不触发任何 git 查询
@@ -156,21 +167,37 @@ async function check(flags: Flags): Promise<number> {
     const cwd = payload.cwd ?? process.cwd()
     const repoRoot = flags.repo ?? (await findRepoRoot(gitRunner, cwd))
     if (!repoRoot) return 0
-    const { config } = await loadConfig(repoRoot)
-    if (!config?.enabled) return 0
+    const loaded = await loadConfig(repoRoot)
+    strict = loaded.strict === true || loaded.config?.strict === true
 
+    // 配置存在但损坏/校验失败(整改 §1.2 B/E): 默认 stderr 一行告警后放行(不破坏工具管道), strict 下 fail-closed;
+    // 文件不存在 / 显式 enabled=false 属用户主动状态(opt-in), 维持静默。
+    if (!loaded.config?.enabled) {
+      if (loaded.errors.length > 0) {
+        const t = makeT('en')
+        if (strict) {
+          return emitDeny(platformFlag === 'auto' ? detectPlatform(raw) : platformFlag, t('guardStrictConfigBroken.why'), t('guardStrictConfigBroken.next'))
+        }
+        process.stderr.write(`${t('cli.guardDisabledInvalidConfig', { err: loaded.errors.join('; ') })}\n`)
+      }
+      return 0
+    }
+
+    const config = loaded.config
     // --platform auto 时按 payload 判别; 具体平台用于 deny 编码
-    const hookPlatform: HookPlatform = platform === 'auto' ? detectPlatform(raw) : platform
+    const hookPlatform: HookPlatform = platformFlag === 'auto' ? detectPlatform(raw) : platformFlag
     const locale = resolveLocale(config.locale)
     const result = await evaluateCommand(payload.command, { repoRoot })
     if (result.outcome === 'deny' && result.reason) {
-      const enc = encodeDeny(hookPlatform, formatDeny(locale, result.reason.why, result.reason.next))
-      if (enc.stdout) process.stdout.write(enc.stdout + '\n')
-      if (enc.stderr) process.stderr.write(enc.stderr + '\n')
-      return enc.exitCode
+      return emitDeny(hookPlatform, result.reason.why, result.reason.next, locale)
     }
     return 0
   } catch (e) {
+    if (strict) {
+      // strict: 内部异常也 fail-closed
+      const t = makeT('en')
+      return emitDeny(platformFlag === 'auto' ? detectPlatform(raw) : platformFlag, t('guardStrictInternalError.why', { msg: (e as Error).message }), t('guardStrictInternalError.next'))
+    }
     // fail-open: 门禁内部故障不阻断工具管道(与插件 apply 的降级一致)
     process.stderr.write(`${makeT('en')('cli.checkInternalError', { msg: (e as Error).message })}\n`)
     return 0

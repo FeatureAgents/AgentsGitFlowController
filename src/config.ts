@@ -17,6 +17,8 @@ export const DEFAULT_CONFIG = {
 export interface ConfigLoadResult {
   config: GuardConfig | null
   errors: string[]
+  /** 配置存在但损坏/校验失败时, 从原文提取的 strict 位(fail-closed 判定依据); 文件缺失或 config 有效时以 config.strict 为准 */
+  strict?: boolean
 }
 
 const REGEX_CHARS = /[\\^$.*+?()[\]{}|]/
@@ -72,13 +74,16 @@ function normalizeRole(raw: unknown, defaultUpdate: UpdateMode, defaultMergeBy: 
   return { role, errors }
 }
 
-/** 合并默认值并校验; 任何校验错误都会导致未启用 */
+/** 合并默认值并校验; 任何校验错误都会导致未启用(strict 位仍从原文提取, 供 fail-closed 判定) */
 export function mergeConfig(raw: unknown): ConfigLoadResult {
   const errors: string[] = []
   if (typeof raw !== 'object' || raw === null) {
     return { config: null, errors: ['Config file must be a JSON object'] }
   }
   const r = raw as Record<string, unknown>
+  // strict 是策略位: 即使其余字段校验失败也要带出去(cli 据此决定 fail-open 告警还是 fail-closed 拦截)
+  const strict = r.strict === true ? true : r.strict === false ? false : undefined
+  if (r.strict !== undefined && typeof r.strict !== 'boolean') errors.push('strict must be a boolean')
 
   const config: GuardConfig = {
     ...DEFAULT_CONFIG,
@@ -116,9 +121,10 @@ export function mergeConfig(raw: unknown): ConfigLoadResult {
 
   const ci = (r.ci ?? {}) as Record<string, unknown>
   if (typeof ci.enabled === 'boolean') config.ci.enabled = ci.enabled
+  if (strict !== undefined) config.strict = strict
 
   errors.push(...validateConfig(config))
-  return { config: errors.length > 0 ? null : config, errors }
+  return { config: errors.length > 0 ? null : config, errors, ...(strict !== undefined ? { strict } : {}) }
 }
 
 /** 配置校验: 角色分支重叠 / 正则合法等 */
