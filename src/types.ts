@@ -38,6 +38,8 @@ export interface GuardConfig {
   ci: CiConfig
   /** 用户可见文案语言(默认 'en'; 缺失时按 'en' 处理) */
   locale?: Locale
+  /** fail-closed 策略位: true 时配置异常/内部异常改为拦截(默认 fail-open 放行) */
+  strict?: boolean
 }
 
 /** 分支角色名(门禁判定对象) */

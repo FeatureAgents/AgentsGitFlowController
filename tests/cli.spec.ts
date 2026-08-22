@@ -177,4 +177,48 @@ describe('cli: check(agent hook 门禁)', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('配置损坏(B)→ 默认 stderr 一行告警 + exit 0(不破坏工具管道, 不再静默)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-check-broken-'))
+    try {
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), '{"enabled":true,branches:[}')
+      const { code, stderr } = await captureStderr(() => main(['check', '--command', 'git push origin develop', '--repo', dir]))
+      expect(code).toBe(0)
+      expect(stderr).toContain('[gitflow-guard] guard disabled: invalid config:')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('校验错误(E, update 拼错)→ 同样告警且带原因', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-check-invalid-'))
+    try {
+      writeFileSync(
+        join(dir, 'gitflow-guard.config.json'),
+        JSON.stringify({ enabled: true, branches: { integration: { branches: ['develop'], update: 'prx' } } }),
+      )
+      const { code, stderr } = await captureStderr(() => main(['check', '--command', 'git push origin develop', '--repo', dir]))
+      expect(code).toBe(0)
+      expect(stderr).toContain('[gitflow-guard] guard disabled: invalid config:')
+      expect(stderr).toMatch(/update/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('strict + 配置损坏 → fail-closed(exit 2 + blocked 文案)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-check-strict-'))
+    try {
+      writeFileSync(
+        join(dir, 'gitflow-guard.config.json'),
+        JSON.stringify({ enabled: true, strict: true, branches: { integration: { branches: ['develop'], update: 'prx' } } }),
+      )
+      const { code, stderr } = await captureStderr(() => main(['check', '--command', 'git push origin develop', '--repo', dir]))
+      expect(code).toBe(2)
+      expect(stderr).toContain('blocked:')
+      expect(stderr).toMatch(/strict/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

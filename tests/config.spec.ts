@@ -152,6 +152,36 @@ describe('config: 文件加载(opt-in)', () => {
   })
 })
 
+describe('config: strict 位(fail-open/fail-closed 策略)', () => {
+  const base = { enabled: true, branches: { integration: ['develop'] } }
+
+  it('缺省不启用(strict 未定义), true/false 正常解析', () => {
+    expect(mergeConfig(base).config?.strict).toBeUndefined()
+    expect(mergeConfig({ ...base, strict: true }).config?.strict).toBe(true)
+    expect(mergeConfig({ ...base, strict: false }).config?.strict).toBe(false)
+  })
+
+  it('非 boolean → 校验错误', () => {
+    const { config, errors } = mergeConfig({ ...base, strict: 'yes' })
+    expect(config).toBeNull()
+    expect(errors.join(' ')).toMatch(/strict/)
+  })
+
+  it('配置损坏时仍能提取原文中的 strict=true(fail-closed 判定依据)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-config-strict-'))
+    try {
+      // update 拼错(校验失败)+ strict: true
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), '{"enabled":true,"strict":true,"branches":{"integration":{"branches":["develop"],"update":"prx"}}}')
+      const loaded = await loadConfig(dir)
+      expect(loaded.config).toBeNull()
+      expect(loaded.errors.length).toBeGreaterThan(0)
+      expect(loaded.strict).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('config: 默认配置常量', () => {
   it('DEFAULT_CONFIG 结构完整', () => {
     const d = DEFAULT_CONFIG as GuardConfig

@@ -85,6 +85,11 @@ const en: Dict = {
   'cli.statusLocalBranches': () => 'Local branches (by role):',
   'cli.auditEmpty': () => '  No audit entries yet',
   'cli.checkInternalError': (v) => `[gitflow-guard] check internal error, allowed through: ${v.msg}`,
+  'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] guard disabled: invalid config: ${v.err}`,
+  'guardStrictConfigBroken.why': () => 'Guard config is invalid while strict mode is enabled',
+  'guardStrictConfigBroken.next': () => 'Fix gitflow-guard.config.json (or remove "strict": true) before retrying.',
+  'guardStrictInternalError.why': (v) => `Guard internal error while strict mode is enabled: ${v.msg}`,
+  'guardStrictInternalError.next': () => 'Fix or remove "strict": true in gitflow-guard.config.json.',
   'usage.text': () => `gitflow-guard — GitFlow guard CLI
 
 Usage:
@@ -160,6 +165,11 @@ const zh: Dict = {
   'cli.statusLocalBranches': () => '本地分支(按角色):',
   'cli.auditEmpty': () => '  暂无审计记录',
   'cli.checkInternalError': (v) => `[gitflow-guard] check 内部错误, 已放行: ${v.msg}`,
+  'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] 守卫未启用: 配置无效: ${v.err}`,
+  'guardStrictConfigBroken.why': () => '守卫配置无效, 且已启用 strict 模式',
+  'guardStrictConfigBroken.next': () => '请先修复 gitflow-guard.config.json(或移除 "strict": true)后重试',
+  'guardStrictInternalError.why': (v) => `守卫内部错误, 且已启用 strict 模式: ${v.msg}`,
+  'guardStrictInternalError.next': () => '请修复 gitflow-guard.config.json 或移除 "strict": true',
   'usage.text': () => `gitflow-guard — GitFlow 流程守卫 CLI
 
 用法:
