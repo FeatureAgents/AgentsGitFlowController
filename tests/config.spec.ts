@@ -74,6 +74,18 @@ describe('config: 校验', () => {
     expect(errors.some((e) => e.includes('featurePattern'))).toBe(true)
   })
 
+  it('角色条目非法正则 → 校验期报错(不再静默永不命中, P1-2)', () => {
+    const { config, errors } = mergeConfig({ enabled: true, branches: { integration: ['develop'], preview: ['release/('] } })
+    expect(config).toBeNull()
+    expect(errors.some((e) => e.includes('branches.preview') && e.includes('not a valid regex') && e.includes('release/('))).toBe(true)
+    // 合法正则与纯字面量不受影响
+    const ok = mergeConfig({ branches: { integration: ['develop', 'release/.+'] } })
+    expect(ok.errors).toEqual([])
+    // integration 角色的非法条目同样报错
+    const integ = mergeConfig({ branches: { integration: ['main['] } })
+    expect(integ.errors.some((e) => e.includes('branches.integration'))).toBe(true)
+  })
+
   it('validateConfig 与 merge 结果一致', () => {
     const raw = { branches: { integration: ['develop'] } }
     const merged = mergeConfig(raw)
