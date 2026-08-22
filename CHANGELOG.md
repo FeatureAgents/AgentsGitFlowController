@@ -5,6 +5,7 @@
 
 ## 0.0.13
 
+- docs(agents): releases now tag the post-merge develop tip instead of the feature branch (rebase merges rewrite SHAs — a branch-side tag dangles off-develop, as v0.0.12 did); new iron rule: one branch, one PR, delete the branch after merge —— 发版 tag 改为合并后从 `origin/develop` 打(annotated)；新增「一分支一 PR、合并即弃分支」铁律——复用已合并分支会形成两份平行履历并制造大面积假冲突(v0.0.12 悬空 tag 与 0.0.13 整改的复盘沉淀)。
 - fix(guard): the classifier now covers the local ref-rewrite command family — `git reset` / `git rebase` / `git commit --amend` / `git filter-branch` classify as a new `ref-move` kind (denied on protected branches, free on feature branches, mirroring local-merge semantics); `git branch -m/-M/--move` renames and `-f/--force` pointer resets go through the ref-update gate; branch parsing scans all flags, closing the combined-flag bypass (`git branch -d --force develop`, `--delete --force`) —— 分类器收编「本地改写 refs」命令族(reset/rebase/amend/filter-branch → ref-move, 受保护分支上一律拒绝、feature 自由, 与 local-merge 同型)；branch 改名(移动受保护 ref)与强制复位按 ref-update 同级处理；parseBranch 改为全旗标扫描，堵住组合长旗标绕过。对抗语料同步进 accuracy-audit 与复测矩阵 A 节。
 - fix(config): invalid regexes in role branch entries now fail validation at load time instead of silently never matching —— 角色条目非法正则在 normalizeRole 预编译报错(此前 matchBranchSpec 对编译失败 catch→return false，条目静默永不命中、保护无声消失且 status 无告警)；按既有 strict/fail-open 分级生效。
 - feat(i18n): `MESSAGE_KEYS` is now re-exported from the package root, and both READMEs document custom locales with a copyable fenced example —— 包根补导出 `MESSAGE_KEYS`(自定义字典的必需键清单可发现，下游不必翻源码数键)，双语 README 的 registerLocale 说明补可复制示例。
