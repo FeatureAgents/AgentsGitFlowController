@@ -53,6 +53,12 @@ describe('platform: detectPlatform', () => {
   it('toolCall → antigravity', () => expect(detectPlatform('{"toolCall":{}}')).toBe('antigravity'))
   it('tool_args → opencode', () => expect(detectPlatform('{"tool_args":{"command":"git push"}}')).toBe('opencode'))
   it('默认 → claude', () => expect(detectPlatform('{"tool_name":"Bash"}')).toBe('claude'))
+  it('空 payload(CLI --command 模式 raw="")→ 回退 claude, deny 走 exit 2 协议(P2-5)', () => {
+    expect(detectPlatform('')).toBe('claude')
+    const enc = encodeDeny(detectPlatform(''), 'blocked: x')
+    expect(enc.exitCode).toBe(2)
+    expect(enc.stderr).toBe('blocked: x')
+  })
 })
 
 describe('platform: encodeDeny', () => {

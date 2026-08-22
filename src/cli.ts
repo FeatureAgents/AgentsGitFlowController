@@ -18,6 +18,7 @@ interface Flags {
   lines?: number
   platform?: string
   command?: string
+  locale?: string
 }
 
 function parseFlags(argv: string[]): Flags {
@@ -29,34 +30,50 @@ function parseFlags(argv: string[]): Flags {
     else if (a === '--lines') flags.lines = Number(next())
     else if (a === '--platform') flags.platform = next()
     else if (a === '--command') flags.command = next()
+    else if (a === '--locale') flags.locale = next()
     else if (a.startsWith('--repo=')) flags.repo = a.slice(7)
     else if (a.startsWith('--lines=')) flags.lines = Number(a.slice(8))
     else if (a.startsWith('--platform=')) flags.platform = a.slice('--platform='.length)
     else if (a.startsWith('--command=')) flags.command = a.slice('--command='.length)
+    else if (a.startsWith('--locale=')) flags.locale = a.slice('--locale='.length)
   }
   return flags
 }
 
-async function resolveRepo(flags: Flags): Promise<string | null> {
+async function resolveRepo(flags: Flags, runner: Runner): Promise<string | null> {
   if (flags.repo) return flags.repo
-  return await findRepoRoot(gitRunner, process.cwd())
+  return await findRepoRoot(runner, process.cwd())
+}
+
+/** CLI 文案 locale 解析(P2-1): --locale 旗标 > 项目 config.locale > en; 白名单外一律 en */
+function cliLocale(flags: Flags, configLocale?: unknown): Locale {
+  return resolveLocale(flags.locale ?? configLocale)
+}
+
+/** 无 config 在手时的 locale 解析(help / unknownCommand 等框架路径): 旗标优先, 否则定位仓库读配置 */
+async function resolveFrameworkLocale(flags: Flags, runner: Runner): Promise<Locale> {
+  if (flags.locale != null) return resolveLocale(flags.locale)
+  const repoRoot = await resolveRepo(flags, runner)
+  if (!repoRoot) return 'en'
+  const { config } = await loadConfig(repoRoot)
+  return resolveLocale(config?.locale)
 }
 
 export async function main(argv: string[], opts: { runner?: Runner } = {}): Promise<number> {
   const runner = opts.runner ?? gitRunner
-  const usage = makeT('en')('usage.text')
   const [cmd, ...rest] = argv
+  const flags = parseFlags(rest)
+  // 框架文案(help/unknownCommand)与 status 一致跟随 locale(P1-1 A 方案): --locale > 目标仓库 config > en
   if (cmd === '--help' || cmd === 'help' || cmd === undefined) {
-    console.log(usage)
+    console.log(makeT(await resolveFrameworkLocale(flags, runner))('usage.text'))
     return 0
   }
-  const flags = parseFlags(rest)
-
   try {
     if (cmd === 'status') return await status(flags, runner)
     if (cmd === 'audit') return await audit(flags)
     if (cmd === 'check') return await check(flags)
-    console.error(`${makeT('en')('cli.unknownCommand', { cmd: cmd ?? '' })}\n\n${usage}`)
+    const t = makeT(await resolveFrameworkLocale(flags, runner))
+    console.error(`${t('cli.unknownCommand', { cmd: cmd ?? '' })}\n\n${t('usage.text')}`)
     return 1
   } catch (e) {
     console.error(`[gitflow-guard] ${(e as Error).message}`)
@@ -65,20 +82,23 @@ export async function main(argv: string[], opts: { runner?: Runner } = {}): Prom
 }
 
 async function status(flags: Flags, runner: Runner): Promise<number> {
-  const repoRoot = await resolveRepo(flags)
+  const repoRoot = await resolveRepo(flags, runner)
   if (!repoRoot) {
-    console.error(makeT('en')('cli.cannotLocate'))
+    console.error(makeT(resolveLocale(flags.locale))('cli.cannotLocate'))
     return 1
   }
-  const { config, errors } = await loadConfig(repoRoot)
+  const { config, errors, warnings } = await loadConfig(repoRoot)
   const enabled = config?.enabled === true
-  const t = makeT(resolveLocale(config?.locale))
+  const t = makeT(cliLocale(flags, config?.locale))
   console.log(t('cli.statusTitle', { repo: repoRoot }))
   if (!enabled) {
     console.log(t('cli.statusDisabled'))
     for (const e of errors) console.log(t('cli.statusConfigError', { err: e }))
+    for (const w of warnings) console.log(t('cli.statusConfigWarning', { warn: w }))
     return 0
   }
+  // 非致命告警(如未注册 locale 回退 en)在启用态也可见(P2-2)
+  for (const w of warnings) console.log(t('cli.statusConfigWarning', { warn: w }))
 
   const branch = await currentBranch(runner, repoRoot)
   const c = config!
@@ -106,11 +126,14 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
 }
 
 async function audit(flags: Flags): Promise<number> {
-  const repoRoot = await resolveRepo(flags)
+  const repoRoot = await resolveRepo(flags, gitRunner)
   if (!repoRoot) {
-    console.error(makeT('en')('cli.cannotLocate'))
+    console.error(makeT(resolveLocale(flags.locale))('cli.cannotLocate'))
     return 1
   }
+  // auditEmpty 属用户可见框架文案, 同样跟随 locale(P1-1)
+  const { config } = await loadConfig(repoRoot)
+  const t = makeT(cliLocale(flags, config?.locale))
   const lines = flags.lines != null && Number.isFinite(flags.lines) && flags.lines > 0 ? Math.floor(flags.lines) : 20
   try {
     const text = await readFile(join(stateDir(repoRoot), 'audit.jsonl'), 'utf8')
@@ -118,13 +141,14 @@ async function audit(flags: Flags): Promise<number> {
     for (const line of all.slice(-lines)) {
       try {
         const e = JSON.parse(line) as { time: number; event: string; command?: string; role?: string; reason?: string }
-        console.log(`  ${new Date(e.time).toLocaleString()} ${e.event} ${e.role ?? ''}${e.command ? ` | ${e.command.slice(0, 80)}` : ''}${e.reason ? ` | ${e.reason.slice(0, 60)}` : ''}`)
+        // ISO 8601(UTC) 渲染(P2-3): 不随机器 locale/TZ 变化, 国际协作可读可排序
+        console.log(`  ${new Date(e.time).toISOString()} ${e.event} ${e.role ?? ''}${e.command ? ` | ${e.command.slice(0, 80)}` : ''}${e.reason ? ` | ${e.reason.slice(0, 60)}` : ''}`)
       } catch {
         console.log(`  ${line}`)
       }
     }
   } catch {
-    console.log(makeT('en')('cli.auditEmpty'))
+    console.log(t('cli.auditEmpty'))
   }
   return 0
 }
@@ -152,8 +176,13 @@ async function check(flags: Flags): Promise<number> {
   const platformFlag = (flags.platform ?? 'auto') as HookPlatform | 'auto'
   let raw = ''
   let strict = false
+  // P2-5: --command 模式没有 stdin payload(raw 恒 ''), detectPlatform('') 按协议回退 'claude' ——
+  // 即 --platform auto + --command 组合下 deny 编码实际走 claude 协议(exit 2 + stderr);
+  // 显式 --platform <name> 不受影响。异常路径(readStdin 抛错时 raw='')同样落在此回退上。
+  let denyPlatform: HookPlatform = 'claude'
   try {
     raw = flags.command != null ? '' : await readStdin()
+    denyPlatform = platformFlag === 'auto' ? detectPlatform(raw) : platformFlag
     const payload: HookPayload | null =
       flags.command != null
         ? { command: flags.command, cwd: flags.repo, event: 'pre' }
@@ -176,7 +205,7 @@ async function check(flags: Flags): Promise<number> {
       if (loaded.errors.length > 0) {
         const t = makeT('en')
         if (strict) {
-          return emitDeny(platformFlag === 'auto' ? detectPlatform(raw) : platformFlag, t('guardStrictConfigBroken.why'), t('guardStrictConfigBroken.next'))
+          return emitDeny(denyPlatform, t('guardStrictConfigBroken.why'), t('guardStrictConfigBroken.next'))
         }
         process.stderr.write(`${t('cli.guardDisabledInvalidConfig', { err: loaded.errors.join('; ') })}\n`)
       }
@@ -184,19 +213,18 @@ async function check(flags: Flags): Promise<number> {
     }
 
     const config = loaded.config
-    // --platform auto 时按 payload 判别; 具体平台用于 deny 编码
-    const hookPlatform: HookPlatform = platformFlag === 'auto' ? detectPlatform(raw) : platformFlag
-    const locale = resolveLocale(config.locale)
-    const result = await evaluateCommand(payload.command, { repoRoot })
+    // locale(P2-1): --locale 旗标 > 项目 config > en; 并同步传入 evaluateCommand 保证 why/next 正文与封装同语言
+    const locale = flags.locale != null ? resolveLocale(flags.locale) : resolveLocale(config.locale)
+    const result = await evaluateCommand(payload.command, { repoRoot, locale })
     if (result.outcome === 'deny' && result.reason) {
-      return emitDeny(hookPlatform, result.reason.why, result.reason.next, locale)
+      return emitDeny(denyPlatform, result.reason.why, result.reason.next, locale)
     }
     return 0
   } catch (e) {
     if (strict) {
       // strict: 内部异常也 fail-closed
       const t = makeT('en')
-      return emitDeny(platformFlag === 'auto' ? detectPlatform(raw) : platformFlag, t('guardStrictInternalError.why', { msg: (e as Error).message }), t('guardStrictInternalError.next'))
+      return emitDeny(denyPlatform, t('guardStrictInternalError.why', { msg: (e as Error).message }), t('guardStrictInternalError.next'))
     }
     // fail-open: 门禁内部故障不阻断工具管道(与插件 apply 的降级一致)
     process.stderr.write(`${makeT('en')('cli.checkInternalError', { msg: (e as Error).message })}\n`)
