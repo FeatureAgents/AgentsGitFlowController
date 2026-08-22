@@ -108,11 +108,14 @@ describe('classify: 分支切换 / 其余命令', () => {
     'git log --oneline -5',
     'git commit -m "feat: x"',
     'git fetch origin',
-    'git rebase develop',
     'ls -la',
     'npm test',
   ])('%s → other', (cmd) => {
     expect(first(cmd)).toMatchObject({ kind: 'other' })
+  })
+
+  it('git rebase → ref-move(P1-1 收编: 受保护分支上拒绝, feature 自由)', () => {
+    expect(first('git rebase develop')).toMatchObject({ kind: 'ref-move' })
   })
 
   it('多段命令(&&)每段都分类', () => {

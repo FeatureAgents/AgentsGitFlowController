@@ -227,4 +227,40 @@ describe('accuracy: 对抗语料(整改 §1.1)—— git 形态第二批(通配/
     expect(decide({ kind: 'push', dst: null, force: false, delete: false }, { currentBranch: 'develop' }, cfg, t).kind).toBe('deny')
     expect(decide({ kind: 'push', dst: null, force: false, delete: false }, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('allow')
   })
+
+  it('本地改写 refs 命令族收编: reset/rebase/amend/filter-branch → ref-move, 受保护分支拒绝/feature 自由', () => {
+    for (const cmd of ['git reset --hard HEAD~1', 'git rebase main', 'git commit --amend -m x', 'git filter-branch -- --all']) {
+      expect(classify(cmd)[0].kind).toBe('ref-move')
+      expect(decide({ kind: 'ref-move' }, { currentBranch: 'develop' }, cfg, t).kind).toBe('deny')
+      expect(decide({ kind: 'ref-move' }, { currentBranch: 'prd' }, cfg, t).kind).toBe('deny')
+    }
+    // feature 分支上自由; 恢复类旗标(abort 等)不移动 ref, 放行
+    expect(decide({ kind: 'ref-move' }, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('allow')
+    expect(classify('git rebase --abort')[0].kind).toBe('other')
+    expect(classify('git rebase --continue')[0].kind).toBe('other')
+    // 普通提交不移动既有 ref
+    expect(classify('git commit -m x')[0].kind).toBe('other')
+  })
+
+  it('parseBranch 全旗标扫描: 组合长旗标删除 / 改名 / 强制复位不再绕过', () => {
+    // 组合旗标删除(旧实现只读 args[0..1], 此形态曾漏判)
+    expect(classify('git branch --delete --force develop')[0]).toMatchObject({ kind: 'branch-delete', branch: 'develop', force: true })
+    expect(classify('git branch -d --force develop')[0]).toMatchObject({ kind: 'branch-delete', branch: 'develop', force: true })
+    expect(classify('git branch -df develop')[0]).toMatchObject({ kind: 'branch-delete', branch: 'develop', force: true })
+    // 改名 = 移动受保护 ref → ref-update 同级; 目标名覆盖受保护分支同样拦截
+    expect(classify('git branch -m develop x')).toEqual([
+      { kind: 'ref-update', branch: 'develop', delete: false },
+      { kind: 'ref-update', branch: 'x', delete: false },
+    ])
+    expect(decide(classify('git branch -m develop x')[0], { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    // 缺 old 名时改的是当前分支(上下文模拟)
+    expect(classify('git branch -m x', { currentBranch: 'main' })[0]).toMatchObject({ kind: 'ref-update', branch: 'main' })
+    // 强制复位分支指针
+    expect(classify('git branch -f main HEAD')[0]).toMatchObject({ kind: 'ref-update', branch: 'main' })
+    // 只读形态不受影响
+    expect(classify('git branch')[0].kind).toBe('other')
+    expect(classify('git branch -a')[0].kind).toBe('other')
+    expect(classify('git branch --show-current')[0].kind).toBe('other')
+    expect(classify('git branch feature/y')[0].kind).toBe('other')
+  })
 })

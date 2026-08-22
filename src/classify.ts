@@ -1,6 +1,6 @@
 // 命令识别层: 解析 agent 的 git/gh/gitflow-guard 命令文本, 输出结构化分类(纯函数)
 
-import type { BranchDeleteClassified, Classified, ClassifyContext, GuardCliClassified, LocalMergeClassified, PrCreateClassified, PrMergeClassified, PushClassified } from './types'
+import type { Classified, ClassifyContext, GuardCliClassified, LocalMergeClassified, PrCreateClassified, PrMergeClassified, PushClassified } from './types'
 
 /** 拆分命令为多段(&& / || / | / 分号 / 换行), 每段独立分类; 引号内的分隔符不算 */
 export function classify(command: string, ctx: ClassifyContext = {}): Classified[] {
@@ -173,10 +173,26 @@ function classifyGit(args: string[], ctx: ClassifyContext): Classified[] {
   if (sub === 'push') return parsePush(rest, ctx)
   if (sub === 'pull') return parsePull(rest)
   if (sub === 'merge') return parseMerge(rest)
-  if (sub === 'branch') return parseBranch(rest)
+  if (sub === 'branch') return parseBranch(rest, ctx)
   if (sub === 'checkout' || sub === 'switch') return parseCheckout(rest)
   if (sub === 'send-pack') return parseSendPack(rest)
   if (sub === 'update-ref') return parseUpdateRef(rest)
+  if (sub === 'reset' || sub === 'filter-branch') return [{ kind: 'ref-move' }]
+  if (sub === 'rebase') return parseRebase(rest)
+  if (sub === 'commit') return parseCommit(rest)
+  return [{ kind: 'other' }]
+}
+
+/** rebase 移动当前分支 ref; abort/continue/skip 等恢复类旗标不移动(放行, 避免把用户困在中途态) */
+function parseRebase(args: string[]): Classified[] {
+  const RESUME: ReadonlySet<string> = new Set(['--abort', '--continue', '--skip', '--quit', '--edit-todo'])
+  if (args.some((a) => RESUME.has(a))) return [{ kind: 'other' }]
+  return [{ kind: 'ref-move' }]
+}
+
+/** commit 仅 --amend 改写当前分支 tip; 普通提交不移动既有 ref */
+function parseCommit(args: string[]): Classified[] {
+  if (args.some((a) => a === '--amend')) return [{ kind: 'ref-move' }]
   return [{ kind: 'other' }]
 }
 
@@ -331,12 +347,52 @@ function parseMerge(args: string[]): Classified[] {
   return [{ kind: 'local-merge', source }]
 }
 
-function parseBranch(args: string[]): Classified[] {
-  const [flag, name] = args
-  if ((flag === '-d' || flag === '-D' || flag === '--delete') && name && !name.startsWith('-')) {
-    const out: BranchDeleteClassified = { kind: 'branch-delete', branch: name, force: flag === '-D' }
-    return [out]
+/**
+ * git branch 全旗标扫描(旧实现只读 args[0..1], `-d --force develop` 这类组合长旗标会漏):
+ * - 删除(-d/-D/--delete, 可与 --force 组合): 逐个分支名 → branch-delete
+ * - 改名(-m/-M/--move): 移动受保护 ref(源)或覆盖受保护名(目标)→ 按 ref-update 同级处理
+ * - 强制复位(-f/--force 单独使用): git branch -f <name> <commit> 静默移动分支指针 → ref-update
+ */
+function parseBranch(args: string[], ctx: ClassifyContext): Classified[] {
+  let deleteFlag = false
+  let force = false
+  let move = false
+  const names: string[] = []
+  for (const a of args) {
+    if (a.startsWith('--')) {
+      if (a === '--delete') deleteFlag = true
+      else if (a === '--force') force = true
+      else if (a === '--move') move = true
+      // 其余长旗标(--show-current/--edit-color 等)忽略
+    } else if (a.startsWith('-') && a.length > 1) {
+      // 短旗标簇(-df / -dF 等): 逐字符识别
+      for (const ch of a.slice(1)) {
+        if (ch === 'd') deleteFlag = true
+        else if (ch === 'D') { deleteFlag = true; force = true }
+        else if (ch === 'm') move = true
+        else if (ch === 'M') { move = true; force = true }
+        else if (ch === 'f') force = true
+      }
+    } else {
+      names.push(a)
+    }
   }
+  // 改名: branch -m [<old>] <new>; 缺 old 时改的是当前分支(用上下文模拟值兜底)
+  if (move) {
+    const from = names.length >= 2 ? names[0] : ctx.currentBranch ?? null
+    const to = names.length >= 1 ? names[names.length - 1] : null
+    const out: Classified[] = []
+    if (from != null) out.push({ kind: 'ref-update', branch: from, delete: false })
+    if (to != null && to !== from) out.push({ kind: 'ref-update', branch: to, delete: false })
+    return out.length > 0 ? out : [{ kind: 'other' }]
+  }
+  // 删除: 可一次删多个分支, 每个独立送门禁
+  if (deleteFlag) {
+    if (names.length === 0) return [{ kind: 'other' }]
+    return names.map((branch): Classified => ({ kind: 'branch-delete', branch, force }))
+  }
+  // 无删除/改名语义时, 仅 -f 复位形态会移动既有 ref(git branch -f <name> <commit>)
+  if (force && names.length >= 1) return [{ kind: 'ref-update', branch: names[0], delete: false }]
   return [{ kind: 'other' }]
 }
 
