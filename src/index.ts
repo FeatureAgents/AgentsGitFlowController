@@ -29,6 +29,8 @@ export interface EvaluateOptions {
   glabRunner?: Runner
   /** 当前分支(缺省时内部查询) */
   currentBranch?: string | null
+  /** 覆盖文案 locale(CLI --locale 旗标用, P2-1); 缺省按项目 config.locale 解析 */
+  locale?: Locale
 }
 
 export interface EvaluateResult {
@@ -77,7 +79,7 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
   const glab = opts.glabRunner ?? glabRunner
   const { config } = await loadConfig(opts.repoRoot)
   if (!config?.enabled) return { outcome: 'skipped', segmentCount: 0, locale: 'en' }
-  const locale = resolveLocale(config.locale)
+  const locale = opts.locale != null ? resolveLocale(opts.locale) : resolveLocale(config.locale)
   const t = makeT(locale)
 
   const branch = opts.currentBranch ?? (await queryCurrentBranch(runner, opts.repoRoot))
@@ -162,7 +164,7 @@ export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
       return next()
     } catch (e) {
       // 门禁内部故障降级放行, 不阻断工具管道
-      ctx.logger?.warn?.(`gitflow-guard: 门禁内部错误, 已放行: ${(e as Error).message}`)
+      ctx.logger?.warn?.(`gitflow-guard: gate internal error, allowed through: ${(e as Error).message}`)
       return next()
     }
   })

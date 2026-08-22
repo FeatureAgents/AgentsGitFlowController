@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { evaluateCommand } from '../src/index'
+import { apply, evaluateCommand } from '../src/index'
+import type { Context } from '@deepseek-ai/cordis'
 import type { RunResult, Runner } from '../src/repo'
 
 /** 小团队配置: 仅 integration */
@@ -199,5 +200,26 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('apply: DSH 插件降级路径(P0-1)', () => {
+  it('内部错误 → 英文降级日志(与 cli.checkInternalError 口径一致)+ 放行不阻断', async () => {
+    const warnings: string[] = []
+    type PreExecuteHandler = (exec: unknown, next: () => Promise<unknown>) => Promise<unknown>
+    let handler: PreExecuteHandler | undefined
+    const ctx = {
+      on: (_event: string, fn: PreExecuteHandler) => {
+        handler = fn
+      },
+      logger: { warn: (msg: string) => warnings.push(msg) },
+    }
+    apply(ctx as unknown as Context)
+    expect(handler).toBeTypeOf('function')
+    // exec.agent 属性访问即抛错 → 命中 apply 的 catch 降级路径
+    const exec = { name: 'bash', arguments: { command: 'git status' }, get agent(): unknown { throw new Error('boom') } }
+    const next = async () => 'passed-through'
+    await expect(handler!(exec, next)).resolves.toBe('passed-through')
+    expect(warnings).toEqual(['gitflow-guard: gate internal error, allowed through: boom'])
   })
 })
