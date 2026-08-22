@@ -1,6 +1,17 @@
 # Changelog
 
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
+自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
+
+## 0.0.12
+
+- fix(i18n): plugin degrade log and i18n load-time validation error are now English (`gitflow-guard: gate internal error, allowed through: …` / `dictionary keys mismatch`), aligned with the CLI wording —— 插件降级日志与 i18n 加载期校验异常统一为英文(与 CLI 口径一致), 遵循项目语言规范; `tests/index.spec.ts` 补 apply 降级日志断言。
+- feat(cli): all CLI framework text (`--help`, unknown-command notice, repo-not-found, empty-audit) now follows the message locale instead of hardcoded English, and every subcommand accepts `--locale <en|zh>` (priority: CLI flag > project config > English) —— CLI 框架文案不再硬编码英文, 与 status 输出同口径; 新增 `--locale` 旗标(优先级: 旗标 > 项目配置 > en), 并同步传入门禁保证拦截正文与封装同语言。
+- feat(i18n): new `registerLocale(name, dict)` runtime extension point for downstream packages; `Locale` widened to a hinted string; config `locale` accepts any string — unregistered locales warn (not error) and fall back to English —— 新增 `registerLocale(name, dict)` 运行时扩展点(键一致性复用内置校验); `Locale` 类型放宽; 配置 locale 放开为任意字符串, 未注册语言告警不禁用并回退英文(status 可见告警)。Entry 形态维持 `(vars) => string`, 复数/ICU 留待真实多语言需求(决策留档 docs/issues.md P2-6)。
+- fix(cli): audit timestamps render as ISO 8601 UTC instead of machine-locale `toLocaleString()` —— audit 时间戳改为 ISO 8601(UTC), 不随机器 locale/时区变化。
+- chore(package): add missing npm metadata — `bugs`, `homepage`, `engines` (`node >=20`) —— 补全包元数据(bugs/homepage/engines), 国际用户报障入口与运行时下限声明齐备。
+- docs: bilingual README notes on regex safety (branch patterns are project-authored; avoid catastrophic backtracking) and on CLI language behavior —— README 双语补分支正则 ReDoS 提示与 CLI 文案语言行为说明。
+- test(platform): cover the `check --command` platform fallback (empty payload → claude protocol, exit 2) with in-code comments documenting the semantics —— `--command + auto` 平台回退语义(claude 协议)补注释与断言。
 
 ## 0.0.11
 
