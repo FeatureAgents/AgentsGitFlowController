@@ -4,6 +4,7 @@
   "description": "A configurable branch-role guard for AI coding agents (DSH / Claude Code / Codex / OpenCode / Antigravity) — integration/preview/production/archive, each with its own update rules",
   "license": "MIT",
   "type": "module",
+  "sideEffects": false,
   "main": "lib/index.mjs",
   "types": "lib/index.d.mts",
   "exports": {
@@ -47,7 +48,7 @@
   },
   "homepage": "https://github.com/FeatureAgents/AgentsGitFlowController#readme",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dsh": {
     "bundle": {
