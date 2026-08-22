@@ -37,3 +37,4 @@ hooks:
 - Only `tool.before.*` bash actions can block with **exit code 2**.
 - Bash actions receive JSON on stdin (includes tool_name, tool_args, cwd, etc.).
 - Global hooks can be overridden (`override`) or disabled (`disable: true`) at the project level.
+- Path premise (this repo's dogfood config): `.opencode/hook/hooks.yaml` invokes `node "$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs"` — it assumes that variable resolves to this checkout's root. A relative `bin/...` path breaks when the session starts from a subdirectory; verify the variable resolution on your setup before relying on it.
