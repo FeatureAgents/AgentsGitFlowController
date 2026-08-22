@@ -2,7 +2,7 @@
 
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 
-## 0.0.11 (待发布)
+## 0.0.11 (2026-08-22)
 
 - feat: fail-open 分级告警与 strict 策略位 —— 配置损坏/校验失败导致「未启用」时 stderr 输出一行告警(不再静默; exit 仍 0, 不破坏各平台工具管道); 新增可选 `"strict": true` 配置位, 该模式下配置异常与内部错误改为 fail-closed(拦截), 供高风险仓库选用; 配置文件缺失与显式 `enabled: false` 维持静默(opt-in 语义不变)。README 双语补 strict 字段说明。
 - fix: 分类器硬化(第二批) —— 通配 refspec(`refs/heads/*:refs/heads/*` 等)按 `--all` 同级拦截; `git pull` 提取 refspec 目标走本地合入门禁(fetch+merge 不再绕过); plumbing 收编(`send-pack` 按推送语义分类, `update-ref` 直改受保护分支 refs 一律拒绝); 裸推与 `HEAD` 推送的目标延迟到门禁按模拟分支解析(修复「切到集成分支后裸推」从 feature 发起被放行的缺口), 单个非 flag 参数的 remote/refspec 歧义按双解释保守判定。对抗语料扩充覆盖 §1.1 全部可本地防御样本; README 双语局限一节更新为硬化后事实(仅 forge API 直连与解释器子进程不可本地防御)。
@@ -10,7 +10,7 @@
 - fix: pr-merge 目标无法解析(gh/glab 未装/未认证/离线)时一律拒绝 —— 原先按 feature head 放行,而该场景下 PR 可能实际指向 production/archive,「生产仅用户点合并」的承诺曾在此失效; 同步移除失效文案键。
 - docs: README 双语「安全工具」问答如实化 —— 移除「角色边界本身无法绕过」过度承诺,列出实测穿透文本层的混淆形态与已知本地不可防通道(forge API 直连、解释器子进程内嵌),明确服务端分支保护为最终边界; gh/glab FAQ 改为与新行为一致; AGENTS.md §8 Copilot 口径对齐官方 hooks 现状。
 
-## 0.0.10 (待发布)
+## 0.0.10 (2026-08-21)
 
 - docs: 安装文档准确性 —— 快速开始/registry 安装补「锁版本」姿势与版本坑提示(registry 缓存/镜像陈旧时裸 add 可能拿旧版); 说明 pnpm peer WARN 属预期(DSH 启动经共享回退提供 cordis/dsh-tools)。README 双语随包发布。
 
