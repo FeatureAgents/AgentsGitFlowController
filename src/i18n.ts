@@ -52,8 +52,6 @@ const en: Dict = {
   'prMergeArchive.next': () => 'Let the user do the archive merge in their terminal or UI.',
   'prMergeUnknown.why': () => 'Cannot confirm the PR/MR target branch',
   'prMergeUnknown.next': () => 'Retry once gh/glab is available, or let the user handle it.',
-  'prMergeHead.why': () => 'Cannot confirm the PR/MR target, and the head is not a feature branch',
-  'prMergeHead.next': () => 'Confirm the platform CLI is available, or let the user handle it.',
 
   // —— branchNext(受保护分支被拦后的下一步) ——
   'next.integration': (v) =>
@@ -131,8 +129,6 @@ const zh: Dict = {
   'prMergeArchive.next': () => '请让用户在自己终端或 UI 完成归档合并',
   'prMergeUnknown.why': () => '无法确认 PR/MR 的目标分支',
   'prMergeUnknown.next': () => '请确认 gh/glab 可用后重试, 或让用户亲手处理',
-  'prMergeHead.why': () => '无法确认 PR/MR 目标, 且 head 不是 feature 分支',
-  'prMergeHead.next': () => '请确认平台 CLI 可用, 或让用户亲手处理',
 
   'next.integration': (v) =>
     `集成分支(${v.branch})由 PR/MR 合入 feature: 先推 feature 分支, 再 gh pr create --base ${v.branch} / glab mr create --target-branch ${v.branch}`,

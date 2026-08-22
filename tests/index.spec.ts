@@ -117,6 +117,22 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
+  it('gh pr merge: gh 失败 + feature head(PR 可能实际指向 production)→ deny', async () => {
+    const dir = tempRepo()
+    try {
+      const r = await evaluateCommand('gh pr merge 15', {
+        repoRoot: dir,
+        runner: scriptedRunner(),
+        ghRunner: scriptedRunner(), // gh 查询失败: 未安装/未认证/离线
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(r.outcome).toBe('deny')
+      expect(r.reason?.why).toMatch(/cannot confirm the pr\/mr target/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('&& 串联: 切到集成分支再 merge feature → deny(按模拟分支判定)', async () => {
     const dir = tempRepo()
     try {
