@@ -265,8 +265,8 @@ archive (optional; you archive after release)
 - Roles accept either an **array** (shorthand) or an **object** `{ branches, update?, mergeBy? }`.
 - `update`: `pr` (default) = updates only via PR/MR; `flexible` = allow direct/local merges (small teams).
 - `mergeBy` (production): `user` (default) = only you click merge; `anyone` = allow PR merge through.
-- Each branch entry is an exact name or a regex (auto-detected).
-- **Language**: messages are English by default; add `"locale": "zh"` for Chinese.
+- Each branch entry is an exact name or a regex (auto-detected). **Regex safety**: branch patterns are authored by you and compiled as-is — avoid catastrophic-backtracking constructs (e.g. nested quantifiers like `(\w+)+`) in `featurePattern` and branch entries.
+- **Language**: messages are English by default; add `"locale": "zh"` for Chinese, or pass `--locale <en|zh>` to any `gitflow-guard` subcommand (priority: CLI flag > project config > English). All user-facing text follows the locale — including CLI framework messages such as `--help`, unknown-command notices, and the empty-audit line.
 - **Validation**: `integration` is required; overlapping role entries are rejected; invalid regex is rejected. **Any error disables the plugin for that project** (reported) rather than applying a half-guessed setup.
 - **Strict mode**: by default a broken config warns on stderr once and lets the command pass (fail-open, so a typo can't wedge your tooling). `"strict": true` flips config errors and internal errors to **block** (fail-closed) — for high-risk repos. A missing file or explicit `enabled: false` stays silent either way.
 
