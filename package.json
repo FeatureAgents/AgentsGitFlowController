@@ -42,6 +42,13 @@
     "type": "git",
     "url": "https://github.com/FeatureAgents/AgentsGitFlowController.git"
   },
+  "bugs": {
+    "url": "https://github.com/FeatureAgents/AgentsGitFlowController/issues"
+  },
+  "homepage": "https://github.com/FeatureAgents/AgentsGitFlowController#readme",
+  "engines": {
+    "node": ">=20"
+  },
   "dsh": {
     "bundle": {
       "patch": "./patch.yml"
