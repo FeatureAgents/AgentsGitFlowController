@@ -2,12 +2,60 @@
 
 import type { BranchDeleteClassified, Classified, ClassifyContext, GuardCliClassified, LocalMergeClassified, PrCreateClassified, PrMergeClassified, PushClassified } from './types'
 
-/** 拆分命令为多段(&& / 分号 / 换行), 每段独立分类; 引号内的分隔符不算 */
+/** 拆分命令为多段(&& / || / | / 分号 / 换行), 每段独立分类; 引号内的分隔符不算 */
 export function classify(command: string, ctx: ClassifyContext = {}): Classified[] {
-  return splitSegments(command).flatMap((seg) => classifySegment(seg, ctx))
+  const { plain, nested } = extractNested(command)
+  return [
+    ...splitSegments(plain).flatMap((seg) => classifySegment(seg, ctx)),
+    ...nested.flatMap((n) => classify(n, ctx)),
+  ]
 }
 
-/** 引号感知拆分: 保护 "..." 与 '...' 内的 && / ; / 换行 */
+/** 提取反引号与 $() 内层命令文本一并送分类(单引号内不展开, 与 shell 语义一致); 外层文本剥离内嵌段后返回 */
+function extractNested(command: string): { plain: string; nested: string[] } {
+  const nested: string[] = []
+  let plain = ''
+  let inSingle = false
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]
+    if (inSingle) {
+      plain += ch
+      if (ch === "'") inSingle = false
+      continue
+    }
+    if (ch === "'") {
+      inSingle = true
+      plain += ch
+      continue
+    }
+    if (ch === '`') {
+      const end = command.indexOf('`', i + 1)
+      if (end === -1) {
+        plain += ch
+        continue
+      }
+      nested.push(command.slice(i + 1, end))
+      i = end
+      continue
+    }
+    if (ch === '$' && command[i + 1] === '(') {
+      let depth = 1
+      let j = i + 2
+      while (j < command.length && depth > 0) {
+        if (command[j] === '(') depth++
+        else if (command[j] === ')') depth--
+        j++
+      }
+      nested.push(command.slice(i + 2, depth === 0 ? j - 1 : j))
+      i = j - 1
+      continue
+    }
+    plain += ch
+  }
+  return { plain, nested }
+}
+
+/** 引号感知拆分: 保护 "..." 与 '...' 内的 && / || / | / ; / 换行 */
 function splitSegments(command: string): string[] {
   const segments: string[] = []
   let current = ''
@@ -33,7 +81,12 @@ function splitSegments(command: string): string[] {
       i++
       continue
     }
-    if (ch === ';' || ch === '\n') {
+    if (ch === '|' && command[i + 1] === '|') {
+      push()
+      i++
+      continue
+    }
+    if (ch === ';' || ch === '\n' || ch === '|') {
       push()
       continue
     }
@@ -43,15 +96,71 @@ function splitSegments(command: string): string[] {
   return segments
 }
 
+/** shell 解释器包装(sh/bash/zsh -c "<script>"): 脚本文本整体重分类 */
+const SHELLS: ReadonlySet<string> = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh'])
+/** 可剥离的执行前缀(env/nohup/xargs/command 及 VAR=x 赋值) */
+const WRAPPERS: ReadonlySet<string> = new Set(['env', 'command', 'nohup', 'xargs'])
+
 function classifySegment(segment: string, ctx: ClassifyContext): Classified[] {
-  const tokens = tokenize(segment)
+  // 子 shell 包裹(cmd …): 剥掉外层括号按原样分类
+  const trimmed = segment.trim()
+  const body = trimmed.startsWith('(') && trimmed.endsWith(')') ? trimmed.slice(1, -1).trim() : trimmed
+  const tokens = tokenize(body)
   if (tokens.length === 0) return [{ kind: 'other' }]
-  const [cmd, ...rest] = tokens
-  if (cmd === 'git') return classifyGit(rest, ctx)
-  if (cmd === 'gh') return classifyGh(rest)
-  if (cmd === 'glab') return classifyGlab(rest)
-  if (cmd === 'gitflow-guard') return [{ kind: 'guard-cli', sub: guardSub(rest) }]
+  return classifyTokens(tokens, ctx)
+}
+
+/** 分派: 已知命令直接解析; 包装器剥壳后递归(token 只减不增, 必然终止) */
+function classifyTokens(tokens: string[], ctx: ClassifyContext): Classified[] {
+  const rawCmd = tokens[0]
+  const cmd = rawCmd.includes('/') ? rawCmd.slice(rawCmd.lastIndexOf('/') + 1) : rawCmd
+  if (SHELLS.has(cmd)) return classifyShellWrapped(tokens, ctx)
+  if (cmd === 'env') return classifyTokens(stripEnvArgs(tokens.slice(1)), ctx)
+  if (WRAPPERS.has(cmd)) return classifyTokens(stripWrapperArgs(tokens.slice(1)), ctx)
+  if (/^[\w-][\w.-]*=/.test(rawCmd)) return classifyTokens(tokens.slice(1), ctx)
+  if (cmd === 'git') return classifyGit(tokens.slice(1), ctx)
+  if (cmd === 'gh') return classifyGh(tokens.slice(1))
+  if (cmd === 'glab') return classifyGlab(tokens.slice(1))
+  if (cmd === 'gitflow-guard') return [{ kind: 'guard-cli', sub: guardSub(tokens.slice(1)) }]
   return [{ kind: 'other' }]
+}
+
+/** sh/bash -lc "<script>": 定位 -c(含合并短旗标如 -lc)取脚本文本递归; 取不到按 other 放行 */
+function classifyShellWrapped(tokens: string[], ctx: ClassifyContext): Classified[] {
+  for (let i = 1; i < tokens.length; i++) {
+    const a = tokens[i]
+    const isCFlag = a === '-c' || (a.startsWith('-') && !a.startsWith('--') && a.includes('c'))
+    if (!isCFlag) continue
+    const script = tokens[i + 1]
+    if (script == null) break
+    return script.length > 0 ? classify(script, ctx) : [{ kind: 'other' }]
+  }
+  return [{ kind: 'other' }]
+}
+
+/** env 参数剥离: 旗标与 VAR=x 赋值;-u/--unset 消费下一个参数 */
+function stripEnvArgs(args: string[]): string[] {
+  let i = 0
+  while (i < args.length) {
+    const a = args[i]
+    if (a === '-u' || a === '--unset') {
+      i += args[i + 1] != null ? 2 : 1
+      continue
+    }
+    if (a.startsWith('-') || /^[\w-]+=/.test(a)) {
+      i++
+      continue
+    }
+    break
+  }
+  return args.slice(i)
+}
+
+/** nohup/xargs/command 参数剥离: 旗标、纯数字(xargs -n 2 的值)与 VAR=x */
+function stripWrapperArgs(args: string[]): string[] {
+  let i = 0
+  while (i < args.length && (args[i].startsWith('-') || /^\d+$/.test(args[i]) || /^[\w-]+=/.test(args[i]))) i++
+  return args.slice(i)
 }
 
 /** 分词: 引号内的空格不拆分 */
@@ -60,12 +169,32 @@ function tokenize(segment: string): string[] {
 }
 
 function classifyGit(args: string[], ctx: ClassifyContext): Classified[] {
-  const [sub, ...rest] = args
+  const [sub, ...rest] = stripGlobalOptions(args)
   if (sub === 'push') return parsePush(rest, ctx)
   if (sub === 'merge') return parseMerge(rest)
   if (sub === 'branch') return parseBranch(rest)
   if (sub === 'checkout' || sub === 'switch') return parseCheckout(rest)
   return [{ kind: 'other' }]
+}
+
+/** 剥离子命令前的全局选项(-C <path> / -c <k=v> / --git-dir 等), 否则 git -C . push 会被判 other */
+function stripGlobalOptions(args: string[]): string[] {
+  const WITH_VALUE: ReadonlySet<string> = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--super-prefix'])
+  const BARE: ReadonlySet<string> = new Set(['--bare', '--no-pager', '--no-optional-locks', '--paginate', '--no-replace-objects', '--literal-pathspecs', '-p', '-P'])
+  let i = 0
+  while (i < args.length) {
+    const a = args[i]
+    if (BARE.has(a) || /^--(git-dir|work-tree|namespace|super-prefix)=/.test(a)) {
+      i++
+      continue
+    }
+    if (WITH_VALUE.has(a)) {
+      i += 2
+      continue
+    }
+    break
+  }
+  return args.slice(i)
 }
 
 /** 分支切换: 门禁放行, 分支状态由 evaluateCommand 按段模拟 */
