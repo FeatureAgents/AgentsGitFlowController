@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { apply, evaluateCommand, registerLocale } from '../src/index'
+import { basename, join } from 'node:path'
+import { apply, evaluateCommand, registerLocale, stateDir, userStateRoot } from '../src/index'
 import type { Context } from '@deepseek-ai/cordis'
 import type { RunResult, Runner } from '../src/repo'
 
@@ -184,11 +184,12 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     try {
       const r = await evaluateCommand('git push origin develop', { repoRoot: dir, runner: scriptedRunner() })
       expect(r.outcome).toBe('deny')
-      const auditFile = join(dir, '.git', 'gitflow-guard', 'audit.jsonl')
+      const auditFile = join(stateDir(dir), 'audit.jsonl') // 用户级全局目录, 不再进 .git
       expect(existsSync(auditFile)).toBe(true)
       expect(readFileSync(auditFile, 'utf8')).toContain('deny')
     } finally {
       rmSync(dir, { recursive: true, force: true })
+      rmSync(stateDir(dir), { recursive: true, force: true })
     }
   })
 
@@ -237,5 +238,47 @@ describe('包根再导出 registerLocale(P1-1) / MESSAGE_KEYS(P2-6)', () => {
     // 与 i18n 模块导出的键清单同源同值
     expect([...MESSAGE_KEYS]).toEqual([...en.MESSAGE_KEYS])
     expect(MESSAGE_KEYS).toContain('deny.header')
+  })
+})
+
+describe('stateDir: 运行时数据存用户级全局目录(仓库外)', () => {
+  it('同一仓库 → 目录确定; 不同仓库 → 目录不同', () => {
+    const a = tempRepo()
+    const b = tempRepo()
+    try {
+      expect(stateDir(a)).toBe(stateDir(a))
+      expect(stateDir(a)).not.toBe(stateDir(b))
+    } finally {
+      rmSync(a, { recursive: true, force: true })
+      rmSync(b, { recursive: true, force: true })
+    }
+  })
+
+  it('目录在用户级状态根下、绝不在仓库内, 且含可读仓库名', () => {
+    const dir = tempRepo()
+    try {
+      const s = stateDir(dir)
+      expect(s.startsWith(userStateRoot())).toBe(true)
+      expect(s.startsWith(dir)).toBe(false)
+      expect(basename(s)).toMatch(/^gfguard-eval-/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+      rmSync(stateDir(dir), { recursive: true, force: true })
+    }
+  })
+
+  it('XDG_STATE_HOME 可重定向根目录(macOS/Linux)', () => {
+    if (process.platform === 'win32') return
+    const oldXdg = process.env.XDG_STATE_HOME
+    const oldOverride = process.env.GITFLOW_GUARD_STATE_ROOT // 覆盖入口优先于 XDG, 先摘掉
+    delete process.env.GITFLOW_GUARD_STATE_ROOT
+    process.env.XDG_STATE_HOME = join('/tmp', 'xdg-gfguard-test')
+    try {
+      expect(userStateRoot()).toBe(join('/tmp', 'xdg-gfguard-test', 'gitflow-guard'))
+    } finally {
+      if (oldXdg === undefined) delete process.env.XDG_STATE_HOME
+      else process.env.XDG_STATE_HOME = oldXdg
+      if (oldOverride !== undefined) process.env.GITFLOW_GUARD_STATE_ROOT = oldOverride
+    }
   })
 })
