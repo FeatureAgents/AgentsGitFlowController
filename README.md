@@ -42,7 +42,7 @@ You define your own branches —
 # installs the latest release
 dsh plugin --profile web add agents-gitflow-guard
 # ...or pin an exact known-good version (recommended; also bypasses stale registry caches)
-dsh plugin --profile web add agents-gitflow-guard@0.0.13
+dsh plugin --profile web add agents-gitflow-guard@0.0.14
 ```
 
 > **Version gotcha**: a bare `add` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. The peer-dependency *warning* pnpm may print is expected: DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup (the plugin works normally).
@@ -132,7 +132,7 @@ Nobody has to remember the rules — the rules are enforced.
 - **Role-driven, fully configurable**: `integration` is the only required role; `preview` / `production` / `archive` are optional arrays of branch names or regexes, each with its own update rules (`pr` / `flexible`, `mergeBy`).
 - **Merge-by-user where it matters**: production & archive merges stay in your hands — the plugin blocks the agent from clicking merge, so your action *is* the confirmation.
 - **Works with any naming**: branch names are mapped by your config, never hard-coded (see [Configuration](#configuration-reference)).
-- **Fully audited**: every deny is written to `.git/gitflow-guard/audit.jsonl` — inside `.git`, never committed.
+- **Fully audited**: every deny is appended to an audit log under your user state directory (`~/.local/state/gitflow-guard/`, `%LOCALAPPDATA%\gitflow-guard` on Windows) — outside the repository, never committed, and outside the agent's writable sandbox.
 - **Platform-agnostic core**: pure local git; optionally consults `gh` (GitHub) or `glab` (GitLab) for PR/MR target resolution, and works fine without them.
 
 ---
@@ -168,7 +168,7 @@ Why this matters: branch protection answers *"can this push happen at all?"*; th
 
 1. An agent calls a shell tool (`pwsh` / `bash`) with a git command.
 2. The plugin classifies the command, resolves the branch roles from `gitflow-guard.config.json`, and applies the gate matrix.
-3. Violation → the tool call is **denied before it runs**, with a reason and the next step. Allowed → the command proceeds; every deny is audited to `.git/gitflow-guard/audit.jsonl`.
+3. Violation → the tool call is **denied before it runs**, with a reason and the next step. Allowed → the command proceeds; every deny is audited to the user-level log (`~/.local/state/gitflow-guard/repos/<repo>-<hash>/audit.jsonl`).
 
 No chat-confirmation or permit store: sensitive merges (production / archive) are simply **user-only** — an agent may prepare the PR/MR, but the merge click stays yours.
 
@@ -302,7 +302,7 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 ## Where the human stays in control
 
 - **Production merge** and **archive** are user-only by default: an agent may help prepare the PR/MR, but **you click the merge button** — that click *is* the confirmation. There is no separate permit store to outsource that decision.
-- Every deny is written to `.git/gitflow-guard/audit.jsonl` for review (`gitflow-guard audit`).
+- Every deny is appended to the user-level audit log for review (`gitflow-guard audit`).
 
 ---
 ## Installation in detail
@@ -312,7 +312,7 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 **From the npm registry** — the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.13    # pin recommended, see note above
+dsh plugin --profile web add agents-gitflow-guard@0.0.14    # pin recommended, see note above
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.
@@ -471,7 +471,7 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 ## Roadmap
 
 - **i18n — localized block messages** ✅ (0.0.3): English by default, `"locale": "zh"` for Chinese.
-- **v2 — audit sync**: sync `.git/gitflow-guard/audit.jsonl` across machines (audit is local-only today).
+- **v2 — audit sync**: sync the user-level audit log across machines (audit is local-only today).
 - **v2 — more pre-built templates**: ready-made config templates for common flows (solo `develop`, multi-env enterprise) as community-contributed presets.
 - **v2 — CI hard-gating research**: whether `pr checks` could become a real gate without hurting the platform-agnostic core.
 
