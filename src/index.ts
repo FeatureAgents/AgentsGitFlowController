@@ -1,10 +1,10 @@
 // 插件入口: 挂载 tools/pre-execute 做分支角色硬拦截; 核心逻辑在 evaluateCommand(可独立测试)
 
 import { appendFile, mkdir } from 'node:fs/promises'
-import { readFileSync, realpathSync, statSync } from 'node:fs'
+import { realpathSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
-import { basename, join, resolve } from 'node:path'
+import { basename, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { classify } from './classify'
@@ -12,7 +12,7 @@ import { loadConfig } from './config'
 import { decide } from './gate'
 import { makeT, resolveLocale } from './i18n'
 import type { Locale } from './i18n'
-import { currentBranch as queryCurrentBranch, findRepoRoot, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget } from './repo'
+import { commonGitDir, currentBranch as queryCurrentBranch, findRepoRoot, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget } from './repo'
 import type { Classified, GateFacts, PrTargetResolution } from './types'
 import type { Runner } from './repo'
 
@@ -72,50 +72,44 @@ export function userStateRoot(): string {
   return join(xdg || join(homedir(), '.local', 'state'), 'gitflow-guard')
 }
 
-function canonicalRepoRoot(repoRoot: string): string {
-  let real: string
+/** fs 兜底规范化(仅当 git 查询不可用时使用; Windows 8.3 短名等以 git 输出为准) */
+function safeRealpath(p: string): string {
   try {
-    // 规范化符号链接(macOS /tmp → /private/tmp、Windows 8.3 短名), 保证哈希键稳定
-    real = realpathSync(repoRoot)
+    return realpathSync(p)
   } catch {
-    return repoRoot
-  }
-  // linked worktree 的 .git 是文件(gitdir 指针)。剥去 /worktrees/<name> 得共享 .git,
-  // 再去掉 .git 后缀即主仓库根 —— 同一仓库所有工作树共用一个状态目录,
-  // 恢复 ≤0.0.13 在共享 .git 内存储的语义(否则审计历史被按工作树切碎。
-  try {
-    const dotGit = join(real, '.git')
-    if (!statSync(dotGit).isFile()) return real
-    const m = /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(dotGit, 'utf8'))
-    if (!m) return real
-    const worktreeGitDir = realpathSync(resolve(real, m[1]))
-    const commonGitDir = worktreeGitDir.replace(/[/\\]worktrees[/\\][^/\\]+$/, '')
-    if (commonGitDir === worktreeGitDir) return real
-    const mainRoot = commonGitDir.replace(/[/\\]\.git$/, '')
-    return mainRoot || commonGitDir
-  } catch {
-    return real
+    return p
   }
 }
 
 /**
  * 仓库运行时状态目录(审计流水等), 键为「仓库名-真实路径哈希」。
- * 刻意放在仓库外、且在 agent 文件沙箱(workspace-write)可写区之外:
- * 凡 agent 可写之处的状态都可能被 agent 伪造而自我授权, 存仓库外才堵住这条路;
- * 附带收益: 重克隆/移动 .git 不丢历史。
+ * 键由 git 权威解析(rev-parse --git-common-dir): linked worktree 与主仓库共用
+ * 同一状态目录(≤0.0.13 共享语义), 且天然规避 Windows 8.3 短名/大小写差异;
+ * git 查询不可用时回退 fs realpath。刻意放在仓库外、且在 agent 文件沙箱
+ * (workspace-write)可写区之外 —— 凡 agent 可写之处的状态都可能被伪造而自我授权。
  */
-export function stateDir(repoRoot: string): string {
-  const real = canonicalRepoRoot(repoRoot)
-  const hash = createHash('sha256').update(real).digest('hex').slice(0, 12)
-  const name = basename(real).replace(/[^\w.-]+/g, '-') || 'repo'
+export async function stateDir(repoRoot: string, runner: Runner = gitRunner): Promise<string> {
+  let key = safeRealpath(repoRoot)
+  try {
+    const common = await commonGitDir(runner, repoRoot)
+    if (common) {
+      // <root>/.git → 主仓库根; 无 .git 后缀(如子模块 modules 目录)时用原值
+      key = common.replace(/[/\\]\.git[/\\]?$/, '') || common
+    }
+  } catch {
+    // git 不可用: 保持 fs 兜底键(可能按工作树隔离, 可接受降级)
+  }
+  const hash = createHash('sha256').update(key).digest('hex').slice(0, 12)
+  const name = basename(key).replace(/[^\w.-]+/g, '-') || 'repo'
   return join(userStateRoot(), 'repos', `${name}-${hash}`)
 }
 
 /** 审计留痕; 失败不阻断门禁 */
-export async function appendAudit(repoRoot: string, entry: AuditEntry): Promise<void> {
+export async function appendAudit(repoRoot: string, entry: AuditEntry, runner: Runner = gitRunner): Promise<void> {
   try {
-    await mkdir(stateDir(repoRoot), { recursive: true })
-    await appendFile(join(stateDir(repoRoot), 'audit.jsonl'), `${JSON.stringify(entry)}\n`, 'utf8')
+    const dir = await stateDir(repoRoot, runner)
+    await mkdir(dir, { recursive: true })
+    await appendFile(join(dir, 'audit.jsonl'), `${JSON.stringify(entry)}\n`, 'utf8')
   } catch {
     // 审计写失败不阻断流程
   }
@@ -150,7 +144,7 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
     const { facts } = await factsFor(seg, { ...env, branch: simulatedBranch })
     const decision = decide(seg, facts, config, t)
     if (decision.kind === 'deny') {
-      await appendAudit(env.repoRoot, { time: Date.now(), event: 'deny', command, reason: decision.reason })
+      await appendAudit(env.repoRoot, { time: Date.now(), event: 'deny', command, reason: decision.reason }, env.runner)
       return { outcome: 'deny', reason: { why: decision.reason, next: decision.next }, segmentCount: segments.length, locale }
     }
     await logCiReference(seg, env)
@@ -165,7 +159,7 @@ async function logCiReference(seg: Classified, env: Env): Promise<void> {
   if (seg.kind !== 'pr-merge') return
   const state = await ghPrChecks(env.gh, env.repoRoot, seg.pr)
   if (state == null) return
-  await appendAudit(env.repoRoot, { time: Date.now(), event: 'ci', command: seg.pr ?? undefined, role: state })
+  await appendAudit(env.repoRoot, { time: Date.now(), event: 'ci', command: seg.pr ?? undefined, role: state }, env.runner)
 }
 
 /** 按段预取 git 事实(异步 I/O 全部前置, 门禁保持纯函数) */

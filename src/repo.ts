@@ -41,6 +41,12 @@ export async function findRepoRoot(runner: Runner, cwd: string): Promise<string 
   return r.code === 0 ? r.stdout.trim() || null : null
 }
 
+/** 共享 .git 目录(git 权威绝对路径): linked worktree 返回主仓库 .git, 主仓库返回自身 .git; 查询失败返回 null */
+export async function commonGitDir(runner: Runner, cwd: string): Promise<string | null> {
+  const r = await runner.run(['rev-parse', '--path-format=absolute', '--git-common-dir'], cwd)
+  return r.code === 0 ? r.stdout.trim() || null : null
+}
+
 export async function currentBranch(runner: Runner, cwd: string): Promise<string | null> {
   const r = await runner.run(['branch', '--show-current'], cwd)
   return r.code === 0 ? r.stdout.trim() || null : null
