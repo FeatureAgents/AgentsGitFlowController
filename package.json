@@ -60,7 +60,9 @@
     "prepack": "npm run build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "verify:matrix": "npm run build && node scripts/verify-matrix.mjs"
+    "verify:matrix": "npm run build && node scripts/verify-matrix.mjs",
+    "check:pins": "node scripts/check-version-pins.mjs",
+    "prepublishOnly": "npm run check:pins"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
