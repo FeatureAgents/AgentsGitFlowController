@@ -129,7 +129,7 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 - **角色驱动、完全可配**:`integration` 是唯一必填;`preview` / `production` / `archive` 是可选数组(精确名或正则),每个角色独立 `update`(`pr` / `flexible`)与 `mergeBy`。
 - **在关键处保留人的操作权**:生产与归档合并始终在你手上——插件阻止 agent 点击合并,于是你的动作*就是*确认。
 - **任何命名都行**:分支名全由配置映射,绝无硬编码(见[配置参考](#配置参考))。
-- **全程审计**:每次拦截都追加到用户级状态目录(macOS/Linux `~/.local/state/gitflow-guard/`,Windows `%LOCALAPPDATA%\gitflow-guard`)下的审计日志——在仓库外、绝不进版本库,且位于 agent 可写沙箱之外。
+- **全程审计**:每次拦截都追加到用户级状态目录(macOS/Linux `~/.local/state/gitflow-guard/`,Windows `%LOCALAPPDATA%\gitflow-guard`)下的审计日志——在仓库外、绝不进版本库、位于 agent 可写沙箱之外,且同一仓库的所有 worktree 共享一份日志。
 - **平台无关核心**:纯本地 git;可选调用 `gh`(GitHub)或 `glab`(GitLab)做 PR/MR 目标解析,没有它们照样工作。
 
 ---

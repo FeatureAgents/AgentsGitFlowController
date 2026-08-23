@@ -1,10 +1,10 @@
 // 插件入口: 挂载 tools/pre-execute 做分支角色硬拦截; 核心逻辑在 evaluateCommand(可独立测试)
 
 import { appendFile, mkdir } from 'node:fs/promises'
-import { realpathSync } from 'node:fs'
+import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { classify } from './classify'
@@ -73,11 +73,28 @@ export function userStateRoot(): string {
 }
 
 function canonicalRepoRoot(repoRoot: string): string {
+  let real: string
   try {
     // 规范化符号链接(macOS /tmp → /private/tmp、Windows 8.3 短名), 保证哈希键稳定
-    return realpathSync(repoRoot)
+    real = realpathSync(repoRoot)
   } catch {
     return repoRoot
+  }
+  // linked worktree 的 .git 是文件(gitdir 指针)。剥去 /worktrees/<name> 得共享 .git,
+  // 再去掉 .git 后缀即主仓库根 —— 同一仓库所有工作树共用一个状态目录,
+  // 恢复 ≤0.0.13 在共享 .git 内存储的语义(否则审计历史被按工作树切碎。
+  try {
+    const dotGit = join(real, '.git')
+    if (!statSync(dotGit).isFile()) return real
+    const m = /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(dotGit, 'utf8'))
+    if (!m) return real
+    const worktreeGitDir = realpathSync(resolve(real, m[1]))
+    const commonGitDir = worktreeGitDir.replace(/[/\\]worktrees[/\\][^/\\]+$/, '')
+    if (commonGitDir === worktreeGitDir) return real
+    const mainRoot = commonGitDir.replace(/[/\\]\.git$/, '')
+    return mainRoot || commonGitDir
+  } catch {
+    return real
   }
 }
 

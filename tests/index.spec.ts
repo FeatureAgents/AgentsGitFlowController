@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { apply, evaluateCommand, registerLocale, stateDir, userStateRoot } from '../src/index'
@@ -279,6 +281,29 @@ describe('stateDir: 运行时数据存用户级全局目录(仓库外)', () => {
       if (oldXdg === undefined) delete process.env.XDG_STATE_HOME
       else process.env.XDG_STATE_HOME = oldXdg
       if (oldOverride !== undefined) process.env.GITFLOW_GUARD_STATE_ROOT = oldOverride
+    }
+  })
+
+  it('linked worktree 与主仓库共用状态目录(真实 git 集成)', async () => {
+    const execFileP = promisify(execFile)
+    const base = mkdtempSync(join(tmpdir(), 'gfguard-wt-'))
+    const main = join(base, 'main')
+    const wt = join(base, 'wt')
+    mkdirSync(main, { recursive: true })
+    const g = (args: string[], cwd: string) => execFileP('git', args, { cwd })
+    await g(['init', '-b', 'main'], main)
+    await g(['config', 'user.email', 't@example.com'], main)
+    await g(['config', 'user.name', 'T'], main)
+    writeFileSync(join(main, 'f.txt'), 'x')
+    await g(['add', '.'], main)
+    await g(['commit', '-m', 'init'], main)
+    await g(['worktree', 'add', wt, '-b', 'wt-branch'], main)
+    try {
+      expect(stateDir(wt)).toBe(stateDir(main))
+      // 键取主仓库根名(而非工作树名), 与文档描述一致
+      expect(basename(stateDir(wt))).toMatch(/^main-/)
+    } finally {
+      rmSync(base, { recursive: true, force: true })
     }
   })
 })
