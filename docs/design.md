@@ -164,7 +164,7 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 
 **为什么不在仓库里(v0 曾放 repo 内 .git 目录)**: 凡 agent 可写之处的状态都可能被 agent 伪造——放在仓库内等于把「自我授权」后门留在门上。用户级目录位于 DSH workspace-write 文件沙箱之外, agent 的文件工具与 shell 都写不进, 篡改必须触发用户审批, 「人是唯一例外权」由机制保证而非自觉。
 
-附带收益: 重克隆、移动 .git、清理工作树均不丢审计历史; 键经 realpath 规范化(macOS /tmp 符号链接、Windows 8.3 短名)保持稳定。
+附带收益: 重克隆、移动 .git、清理工作树均不丢审计历史; 键经 realpath 规范化(macOS /tmp 符号链接、Windows 8.3 短名)保持稳定。linked worktree 的 .git 为 gitdir 指针文件, 解析回主仓库根作键——同一仓库所有工作树共用一份审计(与 ≤0.0.13 存于共享 .git 的语义一致)。
 
 限制: 单机假设不变(跨机同步 v2); 测试经 tests/setup.ts 把状态根重定向到系统临时目录, 不污染真实家目录。
 

@@ -132,7 +132,7 @@ Nobody has to remember the rules — the rules are enforced.
 - **Role-driven, fully configurable**: `integration` is the only required role; `preview` / `production` / `archive` are optional arrays of branch names or regexes, each with its own update rules (`pr` / `flexible`, `mergeBy`).
 - **Merge-by-user where it matters**: production & archive merges stay in your hands — the plugin blocks the agent from clicking merge, so your action *is* the confirmation.
 - **Works with any naming**: branch names are mapped by your config, never hard-coded (see [Configuration](#configuration-reference)).
-- **Fully audited**: every deny is appended to an audit log under your user state directory (`~/.local/state/gitflow-guard/`, `%LOCALAPPDATA%\gitflow-guard` on Windows) — outside the repository, never committed, and outside the agent's writable sandbox.
+- **Fully audited**: every deny is appended to an audit log under your user state directory (`~/.local/state/gitflow-guard/`, `%LOCALAPPDATA%\gitflow-guard` on Windows) — outside the repository, never committed, outside the agent's writable sandbox, and shared across all linked worktrees of one repository.
 - **Platform-agnostic core**: pure local git; optionally consults `gh` (GitHub) or `glab` (GitLab) for PR/MR target resolution, and works fine without them.
 
 ---
