@@ -49,6 +49,7 @@ AgentsGitFlowController/
 → 文档同步 (doc-writer)
 ```
 
+- **开工第零步（基线先行）**：任何内容工作动手前，先加载并执行项目技能 **`.agents/skills/start-work/SKILL.md`**——`git fetch` 核对基线、从 `origin/develop` 派生工作分支后再动文件；发现工作区停在陈旧检出（main 或其他）时，stash 存档后在新分支上重放，禁止就地编辑或携带提交。
 - 测试驱动与代码实现之间按 TDD 循环迭代：先写失败测试（红）→ 最小实现（绿）→ 重构，循环直至完成。
 - 代码审查与测试审查在**合并前**执行，审查通过才进入收尾。
 - **本仓库自身开发也走 GitFlow**：`feature/<主题>` 分支开发 → 测试/矩阵全绿 → **PR 到 develop**【经用户确认合并】; **禁止直接 commit/push develop**。develop 只承载集成、发版 tag 与归档 PR 的源——这与插件对 `develop=integration (update=pr)` 的约束一致，规矩靠纪律执行，不靠插件兜底。
