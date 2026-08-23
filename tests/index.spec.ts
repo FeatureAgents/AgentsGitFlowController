@@ -186,12 +186,12 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     try {
       const r = await evaluateCommand('git push origin develop', { repoRoot: dir, runner: scriptedRunner() })
       expect(r.outcome).toBe('deny')
-      const auditFile = join(stateDir(dir), 'audit.jsonl') // 用户级全局目录, 不再进 .git
+      const auditFile = join(await stateDir(dir), 'audit.jsonl') // 用户级全局目录, 不再进 .git
       expect(existsSync(auditFile)).toBe(true)
       expect(readFileSync(auditFile, 'utf8')).toContain('deny')
     } finally {
       rmSync(dir, { recursive: true, force: true })
-      rmSync(stateDir(dir), { recursive: true, force: true })
+      rmSync(await stateDir(dir), { recursive: true, force: true })
     }
   })
 
@@ -244,28 +244,28 @@ describe('包根再导出 registerLocale(P1-1) / MESSAGE_KEYS(P2-6)', () => {
 })
 
 describe('stateDir: 运行时数据存用户级全局目录(仓库外)', () => {
-  it('同一仓库 → 目录确定; 不同仓库 → 目录不同', () => {
+  it('同一仓库 → 目录确定; 不同仓库 → 目录不同', async () => {
     const a = tempRepo()
     const b = tempRepo()
     try {
-      expect(stateDir(a)).toBe(stateDir(a))
-      expect(stateDir(a)).not.toBe(stateDir(b))
+      expect(await stateDir(a)).toBe(await stateDir(a))
+      expect(await stateDir(a)).not.toBe(await stateDir(b))
     } finally {
       rmSync(a, { recursive: true, force: true })
       rmSync(b, { recursive: true, force: true })
     }
   })
 
-  it('目录在用户级状态根下、绝不在仓库内, 且含可读仓库名', () => {
+  it('目录在用户级状态根下、绝不在仓库内, 且含可读仓库名', async () => {
     const dir = tempRepo()
     try {
-      const s = stateDir(dir)
+      const s = await stateDir(dir)
       expect(s.startsWith(userStateRoot())).toBe(true)
       expect(s.startsWith(dir)).toBe(false)
       expect(basename(s)).toMatch(/^gfguard-eval-/)
     } finally {
       rmSync(dir, { recursive: true, force: true })
-      rmSync(stateDir(dir), { recursive: true, force: true })
+      rmSync(await stateDir(dir), { recursive: true, force: true })
     }
   })
 
@@ -299,9 +299,9 @@ describe('stateDir: 运行时数据存用户级全局目录(仓库外)', () => {
     await g(['commit', '-m', 'init'], main)
     await g(['worktree', 'add', wt, '-b', 'wt-branch'], main)
     try {
-      expect(stateDir(wt)).toBe(stateDir(main))
+      expect(await stateDir(wt)).toBe(await stateDir(main))
       // 键取主仓库根名(而非工作树名), 与文档描述一致
-      expect(basename(stateDir(wt))).toMatch(/^main-/)
+      expect(basename(await stateDir(wt))).toMatch(/^main-/)
     } finally {
       rmSync(base, { recursive: true, force: true })
     }

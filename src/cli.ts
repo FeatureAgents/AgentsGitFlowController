@@ -70,7 +70,7 @@ export async function main(argv: string[], opts: { runner?: Runner } = {}): Prom
   }
   try {
     if (cmd === 'status') return await status(flags, runner)
-    if (cmd === 'audit') return await audit(flags)
+    if (cmd === 'audit') return await audit(flags, runner)
     if (cmd === 'check') return await check(flags)
     const t = makeT(await resolveFrameworkLocale(flags, runner))
     console.error(`${t('cli.unknownCommand', { cmd: cmd ?? '' })}\n\n${t('usage.text')}`)
@@ -125,7 +125,7 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
   return 0
 }
 
-async function audit(flags: Flags): Promise<number> {
+async function audit(flags: Flags, runner: Runner): Promise<number> {
   const repoRoot = await resolveRepo(flags, gitRunner)
   if (!repoRoot) {
     console.error(makeT(resolveLocale(flags.locale))('cli.cannotLocate'))
@@ -136,7 +136,7 @@ async function audit(flags: Flags): Promise<number> {
   const t = makeT(cliLocale(flags, config?.locale))
   const lines = flags.lines != null && Number.isFinite(flags.lines) && flags.lines > 0 ? Math.floor(flags.lines) : 20
   try {
-    const text = await readFile(join(stateDir(repoRoot), 'audit.jsonl'), 'utf8')
+    const text = await readFile(join(await stateDir(repoRoot, gitRunner), 'audit.jsonl'), 'utf8')
     const all = text.split('\n').filter(Boolean)
     for (const line of all.slice(-lines)) {
       try {
