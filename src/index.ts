@@ -1,7 +1,10 @@
 // 插件入口: 挂载 tools/pre-execute 做分支角色硬拦截; 核心逻辑在 evaluateCommand(可独立测试)
 
 import { appendFile, mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { realpathSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { homedir } from 'node:os'
+import { basename, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { classify } from './classify'
@@ -54,8 +57,41 @@ export interface AuditEntry {
   reason?: string
 }
 
+/**
+ * 用户级运行时状态根目录(仓库外): macOS/Linux 走 XDG state, Windows 走 %LOCALAPPDATA%。
+ * GITFLOW_GUARD_STATE_ROOT 显式覆盖所有平台默认值(测试/特殊部署用)。
+ */
+export function userStateRoot(): string {
+  const override = process.env.GITFLOW_GUARD_STATE_ROOT?.trim()
+  if (override) return override
+  if (process.platform === 'win32') {
+    const local = process.env.LOCALAPPDATA?.trim() || join(homedir(), 'AppData', 'Local')
+    return join(local, 'gitflow-guard')
+  }
+  const xdg = process.env.XDG_STATE_HOME?.trim()
+  return join(xdg || join(homedir(), '.local', 'state'), 'gitflow-guard')
+}
+
+function canonicalRepoRoot(repoRoot: string): string {
+  try {
+    // 规范化符号链接(macOS /tmp → /private/tmp、Windows 8.3 短名), 保证哈希键稳定
+    return realpathSync(repoRoot)
+  } catch {
+    return repoRoot
+  }
+}
+
+/**
+ * 仓库运行时状态目录(审计流水等), 键为「仓库名-真实路径哈希」。
+ * 刻意放在仓库外、且在 agent 文件沙箱(workspace-write)可写区之外:
+ * 凡 agent 可写之处的状态都可能被 agent 伪造而自我授权, 存仓库外才堵住这条路;
+ * 附带收益: 重克隆/移动 .git 不丢历史。
+ */
 export function stateDir(repoRoot: string): string {
-  return join(repoRoot, '.git', 'gitflow-guard')
+  const real = canonicalRepoRoot(repoRoot)
+  const hash = createHash('sha256').update(real).digest('hex').slice(0, 12)
+  const name = basename(real).replace(/[^\w.-]+/g, '-') || 'repo'
+  return join(userStateRoot(), 'repos', `${name}-${hash}`)
 }
 
 /** 审计留痕; 失败不阻断门禁 */
