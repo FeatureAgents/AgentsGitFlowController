@@ -3,6 +3,11 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.14
+
+- fix(guard): runtime data moved out of the repository — the audit log used to live at `<repo>/.git/gitflow-guard/audit.jsonl`, inside the agent-writable sandbox, where an agent could forge its own authorization trail to self-authorize; it now lives in the user-level state directory `~/.local/state/gitflow-guard/repos/<repo>-<path-hash>/` (`%LOCALAPPDATA%` on Windows), keyed by a realpath hash (macOS symlink / Windows 8.3 short-name safe), overridable via `GITFLOW_GUARD_STATE_ROOT`; the vitest setup redirects the root to the OS temp dir —— 运行时数据迁出仓库: 审计日志原位于 agent 可写区(`<repo>/.git/gitflow-guard/audit.jsonl`), agent 可伪造自身授权痕迹实现自我授权; 现改存用户级状态目录(键=真实路径哈希, 兼容 macOS 符号链接与 Windows 8.3 短名; `GITFLOW_GUARD_STATE_ROOT` 可覆盖); 测试经 setup 统一重定向到系统临时目录。双语 README 审计表述同步, design.md §10 记载防伪论证。
+- docs(design): design.md rewritten as the single current spec for the role-driven model — goals & non-goals, gate matrix (incl. ref-move/ref-update), classifier hardening surface, config validation & strict fail-open grading, five-platform deny protocols, CLI, runtime-data storage (§10), testing strategy, and an evolution table from v0 to date — replacing the "historical banner" approach; the v0 text stays reachable via git history —— design.md 重写为角色驱动现行唯一规格(目标/门禁矩阵含 ref-move/ref-update/分类器硬化面/配置校验与 strict 失效分级/五平台拦截协议/CLI/运行时数据存储 §10/测试策略/v0 至今演进表), 取代「历史横幅」方案; v0 原文经 git 历史可达。
+
 ## 0.0.13
 
 - docs(agents): releases now tag the post-merge develop tip instead of the feature branch (rebase merges rewrite SHAs — a branch-side tag dangles off-develop, as v0.0.12 did); new iron rule: one branch, one PR, delete the branch after merge —— 发版 tag 改为合并后从 `origin/develop` 打(annotated)；新增「一分支一 PR、合并即弃分支」铁律——复用已合并分支会形成两份平行履历并制造大面积假冲突(v0.0.12 悬空 tag 与 0.0.13 整改的复盘沉淀)。

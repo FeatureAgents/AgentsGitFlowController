@@ -41,7 +41,7 @@
 # 安装最新版
 dsh plugin --profile web add agents-gitflow-guard
 # ...或锁定已知良好版本(推荐; 同时绕开 registry 陈旧缓存)
-dsh plugin --profile web add agents-gitflow-guard@0.0.13
+dsh plugin --profile web add agents-gitflow-guard@0.0.14
 ```
 
 > **版本坑**: 裸 `add` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。pnpm 打印的 peer 依赖 *警告* 属预期: DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`(插件正常工作)。
@@ -129,7 +129,7 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 - **角色驱动、完全可配**:`integration` 是唯一必填;`preview` / `production` / `archive` 是可选数组(精确名或正则),每个角色独立 `update`(`pr` / `flexible`)与 `mergeBy`。
 - **在关键处保留人的操作权**:生产与归档合并始终在你手上——插件阻止 agent 点击合并,于是你的动作*就是*确认。
 - **任何命名都行**:分支名全由配置映射,绝无硬编码(见[配置参考](#配置参考))。
-- **全程审计**:每次拦截都写入 `.git/gitflow-guard/audit.jsonl`——在 `.git` 内,绝不进版本库。
+- **全程审计**:每次拦截都追加到用户级状态目录(macOS/Linux `~/.local/state/gitflow-guard/`,Windows `%LOCALAPPDATA%\gitflow-guard`)下的审计日志——在仓库外、绝不进版本库,且位于 agent 可写沙箱之外。
 - **平台无关核心**:纯本地 git;可选调用 `gh`(GitHub)或 `glab`(GitLab)做 PR/MR 目标解析,没有它们照样工作。
 
 ---
@@ -165,7 +165,7 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 
 1. agent 调用 shell 工具(`pwsh`/`bash`)执行一条 git 命令。
 2. 插件分类该命令,从 `gitflow-guard.config.json` 解析分支角色,套用门禁矩阵。
-3. 违规 → 工具调用在**运行前被拒绝**,附原因和下一步;放行 → 命令照常执行,每次拦截都写入 `.git/gitflow-guard/audit.jsonl`。
+3. 违规 → 工具调用在**运行前被拒绝**,附原因和下一步;放行 → 命令照常执行,每次拦截都写入用户级日志(`~/.local/state/gitflow-guard/repos/<repo>-<hash>/audit.jsonl`)。
 
 没有聊天确认、也没有特许库:敏感合并(生产/归档)就是**仅用户**——agent 可以帮你准备 PR/MR,但点合并的始终是你。
 
@@ -298,7 +298,7 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 ## 人保持控制权的地方
 
 - **生产合并与归档**默认仅用户:agent 可以帮你准备 PR/MR,但**合并按钮由你点**——那个点击*就是*确认。没有独立特许库能把这决定外包出去。
-- 每次拦截都写入 `.git/gitflow-guard/audit.jsonl` 供查阅(`gitflow-guard audit`)。
+- 每次拦截都追加到用户级审计日志供查阅(`gitflow-guard audit`)。
 
 ---
 ## 安装详解
@@ -308,7 +308,7 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 **从 npm registry**——标准路径,已在[快速开始](#快速开始30-秒用上)覆盖:
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.13    # 建议锁版本, 见上文提示
+dsh plugin --profile web add agents-gitflow-guard@0.0.14    # 建议锁版本, 见上文提示
 ```
 
 然后重启 DSH。升级用同一命令,再重启一次。
@@ -467,7 +467,7 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 ## 路线图
 
 - **i18n——拦截文案本地化** ✅(0.0.3):默认英文,`"locale": "zh"` 切中文。
-- **v2——审计同步**:跨机器同步 `.git/gitflow-guard/audit.jsonl`(现仅本地)。
+- **v2——审计同步**:跨机器同步用户级审计日志(现仅本地)。
 - **v2——更多预制模板**:常用流程(solo `develop`、多环境企业)的现成配置模板,由社区贡献。
 - **v2——CI 硬门槛研究**:`pr checks` 能否在不伤平台无关核心的前提下变成真实门槛。
 
