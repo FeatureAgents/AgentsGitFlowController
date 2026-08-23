@@ -15,6 +15,12 @@ describe('config: 默认值合并', () => {
     expect(config!.ci.enabled).toBe(true)
   })
 
+  it('production 默认 mergeBy=user(合并权默认在人; 突变回归 M1)', () => {
+    const { config, errors } = mergeConfig({ branches: { integration: ['develop'], production: ['main'] } })
+    expect(errors).toEqual([])
+    expect(config!.branches.production).toEqual({ branches: ['main'], update: 'pr', mergeBy: 'user' })
+  })
+
   it('对象形式 + 自定义 update', () => {
     const { config, errors } = mergeConfig({
       enabled: true,
