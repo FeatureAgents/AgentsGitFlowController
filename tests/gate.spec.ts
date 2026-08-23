@@ -58,6 +58,11 @@ describe('gate: 直推受保护分支', () => {
     expect(decide({ kind: 'push', dst: 'develop', force: false, delete: false }, facts(), flexibleIntegration).kind).toBe('allow')
   })
 
+  it('flexible 模式仍拒绝带删除语义的直推(突变回归 M2)', () => {
+    expect(decide({ kind: 'push', dst: 'develop', force: false, delete: true }, facts(), flexibleIntegration).kind).toBe('deny')
+    expect(decide({ kind: 'push', dst: null, force: false, delete: true }, facts({ currentBranch: 'develop' }), flexibleIntegration).kind).toBe('deny')
+  })
+
   it('推 feature 分支 → allow', () => {
     expect(decide({ kind: 'push', dst: 'feature/dev-x-01', force: false, delete: false }, facts(), config).kind).toBe('allow')
   })
