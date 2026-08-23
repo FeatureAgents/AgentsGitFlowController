@@ -3,6 +3,11 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.15
+
+- feat(repo): version-pin consistency guard — new `scripts/check-version-pins.mjs` asserts package.json version matches every `agents-gitflow-guard@x.y.z` pin in both READMEs and the `## <version>` CHANGELOG heading; wired into CI and `prepublishOnly`, so forgetting the README lock-version sync now fails machines instead of review eyes —— 新增版本锁定一致性守卫:`scripts/check-version-pins.mjs` 校验 package.json 版本与双语 README 全部 `agents-gitflow-guard@x.y.z` 锁定安装示例及 CHANGELOG `## <版本>` 小节标题一致;接入 CI 与 `prepublishOnly` 双挂载,漏改 README 锁版本从靠人眼变成机器拦截。
+- docs(agents): stale-checkout pitfall recorded in AGENTS.md §7 (evidence: workspace parked on a 0.0.6-era main while develop was at 0.0.13) — pairs with the start-work skill —— AGENTS.md §7 补「会话工作区可能停在陈旧检出」陷阱条目(实证 0.0.6 main vs 0.0.13 develop),与 start-work 技能互为指路。
+
 ## 0.0.14
 
 - feat(agents): new project skill `.agents/skills/start-work` — makes the "step-zero baseline check" loadable instead of memorized: every work session starts by fetching origin, verifying which ref the workspace sits on, deriving `feature/<topic>` from the latest `origin/develop`, with an inline branch-rule digest; pointer rule added to AGENTS.md §4 (the skill stays a soft constraint by design; mechanical enforcement remains hook-layer territory) —— 新增项目级技能 start-work,把「开工第零步·基线先行」做成可加载清单而非靠记忆:每次工作开始先 fetch、核对工作区停在哪个 ref、再从最新 `origin/develop` 切 `feature/<主题>`,内附分支规矩速览;AGENTS.md §4 补指路条目(skill 定位仍是软约束,机械兜底属 hook 层另议)。
