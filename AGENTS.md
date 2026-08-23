@@ -88,6 +88,7 @@ AgentsGitFlowController/
 - `{ ...DEFAULT_CONFIG }` 浅拷贝会共享嵌套对象,合并时修改会污染模块级默认值:必须深拷贝。
 - DSH 插件包须在 package.json 声明 `dsh.bundle.patch`(`dsh plugin add` 才会自动挂载为 profile 层)。
 - 本仓库 dogfood:gitflow-guard.config.json 已启用,develop 为集成分支 / main 为归档分支;合入 develop 须经用户确认;main 仅用户亲手归档。
+- 会话工作区可能停在任意陈旧检出（实证：停在 0.0.6 时代的 main 而 develop 已到 0.0.13）：内容工作动手前必跑 start-work 技能核对基线；旧基线上产生的未提交改动 stash 存档后到新分支重放，禁止就地编辑或携带提交——否则开 PR 轻则大面积真冲突，重则无冲突却静默回退已合入功能。
 
 ## 8. 客户端支持清单(新增 agent 平台时必须逐项同步)
 
