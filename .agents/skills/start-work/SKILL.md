@@ -32,5 +32,3 @@ description: Run BEFORE touching any file in this repo. Fetches origin, verifies
 ## 为什么有这一步
 
 会话工作区可能停在任意陈旧检出上(实例:曾停在 0.0.6 时代的 main 而 develop 已到 0.0.13)。在旧基线上改文件再开 PR,轻则大面积真冲突,重则**无冲突但静默回退** develop 上已合入的功能——后者是埋雷。
-
-> 定位说明:本技能是软约束(与 AGENTS.md 同级),负责让规则在被匹配到时**必然完整呈现**;它不提供硬拦截,机械兜底属 hook 层,另行评估。
