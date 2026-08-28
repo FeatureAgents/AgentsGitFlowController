@@ -1,151 +1,154 @@
-# Handoff — 内置默认配置（零门槛开箱即用）
+# Handoff — 内置默认配置 + 各客户端默认 hooks（零门槛开箱即用）
 
-> **性质**：设计 + 交接文档。供下一个 session 直接接着做"内置默认配置 / 安装后立即可用"这件事。
+> **性质**：设计 + 交接文档。供下一个 session 直接接着做"**内置默认配置 / 开箱即用** + **每客户端默认 hooks**"。
 > **基线**：`origin/develop` @ `v0.0.18`（Pi 客户端已并入；`verify:matrix` 36 PASS）。
-> **参考**：现行设计规格 `docs/design.md`（角色驱动模型，v0 许可制已被取代）；`docs/issues.md`（审查底稿）。
+> **参考**：`docs/design.md`（现行设计规格，角色驱动模型）；`.agents/hooks/references/*.md`（六客户端协议与文件位置，**已核实**）。
 > **项目纪律**：中文沟通；代码注释中文；日志/异常英文；Conventional Commits（PR 标题正文英文）；一分支一 PR；本地 develop 零变更；逻辑改动 QA 三连（`typecheck` 0 错 + `npm test` 全绿 + `npm run verify:matrix` 全绿）。
+
+---
+
+## 0. 已定稿的方向（本次确认）
+
+- **默认保护范围**：内置默认配置默认保护 **`develop`（integration）+ `main`（archive）**。
+- **覆盖语义**：用户 `gitflow-guard.config.json` 存在时**深度合并覆盖**默认（只写想改的字段，其余沿用默认）。
+- **不做 `init` 子命令**：自定义直接用 README 覆盖说明。
+- **新增**："每客户端默认 hooks"→ 随包内置各客户端 hook 模板 + `gitflow-guard wire --client <name>` 落位命令。
 
 ---
 
 ## 1. 问题（为什么做）
 
-平台接入已经很多（DSH / Claude Code / Codex / OpenCode / Antigravity / Pi），但**上手门槛高**，会导致大量用户装完即弃：
+平台接入已经很广（DSH / Claude Code / Codex / OpenCode / Antigravity / Pi），但上手门槛高，装完即弃：
 
-- 配置是 **opt-in**：仓库根没有 `gitflow-guard.config.json` 就**完全不生效**（`src/config.ts` 的 `loadConfig` ENOENT → 未启用）。
-- 要生效必须 `enabled: true` **且** `branches.integration`——这是**唯一必填角色且无默认**（`mergeConfig` 里缺失就报 `branches.integration is required`，整份配置作废）。
-- 用户得自己决定角色映射 / 分支名 / 规则；六客户端又各自有一套安装+接线。**配置复杂 + 无默认** → 装完就流失。
+- **配置**：现状 opt-in 且 `branches.integration` 必填、无默认 → 不写配置就整体不生效。
+- **接线**：6 客户端里，4 个（Claude/Codex/OpenCode/Antigravity）要手动往各自 hook 配置文件写条目（路径/格式/协议各不相同），Pi 要手动拷扩展文件，只有 DSH 一条命令。
+- 结果：**配置复杂 + 每客户端手动接线** → 用户流失。
 
-**一句话目标**：让用户"安装后、或按指引设一次后，即可正常用"。把**默认配置**作为一等公民。
+**目标**：让用户"安装后、或按指引设一次后，即可正常用"。把**默认配置**和**每客户端默认 hooks**都做成一等公民。
 
 ---
 
 ## 2. 目标 / 非目标
 
 ### 2.1 目标
-1. **零门槛可跑**：缺省也能有合理行为，或一条命令生成一份可用的配置。
-2. **不破坏现有哲学**：角色驱动、平台无关、可解释、可审计、非安全边界（design.md §2.1/§2.2）。
-3. **不吓退 trunk / 单分支用户**：默认行为要保守、可关闭、可说明；不默认把 `main` 直推拦死。
-4. **中英双语**：配置示例、`init` 交互、文案走 i18n（en/zh）；默认 config 带双语注释。
+1. **配置零门槛可跑**：内置默认配置始终提供可用基线；用户 config 深度合并覆盖。
+2. **每客户端一条命令可接**：内置 hook 模板 + `wire --client` 自动落位；DSH/Pi 天然零接线。
+3. **可覆盖、可关闭**：自定义=建/改 config；不要=`enabled:false`（或克隆后手动去 hook）。
+4. **不破坏既有哲学**：角色驱动、平台无关、可解释、可审计、非安全边界（design.md §2）。
+5. **中英双语**：默认 config 带双语注释；`wire` 文案走 i18n（en/zh）；README 双语结构对等。
 
 ### 2.2 非目标
-- 不做"角色由项目声明"哲学的反转——默认只给**保守示意**，不是强加约定。
+- 不做"角色由项目声明"的反转——默认是**保守示意**，不强加约定。
 - 不做 CI 硬门禁、多机状态同步、主动弹窗；不替代 AGENTS.md/Skill 软层。
-- 不新增平台 wire 协议（不碰 `platform.ts` 的协议本体；只有新增**客户端**才动它）。
+- 不新增平台 wire 协议（`platform.ts` 协议本体不动）。
 
 ---
 
-## 3. 现状事实（实现侧，对照）`src/config.ts` / `src/cli.ts`
+## 3. 现状事实（实现侧）
 
-- `CONFIG_FILE = 'gitflow-guard.config.json'`；`DEFAULT_CONFIG = { enabled:false, featurePattern:'feature/[\\w-]+', ci:{enabled:true}, locale:'en' }`——**不含 branches**。
-- `loadConfig`：文件缺失 → 未启用；JSON 整体损坏 → 保守提取 `strict`。
-- `mergeConfig`：`integration` 缺失 → error（整份 config 为 null）；preview/production/archive 可选；production/archive 默认 `mergeBy:'user'`，integration/preview 默认 `update:'pr'`、`mergeBy:'anyone'`。
-- `validateConfig`：integration.branches 非空、featurePattern 合法、角色条目不重叠。
-- CLI 子命令目前只有 `status` / `audit` / `check`（**无 `init`**）；`check --platform <name>` 是 hook 门禁。
-- 安装面：README 已有六平台安装表；dogfood 配置 `.claude/settings.json`、`.codex/hooks.json`、`.agents/hooks.json`。
+### 3.1 配置（`src/config.ts`）
+- `CONFIG_FILE='gitflow-guard.config.json'`；`DEFAULT_CONFIG={enabled:false, featurePattern:'feature/[\\w-]+', ci:{enabled:true}, locale:'en'}`（**不含 branches**）。
+- `loadConfig`：ENOENT → 未启用；JSON 坏 → 保守提取 `strict`。
+- `mergeConfig`：`integration` 缺失 → error（整份 null）；preview/production/archive 可选；production/archive 默认 `mergeBy:'user'`，integration/preview 默认 `update:'pr'`。
+- **注意**：改默认会导致现有"无 config=关闭"的测试与语义变化，需同步改（见 §7 测试）。
 
----
+### 3.2 各客户端接线（`.agents/hooks/references/*.md`，已核实）
+| 客户端 | 注册方式 | 文件/命令 | 协议 |
+|---|---|---|---|
+| DSH | 进程内插件 | `dsh plugin add`（自动挂载 `dsh.bundle.patch`） | 返回值 `{kind:'deny',reason}` |
+| Claude Code | stdin hook | `.claude/settings.json` → `hooks.PreToolUse[]` | exit 2（stderr=原因） |
+| Codex | stdin hook | `.codex/hooks.json`（或 config.toml） | exit 0 + stdout JSON（`hookSpecificOutput`） |
+| OpenCode | stdin hook | `.opencode/hook/hooks.yaml`（**yaml，非 opencode.json**） | exit 2 |
+| Antigravity | stdin hook | `.agents/hooks.json`（项目级） | exit 0 + `{decision,reason}`（实验支持） |
+| Pi | 进程内扩展 | 拷 `pi/gitflow-guard.ts` → `.pi/extensions/` + `.pi/settings.json` | 返回值 `{block:true,reason}` |
 
-## 4. 候选方案
-
-### 方案 A：随包内置一份"可直接用"的默认 config 文件
-包 `files` 带 `configs/default.json`，README 直接贴，用户复制到项目根。
-- 优点：零开发、零风险、不动运行时。
-- 缺点：仍是"手动复制一个文件"；"安装后即可用"不成立（还要一次手动）。
-
-### 方案 B：无 config 时用内置默认（接近 default-on）
-`loadConfig` 在 ENOENT 时返回**内置默认 config**（而非 null），且默认 `enabled:true` + 保守角色。
-- 优点：装上就生效，最贴合"安装即可用"。
-- 缺点：**违背** design.md §2 的 opt-in 与非安全边界的姿态；对 trunk 用户可能误拦；需要强 disable 路径。
-- 缓解：默认角色保守（只保护明显存在且约定的分支）+ `disable` / `enabled:false` + 文档醒目标注。
-
-### 方案 C：新增 `gitflow-guard init [--preset solo|enterprise|trunk] [--interactive] [--force]`
-在项目根生成一份完整、可用的 `gitflow-guard.config.json`（带双语注释、合理默认角色）。
-- `solo`：`develop`=integration、`main`=production、`archive` 可选。
-- `enterprise`：多环境（preview/production/archive 齐备）。
-- `trunk`：`main`=integration、无 archive（不拦 main 直推）。
-- 也支持无参交互问 2–3 问（integration / 是否有 archive / locale）。
-- 优点：保持 opt-in + 角色驱动哲学，把"写对配置"变成"一条命令"，错误率大降，可 i18n。
-- 缺点：比方案 B 多执行一步；需设计文件内容 + i18n 键 + 测试。
-
-### 方案 D：README 一键粘贴 + `status` 校验引导
-README Quick Start 改为"贴这份默认 config" + `gitflow-guard status` 校验，输出下一步。
-- 优点：零开发；缺点：仍是手动。
+> 说明：Claude 命令用 `${CLAUDE_PROJECT_DIR}/bin/...`；OpenCode 用 `$OPENCODE_PROJECT_DIR`（dogfood 假设）；Codex/Antigravity 用相对 `bin/...`。`wire` 必须按平台生成对的环境变量前缀。
 
 ---
 
-## 5. 推荐（组合，可分批）
+## 4. 设计
 
-**主推：C（`init` 脚手架） + A（随包一份完整默认 config 作为 `init` 模板来源 / README 展示）。**
-
-理由：
-- 最贴合"**按指引设置一次即可用**"：`gitflow-guard init` 一次生成即可用，且生成结果一定通过现有校验。
-- 不破坏 design.md 的 opt-in、角色驱动、非安全边界；**不影响 trunk 用户**（trunk 用 `--preset trunk` 或直接 disable）。
-- config 是**六平台共享的一份**——把这"一份"做成"init 生成 + 有语义默认"，就一次性解决所有客户端的上手问题。
-- 方案 B（default-on）作为**可选项**：通过 `"defaults": true`（或独立开关）显式开启、默认关闭。如此既有"安装即可用"（B 开启后）的路径，又**不**强加给 trunk 用户，且与"非安全边界"姿态一致。
-
----
-
-## 6. 推荐默认 config 内容（`init` 生成 / 内置模板）
+### 4.1 内置默认配置（开箱即用的行为基线）
+- `DEFAULT_CONFIG` 补上 `branches`：
 
 ```jsonc
 {
-  "enabled": true,               // opt-in，但由 init 打开
+  "enabled": true,                // 由默认开启，用户可关
   "featurePattern": "feature/[\\w-]+",
   "branches": {
-    "integration": ["develop"],  // 需求合入走 PR/MR（update: pr）
-    "production": ["main"],      // 出版本由你合并（mergeBy: user）
-    "archive": ["archive"]       // 可选；无 archive 分支可去掉
+    "integration": ["develop"],   // 禁直推、走 PR/MR（update: pr）
+    "archive": ["main"]           // 禁直推/合并；mergeBy: user（敏感合并在人）
   },
-  "locale": "en",                // 或 "zh"
-  "strict": false                // 保持 fail-open；高风险仓库自行改 true
+  "locale": "en",
+  "strict": false
 }
 ```
 
-- **默认不用 `integration=main`**——避免把"直接推 main 的 trunk 用户"拦死；trunk 用 `--preset trunk`（`integration:["main"]`、无 archive）。
-- 角色条目仍为数组/对象、无重叠；featurePattern 默认。这是**保守示意**，不是强制约定。
+- **`enabled` 默认 `true`**：无 config 也生效（这是"安装即用"的关键）。`main` 作为 archive（敏感、由你合并），`develop` 作为 integration。
+- **深度合并覆盖**：用户 config 存在时按字段并入默认——`enabled`（默认 true）/`featurePattern`/`branches`（写到的角色覆盖，缺省角色沿用默认）/`locale`/`ci`/`strict`。用户只写 `{ "branches": { "production": ["release-*"] } }` 也能在默认基础上叠加。
+- **关闭路径**：`enabled:false`（快速退出）；README 醒目标注。
+
+> ⚠️ 因默认保护 `main`，**只往 `main` 直推、无多分支流程的 trunk/单分支用户**，装上后第一次就会被拦。这是已接受的取舍（你选了"保护 develop+main"），必须用**强提示 + 易关闭**兜住：README 显著位置说明 + `status` 输出"当前使用默认配置，`main` 受保护；如为 trunk 请 `enabled:false` 或改角色"。
+
+### 4.2 各客户端默认 hooks（`gitflow-guard wire`）
+- **随包内置 hook 模板**（`hooks/` 下）：`claude.json`（`.claude/settings.json`）/`codex.json`（`.codex/hooks.json`）/`opencode.yaml`（`.opencode/hook/hooks.yaml`）/`antigravity.json`（`.agents/hooks.json`）/`pi/gitflow-guard.ts`（已存在）。
+- **新增子命令**：`gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi> [--project|--global] [--unwire] [--dry-run] [--repo <path>]`
+  - 行为：读取/合并对应客户端 hook 配置文件，**非破坏性**地加入（已存在则跳过/去重）；`--unwire` 移除；`--dry-run` 只打印将要写入的内容；文案走 i18n。
+  - `--client dsh` / `pi`：不写配置文件（进程内），仅打印接入引导。
+  - **安全**：写入用户客户端配置文件属"仓库外写端"，须 `--dry-run` + 输出 diff + `--yes` 确认；OpenCode 是 YAML，落位以"语义id"判重。
+- **Antigravity 实验支持**：`wire --client antigravity` 标注"实验支持"，仅按官方文档落位，提示真机核验。
 
 ---
 
-## 7. 关键决策点（需要你 / 下一 session 拍板）
+## 5. 推荐落地（与你已定方向一致）
 
-1. 默认角色映射 `integration=develop, production=main, archive=optional` 是否可接受？trunk 是否接受 `--preset trunk`？
-2. 是否引入可选的 `"defaults": true`（方案 B 开关）？**默认开还是关**？
-3. `init` 是交互式（2–3 问）还是纯 `--preset`？是否要 `--force` 覆盖已有 config？
-4. 默认 config 的 `strict` 保持 `false`（与现状一致）？
-5. 未来若再加新客户端，是否也走同一 `init` / 默认路径（建议：是，集中体验、一处维护）。
+1. **配置**：内置默认（develop+main、enabled:true）+ 深合并覆盖 + 不做 init。→ 装上即用；自定义=写/改 config。
+2. **接线**：内置各客户端 hook 模板 + `gitflow-guard wire`。→ 每客户端一条命令接好；DSH/Pi 天然零接线或仅提示。
+3. **文档**：README Quick Start 主路径改为"安装 → 某客户端 wire（或 DSH 直接 add）→ 默认配置已生效 → 演示拦截"；配置段改为"内置默认 + 覆盖说明 + 关闭路径"。
 
 ---
 
-## 8. 实现清单（新 session 照此推进）
+## 6. 关键决策点（请下一 session 首步确认）
+
+1. 默认 `main` 用作 **archive**（并入/合并由你点）还是 **production**？建议 archive（与仓库自身 dogfood 一致：develop=integration、main=archive）。
+2. `enabled` 默认 `true` 是否接受（= 从"无 config 关闭"翻转为"无 config 开启"）？这会改现有测试假设，确认后需同步改测试。
+3. `wire` 默认作用域：项目级还是全局？建议项目级（不污染 `~/.codex` 等）。
+4. 内置 hook 模板放包内（`files` 需加）还是仅作为 `wire` 的代码内模板？建议包内模板文件，可被用户直接拷贝。
+5. Antigravity（实验支持）是否纳入 `wire` 第一批，还是暂缓？
+
+---
+
+## 7. 实现清单（新 session 照此推进）
 
 > 守则：QA 三连全绿才收尾；逻辑改动用 feature 分支 + PR（英文标题）到 develop；本地 develop 零变更。
 
-- [ ] **`src/config.ts`**：新增 `DEFAULT_BRANCHES`（保守默认）与 `buildDefaultConfig(preset, opts)` 纯函数（solo/enterprise/trunk + locale），返回完整 `GuardConfig`；`mergeConfig` 复用其校验，保证 init 产物必过 `validateConfig`。如需 `defaults` 开关则并入（决策点 2）。
-- [ ] **`src/cli.ts`**：新增 `init` 子命令：`gitflow-guard init [--preset <solo|enterprise|trunk>] [--interactive] [--force] [--locale <en|zh>] [--repo <path>]`。行为：无 `CONFIG_FILE` → 写 `buildDefaultConfig(preset)`（带注释）；文件已存在且非 `--force` → 报错退出；写完提示"用 `gitflow-guard status` 校验"；文案走 i18n。
-- [ ] **`src/i18n.ts`**：新增 init 相关 MESSAGE_KEYS（en/zh）：提示 / preset 名 / 覆盖警告 / 成功 / 下一步引导。
-- [ ] **`src/types.ts`**：`type Preset = 'solo'|'enterprise'|'trunk'`；如走 `defaults` 开关则加字段。
-- [ ] **测试 `tests/config.spec.ts` / `tests/cli.spec.ts`**：init 生成文件可通过 `validateConfig`；ENOENT 默认行为按决策点；各 preset 内容断言；`--force` 覆盖；`--preset trunk` 不拦 main 直推（回归 gate 行为）。
-- [ ] **文档 `README.md` / `README.zh.md`**：Quick Start 主路径改为 安装 → `gitflow-guard init` → `status` 校验 → 拦截演示；补"默认配置 / 预设一览"表；"多客户端"段并入"配置是共享一份"；补 `enabled:false` 退出路径。保持中英 41:41 结构对等。
-- [ ] **打包 `package.json`**：`files` 若内置模板（如 `configs/`）则加；`keywords`/description 如需提 zero-config / 开箱即用则同步（按 §8 客户端清单原则）。
+- [ ] **`src/config.ts`**：`DEFAULT_CONFIG` 补 `branches`（develop=integration / main=archive）且 `enabled:true`；`mergeConfig` 改为**深度合并**（用户字段覆盖默认，角色级合并），保留 `validateConfig`；注释默认已启用语义。
+- [ ] **`src/types.ts`**：如需加 `ClientId`（wire 目标枚举）或 `defaults` 开关则同步。
+- [ ] **`src/cli.ts`**：新增 `wire` 子命令（`--client/--unwire/--dry-run/--yes/--repo`）；`status` 输出增加"当前为内置默认 / main 受保护 / 如何关闭"引导。
+- [ ] **`src/i18n.ts`**：新增 wire/默认配置引导 MESSAGE_KEYS（en/zh）：成功/跳过/移除/需确认/已存在/默认启用/trunk 关闭引导。
+- [ ] **hook 模板**：新建 `hooks/{claude,codex,opencode,antigravity}.{json|yaml}`（含各平台正确命令前缀与协议）；复用 `pi/gitflow-guard.ts`。
+- [ ] **测试 `tests/config.spec.ts`/`tests/cli.spec.ts`**：无 config=默认生效（develop/main 受保护）；深合并（只写 production 也叠加默认、integration 仍在）；`enabled:false` 关闭；trunk（仅 main）默认提示；`wire` 幂等、`--unwire`、`--dry-run`、OpenCode yaml 落位；`wire dsh/pi` 只提示。
+- [ ] **文档 `README.md`/`README.zh.md`**：Quick Start 改主路径（安装 → 客户端 wire/DSH add → 默认已生效 → 演示拦截）；配置段改"内置默认 + 覆盖 + 关闭"；新增"各客户端默认 hooks（wire）"表；显著标注"main 默认受保护；trunk 用户请关闭"。保持中英结构对等。
+- [ ] **打包 `package.json`**：`files` 加 `hooks/`；keyword/description 如需提 zero-config / wire / 开箱即用则同步。
 - [ ] **`CHANGELOG.md`**：下版记一条 feat（中英双语，标题仅版本号，随同一 PR）。
-- [ ] **`scripts/verify-matrix.mjs`**：若默认配置不改变 wire 协议则一般不需要；至少保持 36 PASS，若新增 init 的 locale 分支则相应补。
-- [ ] **可选 `docs/design.md`**：`§2.1/§2.2` 补一条"内置默认配置 + init"，并把"opt-in"措辞更新为"默认保守 + 显式开启（init）"（如走方案 C）。
+- [ ] **`scripts/verify-matrix.mjs`**：若默认配置/深合并不改变 wire 协议则一般不动；至少保持 36 PASS；若新增客户端 wire 落位断言则相应补。
+- [ ] **可选 `docs/design.md`**：`§2.1/§2.2` 补"内置默认配置 + 每客户端默认 hooks"，并更新"opt-in"措辞。
 
 ---
 
-## 9. 约束与风险
+## 8. 约束与风险
 
-- **不要默认保护 `main` 直推**——这是最大 UX/反噬风险（会拦死 trunk/单分支用户）；用 `preset` 区分，默认 `integration=develop`。
-- **方案 B（default-on）会违背 design.md §2 的 opt-in 与"非安全边界"姿态**；若做，务必配强 disable 路径 + README 醒目标注"这是流程守卫，不是安全边界，服务端分支保护仍要开"。
-- 所有新文案必须走 i18n；`verify:matrix` 的 zh-locale 回归可能需补 init 分支。
-- 改 config 装载逻辑会波及 `index.ts` 的 `evaluateCommand` 与 hook 路径，务必全矩阵回归。
+- **默认保护 `main` 会误伤 trunk/单分支用户**——必须强提示 + 易关闭（`status` 引导 + `enabled:false` + README 显著位置）。这是最大反噬风险。
+- **翻转 `enabled` 默认 = 改现有"无 config=关闭"语义**，会波及 `index.ts`（evaluateCommand）与现有测试；务必全矩阵回归。
+- **`wire` 写用户客户端配置文件**（仓库外写入）——必须 `--dry-run` + diff + `--yes`，幂等、不覆盖已有 hook；OpenCode YAML 需语义级去重；Antigravity 实验支持降级标注。
+- **非安全边界**：默认开启（尤其保护 main）会让人误以为"有绝对保护"——文档与 `status` 输出持续提示"流程守卫，非安全边界；服务端分支保护仍要开"。
+- 所有新文案走 i18n；`verify:matrix` 的 zh-locale 回归可能需补 `wire`/默认配置分支。
 
 ---
 
-## 10. 验收标准（DoD）
+## 9. 验收标准（DoD）
 
-- 新用户：`dsh plugin --profile web add agents-gitflow-guard && gitflow-guard init && gitflow-guard status` → 显示 enabled、集成/生产角色、当前分支；对 `git push origin develop` 演示拦截。
-- `gitflow-guard init --preset solo` 产物通过全部校验；`--preset trunk` 不拦 main 直推；`--force` 覆盖已有文件。
-- 无 config 时的默认行为符合决策点 2（默认关闭=现行为，或 `defaults:true` 时保守默认）。
-- QA 三连全绿；README 双语 Quick Start 与配置预设在结构上对等更新。
-- CHANGELOG 下版双语一条 feat；发布按现有 tag 流程（tag 从合并后 develop tip 打）。
+- **配置**：新仓库无 config → 默认生效，`git push origin develop` 被拦（integration）、`git push origin main` 被拦（archive）；用户写 `{ "branches": { "production": ["release-*"] } }` → 在默认基础上叠加且 integration 仍受保护；`enabled:false` → 关闭。
+- **接线**：`gitflow-guard wire --client claude` 两次不重复（幂等）、`--unwire` 移除、`--dry-run` 只打印；`dsh`/`pi` 只输出引导；OpenCode yaml 正确落位。
+- **文档**：README 双语 Quick Start 与"默认配置+wire"表在结构上对等；显著标注"main 默认受保护，trunk 请关闭"。
+- **QA 三连**全绿；CHANGELOG 下版双语一条 feat；发布按现有 tag 流程（tag 从合并后 develop tip 打）。
