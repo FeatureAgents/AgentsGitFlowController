@@ -40,7 +40,7 @@ You define your own branches —
 
 ```bash
 # DSH — in-process plugin; restart DSH afterwards (plugins load at startup)
-dsh plugin --profile web add agents-gitflow-guard@0.0.18
+dsh plugin --profile web add agents-gitflow-guard@0.0.19
 ```
 
 ```bash
@@ -304,6 +304,12 @@ archive (optional; you archive after release)
 | PR/MR into archive | ✅ create allowed; 🚫 merge blocked (you merge in UI) |
 | local `git merge feature/x` while on integration / preview | 🚫 block (PR/MR required); `update: flexible` allows |
 | chained commands (`checkout develop && merge feature/x`) | 🚫 blocked — branch switches are simulated per segment, no bypass |
+| force-recreate a protected branch (`git checkout -B/-C <branch>` / `git switch -C`) | 🚫 block (direct ref-update gate) |
+| retarget/delete a protected branch via `git symbolic-ref` | 🚫 block (direct ref-update gate) |
+| `git cherry-pick` / `git revert` while on integration / preview / production / archive | 🚫 block (history rewrite on a protected branch); `-n` / `--no-commit` and `--abort`/`--continue`/`--skip`/`--quit` pass |
+| `sudo`-wrapped git commands (privilege wrapper) | 🚫 wrapper peeled (`sudo -u …` included), underlying command gated |
+
+> Two deliberate non-gates, so they don't get "closed" by accident later: `git tag -f` (moving a tag, even pointing at a protected branch) stays exempt — tags are outside the branch-role scope, same as `push --tags`; and a plain `git commit` on a protected branch stays allowed — the guard governs branch roles and merge paths, not content, and the following `git push` is still blocked (remote stays clean).
 
 The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab). Without a platform CLI, the plugin is conservative.
 
@@ -321,14 +327,14 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 
 | Agent | Install command | After that |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.18` | restart DSH — the plugin auto-mounts as a profile layer |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.18` | wire a hook to the `gitflow-guard` binary (below) |
-| Pi | `npm i -D agents-gitflow-guard@0.0.18` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
+| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.19` | restart DSH — the plugin auto-mounts as a profile layer |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.19` | wire a hook to the `gitflow-guard` binary (below) |
+| Pi | `npm i -D agents-gitflow-guard@0.0.19` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
 
 **DSH — in-process plugin** (the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo)):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.18    # pin recommended, see note above
+dsh plugin --profile web add agents-gitflow-guard@0.0.19    # pin recommended, see note above
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.
@@ -345,7 +351,7 @@ The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes
 **Standalone agent hooks** — Claude Code / Codex / OpenCode / Antigravity, no DSH required. Install the CLI once, then reference the `gitflow-guard` binary in each hook config:
 
 ```bash
-npm i -g agents-gitflow-guard@0.0.18   # provides the `gitflow-guard` binary
+npm i -g agents-gitflow-guard@0.0.19   # provides the `gitflow-guard` binary
 ```
 
 This repo ships project configs at `.claude/settings.json` (Claude Code), `.codex/hooks.json` (Codex), `.opencode/hook/hooks.yaml` (OpenCode) and `.agents/hooks.json` (Antigravity / Google); any other repo adds its own:
@@ -401,7 +407,7 @@ hooks:
 Pi loads extensions in-process (no stdin payload, no subprocess hook). Install the shipped entry point into the project and keep the package in devDependencies:
 
 ```bash
-npm i -D agents-gitflow-guard@0.0.18
+npm i -D agents-gitflow-guard@0.0.19
 mkdir -p .pi/extensions
 cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
 ```
@@ -439,7 +445,7 @@ No. Add only the roles your flow actually has. A solo repo with just `develop` c
 
 No, and it is important that you don't treat it as one. It is a workflow guard: it makes an agreed process mechanically enforceable. Text-based command recognition is inherently best-effort — an agent determined to obfuscate a command can slip past the parser.
 
-Within its supported command forms, the role boundary is enforced locally: merging into a protected role branch (integration / preview / production / archive) requires the configured path (PR/MR, or a human merge for production/archive). Standard obfuscation wrappers are classified and blocked — shell wrappers (`sh -c` / `bash -lc`), subshells and backtick/`$()` nesting, `env`/`command`/`nohup`/`xargs` prefixes and `VAR=x` assignments, absolute paths, pipelines and `||` tails, git global options (`-C .`, `--git-dir=…`), wildcard refspecs (`refs/heads/*:refs/heads/*`), `git pull` used as fetch+merge, and the `send-pack`/`update-ref` plumbing. The executable adversarial corpus lives in `tests/accuracy-audit.spec.ts`.
+Within its supported command forms, the role boundary is enforced locally: merging into a protected role branch (integration / preview / production / archive) requires the configured path (PR/MR, or a human merge for production/archive). Standard obfuscation wrappers are classified and blocked — shell wrappers (`sh -c` / `bash -lc`), subshells and backtick/`$()` nesting, `env`/`command`/`nohup`/`xargs`/`sudo` prefixes and `VAR=x` assignments, absolute paths, pipelines and `||` tails, git global options (`-C .`, `--git-dir=…`), wildcard refspecs (`refs/heads/*:refs/heads/*`), `git pull` used as fetch+merge, and the `send-pack`/`update-ref`/`symbolic-ref` plumbing; force-recreating a protected branch (`checkout -B`/`switch -C`) and cherry-pick/revert on a protected branch are blocked by the ref-update / ref-move gates. The executable adversarial corpus lives in `tests/accuracy-audit.spec.ts`.
 
 What remains **locally non-defensible**: direct forge-API calls (`gh api repos/…/pulls/N/merge`, `curl`) and commands inside interpreter subprocesses (`node -e "child_process.exec('git push …')"`); arbitrarily deep quoting or encoding stays best-effort by nature. The real, non-bypassable boundary lives in branch-protection rules on your hosting service. Use both — treat this guard as instant feedback and audit trail, not as a security boundary.
 
