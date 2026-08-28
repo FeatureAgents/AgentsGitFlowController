@@ -148,6 +148,19 @@ describe('accuracy: 对抗语料(整改 §1.1)—— shell 包装', () => {
     }
   })
 
+  it('sudo 剥壳(含 -u 用户消费): sudo 包装后的受保护推送同样 deny', () => {
+    for (const cmd of [
+      'sudo git push origin develop',
+      'sudo -u root git push origin develop',
+      'sudo -u root -E env git push origin develop',
+      'sudo -- git push origin develop',
+    ]) {
+      const c = classify(cmd)[0]
+      expect(c, cmd).toMatchObject({ kind: 'push', dst: 'develop' })
+      expect(decide(c, { currentBranch: 'feature/x' }, cfg, t).kind, cmd).toBe('deny')
+    }
+  })
+
   it('反引号与 $() 内嵌命令一并送分类; 单引号内不展开(与 shell 语义一致)', () => {
     expect(classify('echo `git push origin develop`').some(isPushTo('develop'))).toBe(true)
     expect(classify('echo $(git push origin develop)').some(isPushTo('develop'))).toBe(true)
@@ -222,6 +235,26 @@ describe('accuracy: 对抗语料(整改 §1.1)—— git 形态第二批(通配/
     expect(decide(classify('git update-ref refs/heads/feature/x HEAD')[0], { currentBranch: 'feature/x' }, cfg, t).kind).toBe('allow')
   })
 
+  it('plumbing 收编: symbolic-ref 重定向/删除受保护 ref 一律拒绝, feature 目标放行, 查询形态不误伤', () => {
+    const c = classify('git symbolic-ref refs/heads/develop refs/heads/main')[0]
+    expect(c).toMatchObject({ kind: 'ref-update', branch: 'develop' })
+    expect(decide(c, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    expect(decide(classify('git symbolic-ref --delete refs/heads/main')[0], { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    expect(decide(classify('git symbolic-ref refs/heads/feature/x refs/heads/main')[0], { currentBranch: 'feature/x' }, cfg, t).kind).toBe('allow')
+    expect(classify('git symbolic-ref --short HEAD')[0].kind).toBe('other')
+  })
+
+  it('checkout -B / switch -C 收编: 强制重建受保护分支拒绝, feature 目标放行且按段模拟切换', () => {
+    const forced = classify('git checkout -B develop && git push')[0]
+    expect(forced).toMatchObject({ kind: 'ref-update', branch: 'develop' })
+    expect(decide(forced, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    const ok = classify('git switch -C feature/x')[0]
+    expect(ok).toMatchObject({ kind: 'ref-update', branch: 'feature/x' })
+    expect(decide(ok, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('allow')
+    // 普通 -b/-c 不移动既有 ref, 保持既有放行面
+    expect(classify('git checkout -b feature/y')[0].kind).toBe('checkout')
+  })
+
   it('裸推/HEAD 的 dst 延迟解析: 切到受保护分支后裸推按模拟分支判定', () => {
     expect(classify('git switch develop && git push', { currentBranch: 'feature/x' })[1]).toMatchObject({ kind: 'push', dst: null })
     expect(decide({ kind: 'push', dst: null, force: false, delete: false }, { currentBranch: 'develop' }, cfg, t).kind).toBe('deny')
@@ -240,6 +273,20 @@ describe('accuracy: 对抗语料(整改 §1.1)—— git 形态第二批(通配/
     expect(classify('git rebase --continue')[0].kind).toBe('other')
     // 普通提交不移动既有 ref
     expect(classify('git commit -m x')[0].kind).toBe('other')
+  })
+
+  it('cherry-pick/revert 收编为 ref-move: 受保护分支上拒绝, feature 自由, -n/--no-commit 与恢复旗标放行', () => {
+    for (const cmd of ['git cherry-pick a1b2c3d', 'git cherry-pick a1b2c3d e4f5g6h', 'git revert HEAD', 'git revert -m 1 a1b2c3d']) {
+      expect(classify(cmd)[0].kind, cmd).toBe('ref-move')
+    }
+    expect(decide({ kind: 'ref-move' }, { currentBranch: 'develop' }, cfg, t).kind).toBe('deny')
+    expect(decide({ kind: 'ref-move' }, { currentBranch: 'prd' }, cfg, t).kind).toBe('deny')
+    expect(decide({ kind: 'ref-move' }, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('allow')
+    // 不移动 tip 的形态放行: -n/--no-commit(只改工作树与索引)、恢复类旗标
+    expect(classify('git cherry-pick -n a1b2c3d')[0].kind).toBe('other')
+    expect(classify('git revert --no-commit HEAD')[0].kind).toBe('other')
+    expect(classify('git cherry-pick --abort')[0].kind).toBe('other')
+    expect(classify('git revert --continue')[0].kind).toBe('other')
   })
 
   it('parseBranch 全旗标扫描: 组合长旗标删除 / 改名 / 强制复位不再绕过', () => {

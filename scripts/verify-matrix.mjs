@@ -88,6 +88,16 @@ console.log('[A] DSH plugin logic (evaluateCommand)')
       ['develop', 'git filter-branch -- --all', 'deny'],
       ['develop', 'git branch -m develop x', 'deny'],
       ['develop', 'git branch --delete --force develop', 'deny'],
+      // Pi 真机空隙修复(G1/G2/G3/G5): sudo 剥壳 / symbolic-ref / cherry-pick / revert / checkout -B
+      ['feature/x', 'sudo git push origin develop', 'deny'],
+      ['develop', 'git symbolic-ref refs/heads/develop refs/heads/main', 'deny'],
+      ['develop', 'git cherry-pick a1b2c3d', 'deny'],
+      ['feature/x', 'git cherry-pick a1b2c3d', 'allow'],
+      ['develop', 'git revert HEAD', 'deny'],
+      ['feature/x', 'git cherry-pick -n a1b2c3d', 'allow'],
+      ['develop', 'git checkout -B main', 'deny'],
+      ['feature/x', 'git checkout -B feature/y', 'allow'],
+      ['feature/x', 'git checkout -B feature/y && git push origin feature/y', 'allow'],
     ]
     for (const [branch, cmd, want] of cases) {
       const r = await evaluateCommand(cmd, { repoRoot: repo, currentBranch: branch })
@@ -183,6 +193,10 @@ console.log('[G] Pi extension (tool_call block contract, real CLI)')
     const ctx = { cwd: repo }
     const deny = await handler(evt('git push origin develop'), ctx)
     check('拦截: {block:true, reason} 含 Protected branch', deny?.block === true && /Protected branch/.test(deny.reason ?? ''), JSON.stringify(deny))
+    const dirDeny = await handler(evt('git checkout -B main'), ctx)
+    check('拦截: checkout -B 强制重建受保护分支', dirDeny?.block === true && /Protected branch/.test(dirDeny.reason ?? ''), JSON.stringify(dirDeny))
+    const sudoDeny = await handler(evt('sudo git push origin develop'), ctx)
+    check('拦截: sudo 剥壳后受保护推送', sudoDeny?.block === true && /Protected branch/.test(sudoDeny.reason ?? ''), JSON.stringify(sudoDeny))
     const allow = await handler(evt('git checkout -b feature/y'), ctx)
     check('放行: 合法 git 命令(走真实 CLI)', allow === undefined, JSON.stringify(allow))
     const fast = await handler(evt('npm test'), ctx)

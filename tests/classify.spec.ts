@@ -126,3 +126,81 @@ describe('classify: 分支切换 / 其余命令', () => {
     ])
   })
 })
+
+describe('classify: sudo 剥壳(Pi 真机 G1)', () => {
+  it('sudo 剥壳后递归分类, -u 用户参数被消费', () => {
+    expect(first('sudo git push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('sudo -u root git push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('sudo -u root -E env git push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('sudo -- git push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('sudo -uroot /usr/bin/git push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+  })
+
+  it('sudo 后无命令/其他命令 → other', () => {
+    expect(first('sudo ls -la').kind).toBe('other')
+    expect(first('sudo -u root').kind).toBe('other')
+  })
+})
+
+describe('classify: symbolic-ref / cherry-pick / revert(Pi 真机 G2/G3)', () => {
+  it('symbolic-ref 双参重定向与 --delete → ref-update(目标剥 refs/heads/ 前缀)', () => {
+    expect(first('git symbolic-ref refs/heads/develop refs/heads/main')).toMatchObject({
+      kind: 'ref-update', branch: 'develop', delete: false,
+    })
+    expect(first('git symbolic-ref --delete refs/heads/develop')).toMatchObject({
+      kind: 'ref-update', branch: 'develop', delete: true,
+    })
+    expect(first('git symbolic-ref -d refs/heads/main')).toMatchObject({ kind: 'ref-update', branch: 'main' })
+  })
+
+  it('symbolic-ref 查询形态不改变 ref → other', () => {
+    expect(first('git symbolic-ref HEAD').kind).toBe('other')
+    expect(first('git symbolic-ref -q HEAD').kind).toBe('other')
+    expect(first('git symbolic-ref --short HEAD').kind).toBe('other')
+  })
+
+  it('cherry-pick/revert 改写当前 tip → ref-move(多个 sha 同判)', () => {
+    expect(first('git cherry-pick a1b2c3d')).toMatchObject({ kind: 'ref-move' })
+    expect(first('git cherry-pick a1b2c3d e4f5g6h')).toMatchObject({ kind: 'ref-move' })
+    expect(first('git revert HEAD')).toMatchObject({ kind: 'ref-move' })
+    expect(first('git revert -m 1 a1b2c3d')).toMatchObject({ kind: 'ref-move' })
+  })
+
+  it('cherry-pick/revert -n/--no-commit 与恢复旗标不移动 tip → other', () => {
+    expect(first('git cherry-pick -n a1b2c3d').kind).toBe('other')
+    expect(first('git cherry-pick --no-commit a1b2c3d').kind).toBe('other')
+    expect(first('git revert --no-commit HEAD').kind).toBe('other')
+    expect(first('git cherry-pick --abort').kind).toBe('other')
+    expect(first('git cherry-pick --continue').kind).toBe('other')
+    expect(first('git revert --quit').kind).toBe('other')
+  })
+})
+
+describe('classify: checkout -B / switch -C 强制重建(Pi 真机 G5)', () => {
+  it('-B/-C(含旗标簇)产出 ref-update + checkout 两段, 受保护名送门禁', () => {
+    expect(classify('git checkout -B develop')).toEqual([
+      { kind: 'ref-update', branch: 'develop', delete: false },
+      { kind: 'checkout', branch: 'develop' },
+    ])
+    expect(classify('git switch -C main')).toEqual([
+      { kind: 'ref-update', branch: 'main', delete: false },
+      { kind: 'checkout', branch: 'main' },
+    ])
+    expect(classify('git checkout -Bf develop')).toEqual([
+      { kind: 'ref-update', branch: 'develop', delete: false },
+      { kind: 'checkout', branch: 'develop' },
+    ])
+  })
+
+  it('普通 -b/-c 保持单段 checkout(新建不移动既有 ref)', () => {
+    expect(classify('git checkout -b feature/dev-x-02')).toEqual([{ kind: 'checkout', branch: 'feature/dev-x-02' }])
+    expect(classify('git switch -c feature/dev-x-02')).toEqual([{ kind: 'checkout', branch: 'feature/dev-x-02' }])
+    // 旗标簇仅含 b/c 也保持新建形态
+    expect(classify('git checkout -bt origin/feature/dev-x-02')).toEqual([{ kind: 'checkout', branch: 'origin/feature/dev-x-02' }])
+  })
+
+  it('-B/-C 缺分支名 → 不产出 ref-update', () => {
+    expect(classify('git checkout -B')).toEqual([{ kind: 'checkout', branch: null }])
+    expect(classify('git switch -C --detach')).toEqual([{ kind: 'checkout', branch: null }])
+  })
+})
