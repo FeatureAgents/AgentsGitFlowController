@@ -35,8 +35,12 @@ Each tool's registration is documented in its own reference doc:
 | OpenCode | `.opencode/hook/hooks.yaml` | [opencode.md](references/opencode.md) |
 | Codex | `.codex/hooks.json` or `.codex/config.toml` | [codex.md](references/codex.md) |
 | Antigravity | `.agents/hooks.json` | [antigravity.md](references/antigravity.md) |
+| DSH | `patch.yml` + `dsh.bundle.patch` (in-process, no hook config) | [dsh.md](references/dsh.md) |
+| Pi | `.pi/settings.json` + `.pi/extensions/` (in-process, no hook config) | [pi.md](references/pi.md) |
 
 > The English keys and event names in the config are mandated by each format and cannot be changed. Meanings are in the glossary below.
+
+> DSH and Pi are **in-process** clients, not stdin-hook tools — DSH mounts as a plugin (`patch.yml`) and Pi loads as an extension; neither registers a hook config. See [dsh.md](references/dsh.md) and [pi.md](references/pi.md).
 
 ## Glossary
 

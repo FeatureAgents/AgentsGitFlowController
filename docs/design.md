@@ -137,6 +137,7 @@ locale: 内置 `en`/`zh`; `registerLocale(name, dict)` 运行时扩展(键一致
 | Codex | PreToolUse hook | 同 Claude 形 + turn_id(判别字段) | exit 0 + stdout hookSpecificOutput.permissionDecision:"deny" JSON |
 | OpenCode | tool.before.bash(hooks.yaml) | tool_args.command(或 cmd) | bash action exit 2 |
 | Antigravity | PreToolUse(run_command) | toolCall.args.CommandLine | exit 0 + stdout {"decision":"deny","reason":...}(无 block 值, 不可包 hookSpecificOutput) |
+| Pi | 进程内扩展(tool_call 事件) | event.input.command | 返回值 {block:true, reason}, 不经 stdin/exit 协议 |
 
 `check --platform auto` 按 payload 判别: `turn_id`→codex、`toolCall`→antigravity、`tool_args`→opencode、其余→claude。
 
@@ -176,9 +177,9 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 
 ## 12. 测试策略
 
-- **单元/集成**(vitest, 无需 DSH): classify(对抗语料)、gate、config(校验/strict)、i18n(键一致性)、repo、index(evaluateCommand 编排/降级路径)、cli(status/audit/check/--locale)、platform(五平台 extract/detect/encode)、stateDir(确定性/隔离性/XDG 重定向)。
+- **单元/集成**(vitest, 无需 DSH): classify(对抗语料)、gate、config(校验/strict)、i18n(键一致性)、repo、index(evaluateCommand 编排/降级路径)、cli(status/audit/check/--locale)、platform(四平台 stdin-hook extract/detect/encode)、stateDir(确定性/隔离性/XDG 重定向)。
 - **accuracy-audit 语料**: §1.1 对抗样本(shell 包装、git 形态、组合旗标)固化为回归清单。
-- **复测矩阵** `npm run verify:matrix` 六节 A–F: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段)。
+- **复测矩阵** `npm run verify:matrix` 七节 A–G: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity / Pi 扩展——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段)。
 - **铁律**: `npm run typecheck`(0 错)+ `npm test`(全绿)+ `npm run verify:matrix`(全绿)才算完成。CI 矩阵 ubuntu/macOS/Windows × Node 22/24。
 
 ## 13. 项目结构
