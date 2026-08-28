@@ -2,7 +2,7 @@
 
 > **Are you tired of agents skipping your GitFlow?**
 
-A configurable branch-role guard for AI coding agents — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, OpenCode, and Antigravity.
+A configurable branch-role guard for AI coding agents — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, OpenCode, Antigravity, and Pi.
 You define your own branches —
 **integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Agents can't skip the flow, and sensitive merges stay in your hands.
 
@@ -42,10 +42,12 @@ You define your own branches —
 # installs the latest release
 dsh plugin --profile web add agents-gitflow-guard
 # ...or pin an exact known-good version (recommended; also bypasses stale registry caches)
-dsh plugin --profile web add agents-gitflow-guard@0.0.13
+dsh plugin --profile web add agents-gitflow-guard@0.0.18
 ```
 
 > **Version gotcha**: a bare `add` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. The peer-dependency *warning* pnpm may print is expected: DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup (the plugin works normally).
+
+Using another agent? The same npm package also serves Claude Code, Codex, OpenCode, Antigravity, and Pi — see the per-agent install table in [Installation in detail](#installation-in-detail).
 
 **Step 2 — configure**, create `gitflow-guard.config.json` in your **project root**:
 
@@ -132,7 +134,7 @@ Nobody has to remember the rules — the rules are enforced.
 - **Role-driven, fully configurable**: `integration` is the only required role; `preview` / `production` / `archive` are optional arrays of branch names or regexes, each with its own update rules (`pr` / `flexible`, `mergeBy`).
 - **Merge-by-user where it matters**: production & archive merges stay in your hands — the plugin blocks the agent from clicking merge, so your action *is* the confirmation.
 - **Works with any naming**: branch names are mapped by your config, never hard-coded (see [Configuration](#configuration-reference)).
-- **Fully audited**: every deny is written to `.git/gitflow-guard/audit.jsonl` — inside `.git`, never committed.
+- **Fully audited**: every deny is appended to an audit log under your user state directory (`~/.local/state/gitflow-guard/`, `%LOCALAPPDATA%\gitflow-guard` on Windows) — outside the repository, never committed, outside the agent's writable sandbox, and shared across all linked worktrees of one repository.
 - **Platform-agnostic core**: pure local git; optionally consults `gh` (GitHub) or `glab` (GitLab) for PR/MR target resolution, and works fine without them.
 
 ---
@@ -168,7 +170,7 @@ Why this matters: branch protection answers *"can this push happen at all?"*; th
 
 1. An agent calls a shell tool (`pwsh` / `bash`) with a git command.
 2. The plugin classifies the command, resolves the branch roles from `gitflow-guard.config.json`, and applies the gate matrix.
-3. Violation → the tool call is **denied before it runs**, with a reason and the next step. Allowed → the command proceeds; every deny is audited to `.git/gitflow-guard/audit.jsonl`.
+3. Violation → the tool call is **denied before it runs**, with a reason and the next step. Allowed → the command proceeds; every deny is audited to the user-level log (`~/.local/state/gitflow-guard/repos/<repo>-<hash>/audit.jsonl`).
 
 No chat-confirmation or permit store: sensitive merges (production / archive) are simply **user-only** — an agent may prepare the PR/MR, but the merge click stays yours.
 
@@ -302,17 +304,23 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 ## Where the human stays in control
 
 - **Production merge** and **archive** are user-only by default: an agent may help prepare the PR/MR, but **you click the merge button** — that click *is* the confirmation. There is no separate permit store to outsource that decision.
-- Every deny is written to `.git/gitflow-guard/audit.jsonl` for review (`gitflow-guard audit`).
+- Every deny is appended to the user-level audit log for review (`gitflow-guard audit`).
 
 ---
 ## Installation in detail
 
-**Prerequisite**: a working [DSH](https://github.com/deepseek-ai/deepseek-harness) installation and **Node.js ≥ 22** on your `PATH` (matches the package `engines` floor and the lowest CI matrix tier — standalone hook users bypass npm but still need the runtime).
+**Prerequisite**: **Node.js ≥ 22** on your `PATH` (the package `engines` floor and the lowest CI matrix tier). Every client consumes the **same npm package** `agents-gitflow-guard` — only the mounting step differs.
 
-**From the npm registry** — the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo):
+| Agent | Install command | After that |
+|---|---|---|
+| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.18` | restart DSH — the plugin auto-mounts as a profile layer |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.18` | wire a hook to the `gitflow-guard` binary (below) |
+| Pi | `npm i -D agents-gitflow-guard@0.0.18` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
+
+**DSH — in-process plugin** (the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo)):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.13    # pin recommended, see note above
+dsh plugin --profile web add agents-gitflow-guard@0.0.18    # pin recommended, see note above
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.
@@ -326,14 +334,20 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 
 The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes it a profile layer — no manual profile editing.
 
-**Standalone agent hooks** — the same guard inside those agents, no DSH required. This repo ships project configs at `.claude/settings.json` (Claude Code), `.codex/hooks.json` (Codex), `.opencode/hook/hooks.yaml` (OpenCode) and `.agents/hooks.json` (Antigravity / Google); any other repo adds its own:
+**Standalone agent hooks** — Claude Code / Codex / OpenCode / Antigravity, no DSH required. Install the CLI once, then reference the `gitflow-guard` binary in each hook config:
+
+```bash
+npm i -g agents-gitflow-guard@0.0.18   # provides the `gitflow-guard` binary
+```
+
+This repo ships project configs at `.claude/settings.json` (Claude Code), `.codex/hooks.json` (Codex), `.opencode/hook/hooks.yaml` (OpenCode) and `.agents/hooks.json` (Antigravity / Google); any other repo adds its own:
 
 ```jsonc
 // Claude Code — .claude/settings.json
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/abs/path/gitflow-guard check --platform claude" }] }
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform claude" }] }
     ]
   }
 }
@@ -344,7 +358,7 @@ The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node bin/gitflow-guard.mjs check --platform codex" }] }
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform codex" }] }
     ]
   }
 }
@@ -357,7 +371,7 @@ hooks:
     event: tool.before.bash
     actions:
       - bash: |
-          node "$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs" check --platform opencode
+          gitflow-guard check --platform opencode
 ```
 
 ```json
@@ -365,10 +379,23 @@ hooks:
 {
   "gitflow-guard": {
     "PreToolUse": [
-      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node bin/gitflow-guard.mjs check --platform antigravity" } ] }
+      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "gitflow-guard check --platform antigravity" } ] }
     ]
   }
 }
+```
+
+```jsonc
+// Pi — .pi/settings.json (extensions resolve relative to .pi)
+{ "extensions": ["extensions/gitflow-guard.ts"] }
+```
+
+Pi loads extensions in-process (no stdin payload, no subprocess hook). Install the shipped entry point into the project and keep the package in devDependencies:
+
+```bash
+npm i -D agents-gitflow-guard@0.0.18
+mkdir -p .pi/extensions
+cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
 ```
 
 **GitHub Copilot — deliberately no hook here.** Copilot ships its own guardrails for exactly this job: per-tool **allow/deny/ask** permissions and project **rules** (`rules.json` + `AGENTS.md`). Point Copilot users at the official docs instead of a plugin hook:
@@ -377,9 +404,9 @@ hooks:
 - [Adding custom rules for the Copilot coding agent (GitHub Docs)](https://docs.github.com/en/copilot/customizing-copilot/adding-custom-rules-for-the-copilot-coding-agent)
 - Optional: Copilot also has a [hooks system](https://docs.github.com/en/copilot/reference/hooks-reference) (`preToolUse` → `permissionDecision:"deny"`) if you want command-level interception.
 
-- The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout; Antigravity → JSON `{"decision":"deny","reason":...}` on stdout with `exit 0` (Antigravity requires exit 0 and rejects `hookSpecificOutput` / non-allow values).
+- The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout; Antigravity → JSON `{"decision":"deny","reason":...}` on stdout with `exit 0` (Antigravity requires exit 0 and rejects `hookSpecificOutput` / non-allow values). Pi has no stdin protocol: the in-process extension listens to the official `tool_call` event and denies via its return value `{ block: true, reason }` (the CLI subprocess only speaks the internal exit-2 contract).
 - Only the pre-tool event is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no post-tool hooks are required.
-- Use an **absolute path** to the binary — hook subprocesses may not inherit your shell `PATH`. `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs` (Claude Code), `node bin/gitflow-guard.mjs` (Codex, runs from the project working directory), or `$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs` (OpenCode) or `node bin/gitflow-guard.mjs` (Antigravity, relative to the workspace `.agents/` dir) also work from a checkout.
+- The examples above call the globally-installed `gitflow-guard` (`npm i -g`). If a hook subprocess can't see it on its `PATH`, point at the full binary path from `npm bin -g` — hook subprocesses may not inherit your interactive shell `PATH`. The `bin/gitflow-guard.mjs` paths in this repo's shipped configs only work from a checkout.
 - Fully opt-in: the hook does nothing unless the repo has `gitflow-guard.config.json` with `enabled: true`.
 
 ---
@@ -471,7 +498,7 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 ## Roadmap
 
 - **i18n — localized block messages** ✅ (0.0.3): English by default, `"locale": "zh"` for Chinese.
-- **v2 — audit sync**: sync `.git/gitflow-guard/audit.jsonl` across machines (audit is local-only today).
+- **v2 — audit sync**: sync the user-level audit log across machines (audit is local-only today).
 - **v2 — more pre-built templates**: ready-made config templates for common flows (solo `develop`, multi-env enterprise) as community-contributed presets.
 - **v2 — CI hard-gating research**: whether `pr checks` could become a real gate without hurting the platform-agnostic core.
 
@@ -494,12 +521,12 @@ npm install
 npm test          # unit tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit
 npm run typecheck     # tsc --noEmit, 0 errors
 npm run build         # tsdown → lib/ (CLI and plugin share the build)
-npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale regression + Claude Code / Codex / OpenCode / Antigravity hook wiring
+npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale regression + Claude Code / Codex / OpenCode / Antigravity hook wiring + Pi extension
 ```
 
 **Rule**: any logic change must pass a 0-error build + all green tests + a green `verify:matrix` before done.
 
-**Adding a new agent client** (e.g. Cursor / Windsurf): all of these must change in one commit — `src/platform.ts` (+tests, `HookPlatform` union), a repo hook config beside `.claude/settings.json` / `.codex/hooks.json`, `.agents/hooks/references/<tool>.md`, `scripts/verify-matrix.mjs`, the README hook section and the top tagline, `package.json` description/keywords, and `CHANGELOG`. Done only when `npm run verify:matrix` is green. (Same checklist in [AGENTS.md](AGENTS.md) §8.)
+**Adding a new agent client** (e.g. Cursor / Windsurf): all of these must change in one commit — `src/platform.ts` (+tests, `HookPlatform` union), a repo hook config beside `.claude/settings.json` / `.codex/hooks.json`, `.agents/hooks/references/<tool>.md`, `scripts/verify-matrix.mjs`, the README hook section and the top tagline, `package.json` description/keywords, and `CHANGELOG`. Done only when `npm run verify:matrix` is green. (Same checklist in [AGENTS.md](AGENTS.md) §8; DSH and Pi are in-process clients covered by the exceptions noted there.)
 
 ---
 

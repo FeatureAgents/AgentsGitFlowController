@@ -22,6 +22,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # 版本锁定一致性: package.json ↔ 双语 README 锁版本示例 ↔ CHANGELOG 小节标题
+      - run: npm run check:pins
       - run: npm run build
       # 连续复测矩阵: DSH 逻辑 + Claude Code / Codex / OpenCode / antigravity hook 编码回归
       - run: npm run verify:matrix

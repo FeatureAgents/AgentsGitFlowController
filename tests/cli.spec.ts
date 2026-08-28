@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { main } from '../src/cli'
+import { stateDir } from '../src/index'
 import { MESSAGE_KEYS, registerLocale } from '../src/i18n'
 import type { Dict } from '../src/i18n'
 import type { Runner } from '../src/repo'
@@ -129,6 +130,7 @@ describe('cli: 其他', () => {
       expect(text).toContain('deny')
     } finally {
       rmSync(dir, { recursive: true, force: true })
+      rmSync(await stateDir(dir), { recursive: true, force: true }) // 清理用户级全局状态目录
     }
   })
 
@@ -354,6 +356,7 @@ describe('cli: locale 一致性与扩展(P1-1 / P2-1 / P2-2 / P2-3)', () => {
       expect(text).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/)
     } finally {
       rmSync(dir, { recursive: true, force: true })
+      rmSync(await stateDir(dir), { recursive: true, force: true }) // 清理用户级全局状态目录
     }
   })
 })

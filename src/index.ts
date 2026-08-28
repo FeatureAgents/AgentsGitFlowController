@@ -1,7 +1,10 @@
 // 插件入口: 挂载 tools/pre-execute 做分支角色硬拦截; 核心逻辑在 evaluateCommand(可独立测试)
 
 import { appendFile, mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { realpathSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { homedir } from 'node:os'
+import { basename, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { classify } from './classify'
@@ -9,7 +12,7 @@ import { loadConfig } from './config'
 import { decide } from './gate'
 import { makeT, resolveLocale } from './i18n'
 import type { Locale } from './i18n'
-import { currentBranch as queryCurrentBranch, findRepoRoot, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget } from './repo'
+import { commonGitDir, currentBranch as queryCurrentBranch, findRepoRoot, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget } from './repo'
 import type { Classified, GateFacts, PrTargetResolution } from './types'
 import type { Runner } from './repo'
 
@@ -17,6 +20,10 @@ import type { Runner } from './repo'
 // MESSAGE_KEYS 导出必需键清单(自定义字典须覆盖的键集合), 下游不必翻源码数键
 export { MESSAGE_KEYS, registerLocale } from './i18n'
 export type { Dict } from './i18n'
+
+// Pi 进程内扩展适配层(与 DSH 同为 stdin-hook 例外, 见 AGENTS.md §8 与 .agents/hooks/references/pi.md)
+export { createPiExtension } from './pi'
+export type { PiExtensionAPI, PiExtensionContext, PiExtensionOptions, PiToolCallEvent, PiToolCallResult } from './pi'
 
 export const name = 'gitflow-guard'
 
@@ -54,15 +61,59 @@ export interface AuditEntry {
   reason?: string
 }
 
-export function stateDir(repoRoot: string): string {
-  return join(repoRoot, '.git', 'gitflow-guard')
+/**
+ * 用户级运行时状态根目录(仓库外): macOS/Linux 走 XDG state, Windows 走 %LOCALAPPDATA%。
+ * GITFLOW_GUARD_STATE_ROOT 显式覆盖所有平台默认值(测试/特殊部署用)。
+ */
+export function userStateRoot(): string {
+  const override = process.env.GITFLOW_GUARD_STATE_ROOT?.trim()
+  if (override) return override
+  if (process.platform === 'win32') {
+    const local = process.env.LOCALAPPDATA?.trim() || join(homedir(), 'AppData', 'Local')
+    return join(local, 'gitflow-guard')
+  }
+  const xdg = process.env.XDG_STATE_HOME?.trim()
+  return join(xdg || join(homedir(), '.local', 'state'), 'gitflow-guard')
+}
+
+/** fs 兜底规范化(仅当 git 查询不可用时使用; Windows 8.3 短名等以 git 输出为准) */
+function safeRealpath(p: string): string {
+  try {
+    return realpathSync(p)
+  } catch {
+    return p
+  }
+}
+
+/**
+ * 仓库运行时状态目录(审计流水等), 键为「仓库名-真实路径哈希」。
+ * 键由 git 权威解析(rev-parse --git-common-dir): linked worktree 与主仓库共用
+ * 同一状态目录(≤0.0.13 共享语义), 且天然规避 Windows 8.3 短名/大小写差异;
+ * git 查询不可用时回退 fs realpath。刻意放在仓库外、且在 agent 文件沙箱
+ * (workspace-write)可写区之外 —— 凡 agent 可写之处的状态都可能被伪造而自我授权。
+ */
+export async function stateDir(repoRoot: string, runner: Runner = gitRunner): Promise<string> {
+  let key = safeRealpath(repoRoot)
+  try {
+    const common = await commonGitDir(runner, repoRoot)
+    if (common) {
+      // <root>/.git → 主仓库根; 无 .git 后缀(如子模块 modules 目录)时用原值
+      key = common.replace(/[/\\]\.git[/\\]?$/, '') || common
+    }
+  } catch {
+    // git 不可用: 保持 fs 兜底键(可能按工作树隔离, 可接受降级)
+  }
+  const hash = createHash('sha256').update(key).digest('hex').slice(0, 12)
+  const name = basename(key).replace(/[^\w.-]+/g, '-') || 'repo'
+  return join(userStateRoot(), 'repos', `${name}-${hash}`)
 }
 
 /** 审计留痕; 失败不阻断门禁 */
-export async function appendAudit(repoRoot: string, entry: AuditEntry): Promise<void> {
+export async function appendAudit(repoRoot: string, entry: AuditEntry, runner: Runner = gitRunner): Promise<void> {
   try {
-    await mkdir(stateDir(repoRoot), { recursive: true })
-    await appendFile(join(stateDir(repoRoot), 'audit.jsonl'), `${JSON.stringify(entry)}\n`, 'utf8')
+    const dir = await stateDir(repoRoot, runner)
+    await mkdir(dir, { recursive: true })
+    await appendFile(join(dir, 'audit.jsonl'), `${JSON.stringify(entry)}\n`, 'utf8')
   } catch {
     // 审计写失败不阻断流程
   }
@@ -97,7 +148,7 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
     const { facts } = await factsFor(seg, { ...env, branch: simulatedBranch })
     const decision = decide(seg, facts, config, t)
     if (decision.kind === 'deny') {
-      await appendAudit(env.repoRoot, { time: Date.now(), event: 'deny', command, reason: decision.reason })
+      await appendAudit(env.repoRoot, { time: Date.now(), event: 'deny', command, reason: decision.reason }, env.runner)
       return { outcome: 'deny', reason: { why: decision.reason, next: decision.next }, segmentCount: segments.length, locale }
     }
     await logCiReference(seg, env)
@@ -112,7 +163,7 @@ async function logCiReference(seg: Classified, env: Env): Promise<void> {
   if (seg.kind !== 'pr-merge') return
   const state = await ghPrChecks(env.gh, env.repoRoot, seg.pr)
   if (state == null) return
-  await appendAudit(env.repoRoot, { time: Date.now(), event: 'ci', command: seg.pr ?? undefined, role: state })
+  await appendAudit(env.repoRoot, { time: Date.now(), event: 'ci', command: seg.pr ?? undefined, role: state }, env.runner)
 }
 
 /** 按段预取 git 事实(异步 I/O 全部前置, 门禁保持纯函数) */

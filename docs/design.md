@@ -1,332 +1,226 @@
-# agents-gitflow-guard v0 设计定稿(历史决策记录)
+# agents-gitflow-guard 设计规格(现行)
 
-> ⚠ **历史文档**: 本文是 0.0.2 之前的 v0 设计(permit/confirm 特许系统、base/trunk 角色、permits.ts/session.ts 结构等),
-> 已被 0.0.2 的**角色驱动模型**(integration / preview / production / archive)整体取代。
-> **现行行为以双语 README 为准**, 本文仅作设计决策追溯, 不描述当前实现。
->
-> 状态: **已归档**(v0 定稿于 2026-08-17, 五轮交互对齐完成; 0.0.2 起不再代表实现规格)
-> 已吸收原 `docs/proposal.md` 全部内容(原文件删除)。
-> 快速导航: 设计定稿 §4 · 项目结构 §5 · 里程碑 §9 · 决策过程见附录。
->
-> **公开说明(2026-08-17)**: 文中 `D:\...` 等 Windows 路径为设计期环境路径, 与本仓库实际位置
-> 无关; 包名现为 `agents-gitflow-guard`(曾用 `@freehappyteam/dsh-gitflow-guard` / `dsh-gitflow-guard`, 见 §10 决策记录)。
+> 状态: **唯一现行规格**, 描述 0.0.13 起的角色驱动实现(含本文 §10 的存储修订)。
+> v0(permit/confirm 特许制)设计定稿已被 0.0.2 角色驱动模型整体取代, 原文仅存于 git 历史
+> (`git show 0.0.12:docs/design.md`); 演进脉络见 §15。用户侧文档以双语 README 为准。
+> 时点验证报告: `docs/verify-0.0.2.md`(注意其 §3.4 记录的是 0.0.9 反转前行为)。
 
 ---
 
 ## 1. 背景与问题
 
-### 1.1 反复出现的问题
+agent 在多分支流程(feature → 预览/集成分支 → 发布分支)中**反复抄近路**: 跳过预览直推基线、顺序颠倒、绕过 PR 直接本地合入、强推改写受保护分支。根因:`AGENTS.md` 是**软约束**——即使每次会话自动注入, 模型仍可选择性忽略。这是结构性问题, 必须用**机制级强制**(执行前拦截)兜底:
 
-项目流程: feature 分支开发 → **PR 合入预览分支(staging, 自动部署测试环境)** → **用户验证通过** → **PR 合入基线(develop)** → 用户同意后上主干(main)。实际执行中, agent **多次抄近路**:
+| 机制 | 强制力 | 局限 |
+|---|---|---|
+| AGENTS.md 注入 / Skills | 🟡 软 | 模型可忽略或漏加载 |
+| 服务端分支保护(GitHub/GitLab 设置) | 🔴 硬 | 管推送面, 不管 agent 本地动作与平台操作时序 |
+| **本插件(命令文本门禁)** | 🔴🔴 最贴近 | 文本解析 best-effort(§14 如实记载边界) |
 
-- 跳过预览分支直接合入基线(develop);
-- 顺序颠倒(先合 develop 再从 develop 合 preview)。
+## 2. 目标与非目标
 
-根因: `AGENTS.md` 是**软约束**——DSH 虽会每次会话自动注入其内容(`dsh-agent-instructions` 插件), 但模型可以选择性忽略。这不是一次性失误, 而是结构性问题, **发生不止一次**。
+### 2.1 目标(定稿)
 
-### 1.2 为什么需要机制级强制
-
-| 机制 | DSH 支持 | 强制力 | 局限 |
-|---|---|---|---|
-| AGENTS.md 自动注入 | ✅ 已启用 | 🟡 软 | 模型可忽略 |
-| 项目级 Skills (`.agents/skills/`) | ✅ 支持 | 🟡 软 | 需模型主动加载; skill 文件需合法 frontmatter |
-| Claude Code hooks 桥接 (`dsh-hooks-claude-code`) | ✅ 支持(未安装) | 🔴 硬 | 依赖 shell 协议桥接; matcher 只匹配工具名 |
-| **原生 Cordis 插件** | ✅ 支持 | 🔴🔴 **最硬** | 直接订阅类型化扩展点, 无序列化边界, 全 `ctx` 能力 |
-
-**结论: 原生 Cordis 插件是唯一能 100% 保证"每次都被正确执行"的机制。**
-
----
-
-## 2. 目标与非目标(定稿)
-
-### 2.1 目标
-
-1. **顺序强制**: feature 合入基线之前, 必须已合入预览且**用户确认测试通过**——由插件基于**本地 git 客观事实**验证, agent 无法撒谎或绕序。
-2. **用户唯一例外权**: 用户可特许(打破规则/提前建 PR/确认合入), **agent 永远不能自我授权**。
-3. **可自定义**: 分支名按角色配置(基线/预览/主干), 每项目自选模式与分支命名; 插件安装 ≠ 项目启用(opt-in)。
-4. **可解释**: 每次拦截附带明确 reason + 下一步引导; 全部审计留痕。
-5. **平台无关**: 核心只依赖本地 git 仓库状态, 不依赖任何 git 服务特性(GitHub/GitLab/自建均可)。
+1. **执行前硬拦截**: 命令运行前判定, deny 附「为什么拦 + 下一步做什么」引导。
+2. **角色驱动、完全可配**: 分支名永不硬编码; 项目自选角色集合与命名。
+3. **关键合并权在人**: 生产/归档合并默认仅用户(`mergeBy: user`)——**你点合并的动作就是确认**, 无需任何特许库。
+4. **可解释 + 可审计**: 每次拦截留痕可回查。
+5. **平台无关核心**: 只依赖本地 git 事实; gh/glab 仅作 PR/MR 目标解析的可选增强。
 
 ### 2.2 非目标(v1 明确不做)
 
-- ❌ 不做 CI 平台 API 的硬门禁(gh pr checks 仅作日志参考, 查不到自动跳过)。
-- ❌ 不做多机状态同步(特许状态文件单机假设, v2)。
-- ❌ 不做 GitLab/Gitea 等平台适配器(v2, 接口预留)。
-- ❌ 不做主动弹窗通知用户(v2 调研)。
-- ❌ 不替代 AGENTS.md / Skill 文档(软层仍然有用: 给 agent 完整流程指引; 插件只做最后硬兜底)。
+- ❌ CI API 硬门禁(CI 状态仅记日志参考, 查不到自动跳过)。
+- ❌ 多机状态同步(审计单机存储, v2)。
+- ❌ 主动弹窗通知。
+- ❌ 替代 AGENTS.md/Skill 软层(软层给完整指引, 本插件做最后硬兜底)。
+- ❌ GitHub Copilot 接入(原生 allow/deny/ask 权限已覆盖; 见 AGENTS.md §8 例外)。
 
----
-
-## 3. 技术依据(源码核实)
-
-以下事实均来自 deepseek-harness 源码, 非猜测:
-
-### 3.1 拦截点: `tools/pre-execute` 瀑布
-
-- 位置: `packages/core/tools/src/index.ts:152`
-- 类型化决策(`:588-591`):
-
-```ts
-export type PreToolDecision =
-  | { kind: 'allow' }
-  | { kind: 'deny'; reason: string }   // ← v1 使用: 硬拒绝, 命令不执行
-  | { kind: 'ask'; reason?: string }   // 注意: 走 approval seam
-```
-
-- `deny` 跳过 `tools/execute` 与核心 dispatch, 命令**根本不会运行**; 模型看到的是错误结果, 必须停下向用户汇报。
-- `ToolExecution` 含 `name` / `arguments`(pwsh 工具 `arguments.command` 即完整命令文本, `packages/shell/tool-pwsh/src/index.ts:63`)与 `session`(header.cwd 用于定位项目配置)。
-- 当前会话 approval policy = `never`(`danger-full-access`): `ask` 决策不会弹窗, 直接解析为 `rejected` → 最终 `deny`(`packages/interaction/user-approval/src/index.ts:312`)。v1 直接用 `deny` + reason, 行为可预期; 未来切 `ask` 模式可平滑升级。
-
-### 3.2 确认通道: `session/event` + `user/message`
-
-- 插件可订阅 `'session/event'`(`packages/core/session/src/index.ts:76`), 其中 `'user/message'` 事件携带用户消息(`types.ts:264`)。
-- `MessageSourceMap.user = { kind: 'user' }`(`packages/llm/llm/src/message.ts:100-105`): **真人消息可与系统注入(plugin/tool/model 来源)可靠区分**。
-- **结论: "用户在聊天里确认" 是技术上可行且 agent 不可伪造的确认通道。**
-
-### 3.3 插件安装机制与版本实测
-
-- `dsh plugin --profile web add file:<绝对路径>`(`apps/cli/src/plugin.ts` + `packages/boot/app-boot/src/profile.ts`): 本地包加入 profile 依赖(pnpm 转发, `nodeLinker: hoisted` 扁平安装), 插件在 profile 的 `cordis.patch.yml` 中挂载, **进程启动时加载, 改代码需重启 DSH**。
-- 版本实测(共享 `C:\Users\Kean\.dsh\profiles\node_modules`, hoisted): `@deepseek-ai/cordis` = **4.0.1**(vendored fork), `@deepseek-ai/dsh-tools` = **0.1.0-rc.5**。
-
----
-
-## 4. 设计定稿
-
-### 4.1 一句话
-
-**插件在 agent 每次 git 操作时, 用"本地 git 仓库的真实状态 + 用户特许记录"验证流程顺序(先合预览、验证后合基线), 违反就硬拦截并引导; 用户是唯一能打破规则的人, agent 永远不能自我授权。**
-
-### 4.2 核心组件
+## 3. 架构总览
 
 ```
-┌─ 命令识别层 ── 解析 agent 的 git/gh 命令文本, 分类(推/合/建PR/查状态...)
-├─ 状态层 ────── 只读查询本地 git: 当前分支 / feature∈预览(merge-base --is-ancestor)
-├─ 门禁层 ────── 门禁矩阵(§4.3): 顺序检查 + 特许检查 → allow / deny+引导
-├─ 会话层 ────── 监听 user/message(仅 source.kind==='user')记录确认; 审计日志; 提醒注入
-├─ 配置层 ────── 项目配置(角色化分支名, opt-in) + 模式(pr/flexible)
-└─ CLI ──────── gitflow-guard permit/confirm/status: 用户终端专属, agent 执行被拦
+命令文本 ──▶ classify.ts(纯函数: 分段/解包/分类)
+                │
+                ▼
+          gate.ts(纯函数: 门禁矩阵, 输入 GateFacts)
+                ▲                          │
+   repo.ts(git 只读查询)        deny → {why, next}(i18n 渲染)
+                │
+index.ts evaluateCommand(编排: 分类→事实→逐段判→审计)
+     │                        │
+DSH 进程内插件              stdin hook CLI
+apply() 监听               gitflow-guard check --platform <name>
+tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
+返回 {kind:'deny',reason}
 ```
 
-架构推论(对齐第 ① 轮定下的基调):
+支撑层: `config.ts`(opt-in 配置加载+校验+strict 位)、`i18n.ts`(en/zh + registerLocale 运行时扩展)、`cli.ts`(status / audit / check)、`types.ts`。
 
-- **核心强制只依赖本地 git 仓库状态**(只读查询: 分支、祖先关系、当前分支), 不依赖任何 git 服务特性。
-- 服务器端 PR/MR 保护(GitHub 分支规则等)是可选增强, 存在则叠加, 不存在插件照常工作。
-- 插件是**分支感知**的(拦截时可自行执行 `git branch --show-current` 等只读命令判定上下文)。
-
-### 4.3 门禁矩阵(定稿)
-
-| agent 操作 | 判定 |
-|---|---|
-| merge 进预览分支(PR 合入) | 放行(流程第一步, 多 feature 并行不限制) |
-| 创建指向基线的 PR | feature∈预览 ? 放行 : (用户特许 P1 ? 放行 : deny) |
-| 创建指向 trunk 的 PR | 用户对话确认许可(P3) ? 放行 : deny |
-| 合入基线(PR merge / 本地 merge) | feature∈预览 + 用户确认 P2 ? 放行(消费 P2+提醒) : deny |
-| 合入 trunk | 一律 deny(仅用户亲手) |
-| 直推受保护分支 / 本地受保护分支上 merge / 删除强推受保护分支 | deny |
-| 其余(commit/push feature/同步基线/只读/status) | 放行 |
-
-模式差异(§4.5 `mode`):
-
-- `pr` 模式: 直推预览分支、本地 merge 进预览分支 → deny(必须走 PR)。
-- `flexible` 模式: 预览分支可直推/本地合入; 基线合入仍必须顺序 + 确认(可本地 merge)。
-
-### 4.4 特许(permit)机制
-
-| 特许 | 含义 | 产生方式 | 消费时机 |
-|---|---|---|---|
-| P1 `early-pr` | 提前创建指向基线的 PR(顺序未满足时) | 用户聊天确认 / 终端 CLI | PR 创建成功后, 提醒用户 |
-| P2 `confirm` | 确认合入基线("feature X 测试 OK") | 用户聊天确认 / 终端 CLI | 合入动作成功后, 提醒用户 |
-| P3 `trunk-pr` | 许可创建指向 trunk 的 PR | 用户聊天确认 / 终端 CLI | PR 创建成功后, 提醒用户 |
-
-- **一次性使用**: 特许在对应动作成功后消费; 使用后**提醒用户**; 可设有效期, 过期未用也提醒。
-- **agent 永远不能自我授权**: 特许只能由用户产生。
-- 确认通道(两者都要):
-
-| 通道 | 机制 | 防伪性 |
-|---|---|---|
-| 聊天确认 | 插件订阅 `session/event` 的 `user/message`, 仅认 `source.kind === 'user'` 的真人消息; 按项目配置的关键词 + feature 匹配, 自动记录特许 | ✅ agent 无法伪造用户消息 |
-| 终端命令 | 用户在自己终端执行 `gitflow-guard permit/confirm` CLI; 插件拦截 agent 执行该 CLI | ✅ 插件拦 agent 用此命令 |
-
-- 存储: `<repo>/.git/gitflow-guard/state.json`(在 .git 内, 不进仓库; v1 单机假设) + DSH 会话持久日志。
-
-### 4.5 项目配置(定稿)
+## 4. 分支角色模型
 
 ```jsonc
-// gitflow-guard.config.json(项目根目录, 随仓库走, opt-in 启用)
+// gitflow-guard.config.json(项目根, opt-in: 有文件且 enabled=true 才生效)
 {
-  "enabled": true,                  // 插件安装 ≠ 启用; 此文件存在且 enabled=true 才生效
-  "mode": "pr",                     // "pr" = 全程 PR | "flexible" = 允许直推/本地合入预览分支
+  "enabled": true,
+  "featurePattern": "feature/[\w-]+",       // 自由开发分支识别
   "branches": {
-    "base": "develop",              // 基线分支(合入它需要顺序+确认)
-    "preview": "staging",           // 预览分支(部署到测试环境)
-    "trunk": "main"                 // 主干分支(发布, 可选)
+    "integration": ["develop"],              // 唯一必填角色
+    "preview":    ["release/.*"],            // 可选; 条目=精确名或正则
+    "production": { "branches": ["main"], "update": "pr", "mergeBy": "user" },
+    "archive":    ["archive/.*"]
   },
-  "confirm": {
-    "keywords": ["确认", "OK", "可以", "特许"],
-    "featurePattern": "feature/[\\w-]+"
-  },
-  "ci": { "enabled": true }         // 可选适配器: gh pr checks 记入日志, 查不到自动跳过
+  "ci": { "enabled": true },                 // 可选适配器(仅日志)
+  "locale": "en",                            // en|zh|registerLocale 扩展名
+  "strict": false                            // true = 配置异常/内部错误改 fail-closed
 }
 ```
 
-### 4.6 拦截体验 / 审计 / 提醒
+- 角色条目支持数组简写或 `{branches, update?, mergeBy?}` 完整形。
+- 默认值: integration/preview → `update:'pr', mergeBy:'anyone'`; production/archive → `update:'pr', mergeBy:'user'`。
+- 角色判定优先级(先命中先得): production > preview > integration > archive > featurePattern > other。受保护角色 = 四个具名角色全体。
+- 校验(失败即未启用): integration 必填非空; 角色间条目不得重叠; 正则非法在加载期报错(不静默失效)。
 
-- deny 的 reason 文案 = **为什么拦 + 下一步该做什么**(引导性, 不冷冰冰)。
-- 插件提供 `gitflow-guard status` 查询工具(纯读): 每个 feature 的"是否已合预览 / 是否已确认 / 有无特许"状态一览; agent 被拦后先自查再行动。
-- 所有拦截/放行/特许/消费写入: DSH 会话持久日志 + 项目状态文件。
-- 特许消费后提醒: 写日志 + 注入消息让 agent 在回复中告知用户; 主动弹窗通知 = v2 调研项。
+## 5. 门禁规则矩阵
 
-### 4.7 多 feature 并行合入预览(补充结论)
-
-- **预览分支合入不限制**: 多个 feature 可随时、并行合入(各团队进度不同 / 集中时间点上线测试)。
-- 设计已兼容: "合入预览 = 放行"; 基线合入按 feature 逐个验证(`feature∈预览` + P2), 互不阻塞。
-- 提示: 预览环境共享(含多个 feature 变更), 用户对 X 的确认发生在 Y/Z 也在预览中的场景; `gitflow-guard status` 展示当前预览所含 feature, 供确认前查看。
-- 按团队/批次限制进预览: v1 默认不限制, 列为可选配置扩展。
-
----
-
-## 5. 项目结构(本仓库)
-
-```
-GitFlow/
-├── package.json              # agents-gitflow-guard
-├── tsconfig.json
-├── src/
-│   ├── index.ts              # 插件入口: name / apply / Config (M2)
-│   ├── classify.ts           # 命令文本分类 (纯函数, 可单测)
-│   ├── gate.ts               # 门禁矩阵 (纯函数, 可单测)
-│   ├── repo.ts               # git 只读查询 (可注入 runner)
-│   ├── permits.ts            # 特许状态读写 (M2)
-│   ├── session.ts            # user/message 监听 + 确认解析 (M2)
-│   ├── config.ts             # 项目配置加载与默认值 (M2)
-│   ├── cli.ts                # gitflow-guard CLI (M3)
-│   └── types.ts
-├── tests/
-│   ├── classify.spec.ts      # 命令分类单测
-│   └── gate.spec.ts          # 门禁矩阵单测
-├── bin/
-│   └── gitflow-guard.mjs     # CLI 入口 (M3)
-├── docs/
-│   └── design.md             # 本文件(唯一规格)
-└── README.md                 # (M4)
-```
-
-**依赖版本(实测)**: peerDependencies `@deepseek-ai/cordis` ^4.0.1、`@deepseek-ai/dsh-tools` ^0.1.0-rc.5; devDeps typescript ^6.0.3、vitest ^4.1.8、tsdown ^0.22.2、@types/node ^22。
-
----
-
-## 6. 开发 → 安装 → 生效闭环
-
-```bash
-cd <本仓库路径>
-npm install
-npm test                 # vitest 单测(核心逻辑无需 DSH)
-npm run build            # tsdown → lib/
-dsh plugin --profile web add file:<本仓库路径>
-# 编辑 profile cordis.patch.yml 挂载插件 → 重启 DSH web → 生效
-# 项目根目录放 gitflow-guard.config.json(opt-in 启用)
-```
-
----
-
-## 7. 测试策略
-
-| 层 | 内容 | 方式 |
-|---|---|---|
-| 单测(核心) | 命令分类: 各种 git/gh 命令变体; 门禁矩阵: 顺序/特许/模式组合 | vitest, 无需 DSH |
-| 配置加载 | 默认值/合并/缺字段/校验 | vitest |
-| 集成(可选) | 真实 DSH 进程加载插件, 验证拦截与聊天确认 | 手动/脚本(需重启 DSH) |
-
-**铁律**: 任何逻辑改动必须 0 Error 构建 + 单测全绿后才算完成。
-
----
-
-## 8. 风险与已知限制(定稿)
-
-1. 纯文本命令识别无法 100% 防御极端混淆(编码/变量拼接)——插件是"流程守卫", 不是安全边界; 顺序验证基于 git 事实, 混淆命令无法伪造祖先关系。
-2. 预览环境共享: 确认 feature X 时环境中可能含其他 feature 变更(已接受, status 工具展示预览内容供确认前查看)。
-3. 特许状态单机存储: 多机并行工作需 v2 同步。
-4. 插件改动需重启 DSH: 核心逻辑做成纯函数 + 配置驱动, "改代码"降到最少。
-5. 分支角色由项目配置定义: 配置错误(如把预览和基线配成同一分支)由配置校验兜底。
-6. 时序状态基于"本地 git 事实 + 特许记录", 不解析 CI 平台 API 做硬门禁。
-
----
-
-## 9. 里程碑
-
-| 阶段 | 内容 | 验收 |
-|---|---|---|
-| M1 | 项目骨架 + classify/gate 纯函数 + vitest 单测 | `npm test` 全绿 |
-| M2 | 插件入口 + config/repo/permits/session + 配置合并单测 | 单测全绿 |
-| M3 | 构建 + CLI + 安装进 DSH profile + 真机验证(拦截/聊天确认) | 实际拦截 push develop / 绕序合入 |
-| M4 | 文档完善(README) + 示例项目配置落地(GitFlow 仓库自身 dogfood) | 配置入库, 人+agent 双确认流程 |
-
----
-
-## 10. 决策记录(对齐定稿答案)
-
-| 议题 | 定稿答案 |
+| agent 操作(kind) | 判定 |
 |---|---|
-| 包名 | `agents-gitflow-guard` |
-| 规则模型 | 废弃"预设规则集 + 手写正则 allow/deny"; 门禁矩阵 + 用户特许取代(§4.3/§4.4) |
-| 项目配置文件名 | `gitflow-guard.config.json`(随仓库走, opt-in) |
-| RichMan 软层补强 | 各管各, 不在本仓库范围 |
-| staging 生命周期 | 长期分支, 多 feature 并行合入不限制 |
-| 验证信号 | 人确认(必需) + CI 参考(可选日志) |
-| 合入执行人 | 基线: 特许后 agent 可合入; trunk: 仅用户亲手(建 PR 需用户许可 P3) |
-| 确认通道 | 聊天确认 + 终端 CLI 双轨 |
-| 特许生命周期 | 一次性, 用后消费 + 提醒, 可设有效期 |
-| 平台范围 | 核心平台无关; gh CLI 适配器可选增强(v1 GitHub, 其他平台接口预留) |
+| push → 受保护分支 | integration/preview 配 `flexible` 可直推; 其余一律 deny(删除/强推同拦) |
+| push `--all`/`--mirror`/通配 refspec | 一律 deny(会波及受保护分支) |
+| local-merge 在 production/archive 上 | 一律 deny(合并权在人) |
+| local-merge 在 integration/preview 上 | 来源是 feature/other: 按 update(pr=deny 引导走 PR / flexible=allow); 受保护分支间同步 allow; 无参同步上游 allow |
+| pr-create 指向 archive | ✅ 允许创建(agent 可起草归档 PR); 合并仍被拦(0.0.9 起) |
+| pr-create 指向 integration/preview/production | head 必须是 feature 角色, 否则 deny; 目标不明(--base 缺失)deny |
+| pr-merge 目标 production | `mergeBy:user`(默认)→ deny:「你自己点合并」; `anyone` → allow |
+| pr-merge 目标 archive | 一律 deny(仅用户亲手) |
+| pr-merge 目标无法解析(gh/glab 失效) | **一律保守 deny**(0.0.11: 不能按 head 推断放行) |
+| branch-delete 受保护分支(-d/-D/--delete) | deny |
+| ref-update(update-ref 直改 refs / branch -m 改名 / branch -f 复位) | 目标为受保护分支 → deny |
+| ref-move(reset/rebase/amend/filter-branch 改写当前 tip) | 当前分支受保护 → deny(与 local-merge 同型); feature/other 自由; rebase --abort/--continue 等恢复旗标豁免 |
+| checkout/switch | 放行; evaluateCommand 用它模拟后续段的当前分支 |
+| gitflow-guard status/audit | 放行(只读) |
+| 其余(commit/push feature/只读等) | 放行 |
 
----
+补充语义:
 
-## 附录: 五轮对齐记录(决策过程)
+- 多段命令(&&/;/管道拆段)任一段 deny 即整体拦截; 单个非 flag 参数的 push(remote 还是 refspec 歧义)按双解释保守分类。
+- deny 文案 = why(事实+规则)+ next(该做什么), 全部经 i18n 渲染。
 
-> 每轮结论已固化进 §4 设计定稿, 本附录保留决策过程供追溯。
+## 6. 命令识别层(classify)
 
-### 第 ① 轮: 流程精确化
+纯函数, 无 I/O, 对抗语料回归覆盖:
 
-- 目标流程(以 GitFlow 仓库自身为模板):
+- **分段**: `&&` `||` `|` `;` 换行拆段, 引号内分隔符不算。
+- **嵌套**: 反引号与 `$()` 内层文本递归送分类(单引号内不展开, 与 shell 语义一致); 子 shell 括号包裹剥离。
+- **解包**: shell 解释器包装(`sh/bash/zsh/dash/ksh -c`, 含 `-lc` 合并短旗标)取脚本体重分类; 执行前缀 `env`/`command`/`nohup`/`xargs` 与 `VAR=x` 赋值逐层剥离; 绝对路径命令取 basename。
+- **git 形态**: 子命令前全局选项(`-C`/`-c k=v`/`--git-dir` 等)剥离后再判; `push` refspec 族(`+` 强推前缀、`src:`/`:dst` 删除、`refs/heads/` 前缀剥离、`--tags` 豁免、HEAD/裸推延迟到门禁按模拟分支解析); `pull` 取末个非 flag 为来源交本地合入门禁(fetch+merge 不再绕过); plumbing 收编(`send-pack` 按推送语义、`update-ref` 直改 refs)。
+- **gh/glab**: `gh pr create --base|-B`、`glab mr create --target-branch`、`gh pr merge <n>`、`glab mr merge <id>`; `-h/--help/--version` 不误判。
+- **已知不可防**(如实边界, 见 README 局限节): forge API 直连、解释器子进程内嵌脚本——服务端分支保护是最终边界。
+
+## 7. 配置系统与失效分级(fail-open 分级)
+
+| 场景 | 行为 |
+|---|---|
+| 无配置文件 / `"enabled": false` | 静默跳过(opt-in 语义) |
+| JSON 损坏 / 字段校验失败 | stderr 一行告警(不再静默), 门禁放行; exit 仍 0 不破坏工具管道 |
+| `"strict": true` | 上述异常改为 fail-closed(拦截), 高风险仓库选用 |
+| JSON 整体损坏时的 strict 位 | 按原文正则保守提取, 最坏形态下 fail-closed 仍生效 |
+
+locale: 内置 `en`/`zh`; `registerLocale(name, dict)` 运行时扩展(键一致性校验, `MESSAGE_KEYS` 从包根导出); 未注册 locale 告警不禁用, 回退英文。CLI 另有 `--locale` 旗标, 优先级: 旗标 > 项目配置 > en。
+
+## 8. 平台适配
+
+判别与协议细节以 `.agents/hooks/references/<tool>.md` 为准(官方文档核验):
+
+| 平台 | 通道 | payload 关键字段 | deny 编码 |
+|---|---|---|---|
+| DSH | 进程内插件(patch.yml + dsh.bundle.patch) | ToolExecution.arguments.command | 返回值 {kind:'deny', reason}, 不经 stdin/exit 协议 |
+| Claude Code | PreToolUse hook | tool_input.command + cwd | exit 2, stderr 即原因 |
+| Codex | PreToolUse hook | 同 Claude 形 + turn_id(判别字段) | exit 0 + stdout hookSpecificOutput.permissionDecision:"deny" JSON |
+| OpenCode | tool.before.bash(hooks.yaml) | tool_args.command(或 cmd) | bash action exit 2 |
+| Antigravity | PreToolUse(run_command) | toolCall.args.CommandLine | exit 0 + stdout {"decision":"deny","reason":...}(无 block 值, 不可包 hookSpecificOutput) |
+| Pi | 进程内扩展(tool_call 事件) | event.input.command | 返回值 {block:true, reason}, 不经 stdin/exit 协议 |
+
+`check --platform auto` 按 payload 判别: `turn_id`→codex、`toolCall`→antigravity、`tool_args`→opencode、其余→claude。
+
+## 9. CLI
 
 ```
-develop(基线, 受保护)
-  │── 切出 ──▶ feature/develop-xxx-01   (功能开发)
-  │── 切出 ──▶ staging                    (长期预览分支, 接 CI/CD 自动部署)
-  │
-  feature/develop-xxx-01 ──PR①──▶ staging ──▶ 自动部署到测试环境
-                                              │
-                                         测试确认 OK(人 + CI 参考)
-                                              │
-  feature/develop-xxx-01 ──PR②──▶ develop    ◀── 只有此时才允许
+gitflow-guard status                     # 角色分组列出本地分支 + 当前生效配置
+gitflow-guard audit [--lines N]          # 回看审计流水(ISO 8601 UTC 时间戳)
+gitflow-guard check --platform <p>       # 各家 hook 调用的门禁入口(stdin payload)
+                 [--command <cmd>]       # 测试/调试直通
+                 [--repo <path>] [--locale <l>]
 ```
 
-- **核心不变量: PR② 必须发生在 PR① 合入且验证通过之后。**
-- 结论: staging 长期分支(按 feature 逐个验证); 合入方式用户有选择权; 人确认 + CI 参考; main 可选、平台无关基调。
+快路径: 非 git/gh/glab/gitflow-guard 命令零查询直接放行; 内部错误 fail-open(strict 下除外)。hook 子进程未必继承 PATH, 各平台配置示例统一用绝对路径指向 `bin/gitflow-guard.mjs`。
 
-### 第 ② 轮: 违规清单
+## 10. 运行时数据存储(**本版修订**: 迁出仓库)
 
-- 必须拦: 直推受保护分支(含 -f)/ 受保护分支上本地 merge(PR 模式)/ 合入基线(顺序+确认)/ 删除强推受保护分支。
-- 不能误伤: feature 上 commit/push、feature 上 merge/rebase 基线(同步)、只读命令。
-- 结论: 可配置模式; **分支命名完全可配置(角色化)**; 项目 opt-in; PR 创建默认拦但用户特许可放行; **用户特许, agent 永不自我授权**; 强推/删除只保护受保护分支。
-- 技术验证: `session/event` + `user/message` + `source.kind === 'user'` → 聊天确认通道可行且不可伪造。
+审计流水等运行时数据一律存**用户级全局目录**, 按「仓库名-真实路径哈希」隔离:
 
-### 第 ③ 轮: 门禁方式
+```
+macOS/Linux: ~/.local/state/gitflow-guard/repos/<repo>-<sha256 前 12 位>/audit.jsonl
+Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
+覆盖入口:    GITFLOW_GUARD_STATE_ROOT(所有平台, 测试/特殊部署用)
+```
 
-- 特许两类(P1 提前建 PR / P2 确认合入) → 定稿扩展为 P1/P2/P3(§4.4)。
-- 确认通道双轨: 聊天(插件监听, agent 不可伪造)+ 终端 CLI(插件拦 agent 执行)。
-- 状态存储: `<repo>/.git/gitflow-guard/state.json`。
-- 合入执行人: **特许后 agent 可执行合入基线**; trunk 仅用户亲手。
-- 门禁矩阵 v1 初稿 → 定稿 §4.3。
+**为什么不在仓库里(v0 曾放 repo 内 .git 目录)**: 凡 agent 可写之处的状态都可能被 agent 伪造——放在仓库内等于把「自我授权」后门留在门上。用户级目录位于 DSH workspace-write 文件沙箱之外, agent 的文件工具与 shell 都写不进, 篡改必须触发用户审批, 「人是唯一例外权」由机制保证而非自觉。
 
-### 第 ④ 轮: 拦截体验与审计
+附带收益: 重克隆、移动 .git、清理工作树均不丢审计历史; 键经 realpath 规范化(macOS /tmp 符号链接、Windows 8.3 短名)保持稳定。linked worktree 的 .git 为 gitdir 指针文件, 解析回主仓库根作键——同一仓库所有工作树共用一份审计(与 ≤0.0.13 存于共享 .git 的语义一致)。
 
-- deny 文案 = 为什么拦 + 下一步做什么(引导性)。
-- `gitflow-guard status` 查询工具(纯读): feature 的"已合预览/已确认/有无特许"状态一览。
-- 审计: DSH 会话持久日志 + 项目状态文件; 特许消费后提醒(写日志 + agent 转述; 弹窗 = v2 调研)。
+限制: 单机假设不变(跨机同步 v2); 测试经 tests/setup.ts 把状态根重定向到系统临时目录, 不污染真实家目录。
 
-### 第 ⑤ 轮: 配置与边界 + 多 feature 并行补充
+## 11. 审计与可观测
 
-- 配置结构定稿(§4.5): 角色化分支 + 模式 + 确认关键词 + CI 开关。
-- trunk 门禁: agent 经用户对话确认许可后可创建指向 trunk 的 PR; 合入 trunk 仅用户亲手。
-- 平台范围: 核心平台无关; gh CLI 适配器可选增强。
-- **补充**: 预览分支合入不限制, 多 feature 可并行(§4.7)。
+- 条目: `{time, event: 'deny'|'ci', command?, role?, reason?}`; deny 记命令与原因, ci 记 PR 检查状态(可选适配器, 查不到跳过)。
+- 写入失败静默吞错(fail-open), 不阻断门禁——审计是观测面, 不是第二道锁。
+- 查看: `gitflow-guard audit`(时间戳 ISO 8601 UTC, 不随机器 locale 变化)。
+
+## 12. 测试策略
+
+- **单元/集成**(vitest, 无需 DSH): classify(对抗语料)、gate、config(校验/strict)、i18n(键一致性)、repo、index(evaluateCommand 编排/降级路径)、cli(status/audit/check/--locale)、platform(四平台 stdin-hook extract/detect/encode)、stateDir(确定性/隔离性/XDG 重定向)。
+- **accuracy-audit 语料**: §1.1 对抗样本(shell 包装、git 形态、组合旗标)固化为回归清单。
+- **复测矩阵** `npm run verify:matrix` 七节 A–G: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity / Pi 扩展——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段)。
+- **铁律**: `npm run typecheck`(0 错)+ `npm test`(全绿)+ `npm run verify:matrix`(全绿)才算完成。CI 矩阵 ubuntu/macOS/Windows × Node 22/24。
+
+## 13. 项目结构
+
+```
+├── src/
+│   ├── index.ts        # 插件入口 apply() + evaluateCommand 编排 + stateDir/appendAudit
+│   ├── classify.ts     # 命令识别(纯函数)
+│   ├── gate.ts         # 门禁矩阵(纯函数)
+│   ├── config.ts       # 配置加载/规范化/校验/strict
+│   ├── repo.ts         # git 只读查询 + gh/glab Runner(可注入)
+│   ├── platform.ts     # 五平台 hook 协议(extract/detect/encodeDeny)
+│   ├── i18n.ts         # en/zh 字典 + registerLocale + MESSAGE_KEYS
+│   ├── cli.ts          # status / audit / check
+│   └── types.ts
+├── tests/              # vitest(setup.ts 重定向状态根) + accuracy-audit 语料
+├── bin/gitflow-guard.mjs
+├── scripts/verify-matrix.mjs
+├── patch.yml           # DSH profile 挂载声明
+└── docs/design.md      # 本文
+```
+
+依赖: peer `@deepseek-ai/cordis ^4.0.1`、`@deepseek-ai/dsh-tools ^0.1.0-rc.5`(DSH 类型包显式列 devDependencies 保证类型面); 构建 tsdown → lib/, Node ≥ 22。
+
+## 14. 已知限制(如实边界)
+
+1. 文本解析 best-effort: 已实测穿透文本层的混淆形态与两条本地不可防通道(forge API 直连、解释器子进程内嵌)记录于 README 局限节; **服务端分支保护是最终边界**, 本插件叠加在其内侧的时序防线。
+2. 分支正则由项目作者编写, 注意避免灾难性回溯(README 有提示); 非法正则在加载期报错。
+3. 审计单机存储(§10), 多机协同需 v2 同步。
+4. 插件改动需重建重启 DSH(`npm run build`); 核心逻辑全部纯函数 + 配置驱动, 把「改代码」压到最少。
+
+## 15. 演进记录
+
+| 版本 | 要点 |
+|---|---|
+| v0(2026-08-17) | 五轮对齐定稿 permit/confirm 特许制(base/trunk 角色、聊天确认通道、P1/P2/P3 特许); 原文存 git 历史 |
+| 0.0.2 | **模型重构**: 废弃特许系统, 改角色驱动(integration/preview/production/archive), 以「你的合并点击」为唯一确认; GitLab glab 适配; Claude Code hook(check 子命令) |
+| 0.0.3–0.0.6 | i18n(en/zh); Codex、OpenCode、Antigravity 相继接入; Antigravity 拦截协议按官方修正(exit 0 + decision JSON) |
+| 0.0.8–0.0.10 | Copilot 明确不接入; archive 允许建 PR(合并仍限用户); 跨平台 CI 矩阵; 安装文档准确性 |
+| 0.0.11 | 分类器硬化两批(shell 包装/嵌套/plumbing/pull/通配 refspec); strict 策略位 + fail-open 分级告警; pr-merge 无法解析一律保守拒绝 |
+| 0.0.12 | registerLocale 运行时扩展; CLI 全文案随 --locale; 审计 ISO 时间戳; 包元数据补全 |
+| 0.0.13 | ref-move/ref-update 命令族收编(reset/rebase/amend/filter-branch/update-ref/branch -m/-f); 组合旗标绕过封堵; 发版 tag 改从合并后 develop 打 + 一分支一 PR 铁律; design.md 加历史横幅 |
+| 本版(0.0.14) | **运行时数据迁出仓库**(§10, 堵「agent 伪造自身授权状态」的后门); 本文重写为现行唯一规格(取代历史横幅方案) |
+
