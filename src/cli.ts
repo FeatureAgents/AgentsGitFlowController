@@ -1,16 +1,19 @@
-// CLI: gitflow-guard status/audit/check(只读 + agent hook 门禁)
+// CLI: gitflow-guard status/audit/check(只读 + agent hook 门禁) / wire/setup(客户端默认 hook 接线)
 
+import { createInterface } from 'node:readline'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { classify } from './classify'
 import { loadConfig, roleMatches } from './config'
 import { evaluateCommand, formatDeny, stateDir } from './index'
 import { makeT, resolveLocale } from './i18n'
-import type { Locale } from './i18n'
+import type { I18nVars, Locale } from './i18n'
 import { detectPlatform, encodeDeny, extractHookPayload } from './platform'
 import { currentBranch, findRepoRoot, gitRunner } from './repo'
+import { applyWire, isWireClient, isWired, WIRE_CLIENTS } from './wire'
+import type { WireScope } from './wire'
 import type { HookPayload, HookPlatform } from './platform'
-import type { BranchRole } from './types'
+import type { BranchRole, ClientId } from './types'
 import type { Runner } from './repo'
 
 interface Flags {
@@ -19,6 +22,12 @@ interface Flags {
   platform?: string
   command?: string
   locale?: string
+  client?: string
+  global?: boolean
+  project?: boolean
+  unwire?: boolean
+  dryRun?: boolean
+  yes?: boolean
 }
 
 function parseFlags(argv: string[]): Flags {
@@ -31,11 +40,18 @@ function parseFlags(argv: string[]): Flags {
     else if (a === '--platform') flags.platform = next()
     else if (a === '--command') flags.command = next()
     else if (a === '--locale') flags.locale = next()
+    else if (a === '--client') flags.client = next()
+    else if (a === '--global') flags.global = true
+    else if (a === '--project') flags.project = true
+    else if (a === '--unwire') flags.unwire = true
+    else if (a === '--dry-run') flags.dryRun = true
+    else if (a === '--yes') flags.yes = true
     else if (a.startsWith('--repo=')) flags.repo = a.slice(7)
     else if (a.startsWith('--lines=')) flags.lines = Number(a.slice(8))
     else if (a.startsWith('--platform=')) flags.platform = a.slice('--platform='.length)
     else if (a.startsWith('--command=')) flags.command = a.slice('--command='.length)
     else if (a.startsWith('--locale=')) flags.locale = a.slice('--locale='.length)
+    else if (a.startsWith('--client=')) flags.client = a.slice('--client='.length)
   }
   return flags
 }
@@ -72,6 +88,8 @@ export async function main(argv: string[], opts: { runner?: Runner } = {}): Prom
     if (cmd === 'status') return await status(flags, runner)
     if (cmd === 'audit') return await audit(flags, runner)
     if (cmd === 'check') return await check(flags)
+    if (cmd === 'wire') return await wire(flags, runner)
+    if (cmd === 'setup') return await setup(flags, runner)
     const t = makeT(await resolveFrameworkLocale(flags, runner))
     console.error(`${t('cli.unknownCommand', { cmd: cmd ?? '' })}\n\n${t('usage.text')}`)
     return 1
@@ -87,7 +105,8 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
     console.error(makeT(resolveLocale(flags.locale))('cli.cannotLocate'))
     return 1
   }
-  const { config, errors, warnings } = await loadConfig(repoRoot)
+  const loaded = await loadConfig(repoRoot)
+  const { config, errors, warnings } = loaded
   const enabled = config?.enabled === true
   const t = makeT(cliLocale(flags, config?.locale))
   console.log(t('cli.statusTitle', { repo: repoRoot }))
@@ -107,6 +126,11 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
   if (c.branches.preview) console.log(t('cli.statusPreview', { list: c.branches.preview.branches.join(', '), mode: c.branches.preview.update || 'pr' }))
   if (c.branches.production) console.log(t('cli.statusProduction', { list: c.branches.production.branches.join(', '), mode: c.branches.production.update || 'pr', merge: c.branches.production.mergeBy || 'user' }))
   if (c.branches.archive) console.log(t('cli.statusArchive', { list: c.branches.archive.branches.join(', ') }))
+  if (loaded.usingDefaults) {
+    // 无 config 文件 = 内置默认生效: 提示 main 默认受保护与关闭路径(trunk 用户反噬兜底)
+    console.log(t('cli.statusUsingDefaults'))
+    console.log(t('cli.statusMainProtected'))
+  }
   console.log(t('cli.statusCurrentBranch', { branch: branch ?? t('cli.statusUnknownBranch') }))
 
   // 列出本地分支并按角色分组(展示用)
@@ -122,6 +146,17 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
   }
   console.log(t('cli.statusLocalBranches'))
   for (const b of localBranches) console.log(`  ${b} → ${classifyBranch(b)}`)
+
+  // 接线提示: 检测各 stdin-hook 客户端的工程级 hook 是否已落位(status 只读引导, 不写任何文件)
+  const hints: string[] = []
+  for (const spec of WIRE_CLIENTS) {
+    if (spec.client === 'dsh' || spec.client === 'pi') continue
+    if (!(await isWired(spec.client, join(repoRoot, spec.projectPath)))) hints.push(spec.client)
+  }
+  if (hints.length > 0) {
+    console.log(t('cli.statusWireHints'))
+    for (const c of hints) console.log(t('cli.statusWireHint', { client: c }))
+  }
   return 0
 }
 
@@ -151,6 +186,123 @@ async function audit(flags: Flags, runner: Runner): Promise<number> {
     console.log(t('cli.auditEmpty'))
   }
   return 0
+}
+
+/** 交互提问(仅 TTY 可用); 返回小写化、去空格的答案 */
+function askLine(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout })
+    rl.question(question, (ans) => {
+      rl.close()
+      resolve(ans.trim().toLowerCase())
+    })
+  })
+}
+
+/** 作用域解析: 显式旗标 > 交互询问(仅 TTY) > 非交互默认 project(安全) */
+async function resolveScope(flags: Flags, t: (key: string, vars?: I18nVars) => string): Promise<WireScope | null> {
+  if (flags.global) return 'global'
+  if (flags.project) return 'project'
+  if (process.stdin.isTTY) {
+    const ans = await askLine(t('cli.wireScopeAsk'))
+    if (ans === 'project' || ans === 'p') return 'project'
+    if (ans === 'global' || ans === 'g') return 'global'
+    console.log(t('cli.wireScopeInvalid'))
+    return null
+  }
+  return 'project'
+}
+
+/** wire/setup 共用落位核心: dsh/pi 只打印引导; 其余客户端读取/合并/写入对应配置文件(非破坏性) */
+async function wireCore(
+  client: ClientId,
+  scope: WireScope,
+  opts: { unwire?: boolean; dryRun?: boolean; yes?: boolean; repoRoot: string | null },
+  t: (key: string, vars?: I18nVars) => string,
+): Promise<number> {
+  const spec = WIRE_CLIENTS.find((s) => s.client === client)!
+  if (client === 'dsh') {
+    console.log(t('cli.wireDshGuide'))
+    return 0
+  }
+  if (client === 'pi') {
+    console.log(t('cli.wirePiGuide'))
+    return 0
+  }
+  if (spec.experimental) console.log(t('cli.wireExperimental', { client }))
+  const path = scope === 'project' ? join(opts.repoRoot!, spec.projectPath) : spec.globalPath()
+  console.log(t('cli.wireTarget', { client, path }))
+  if (opts.dryRun) {
+    const res = await applyWire(client, path, !!opts.unwire, true)
+    if (res === 'added') console.log(t('cli.wireDryRunAdd', { client, path }))
+    else if (res === 'removed') console.log(t('cli.wireDryRunRemove', { client, path }))
+    else console.log(t('cli.wireDryRunNoOp', { client, path }))
+    return 0
+  }
+  if (!opts.yes) {
+    // 全局写入 = 仓库外写端: 非交互必须 --yes; 交互一律先征得同意(项目级非交互直接写, 非破坏性)
+    if (scope === 'global' && !process.stdin.isTTY) {
+      console.error(t('cli.wireRefuseGlobal'))
+      return 1
+    }
+    if (process.stdin.isTTY) {
+      const ans = await askLine(t('cli.wireConfirmWrite', { path }))
+      if (ans !== 'y' && ans !== 'yes') return 1
+    }
+  }
+  const res = await applyWire(client, path, !!opts.unwire, false)
+  if (res === 'added') console.log(t('cli.wireCreated', { client, path }))
+  else if (res === 'exists') console.log(t('cli.wireAlready', { client, path }))
+  else if (res === 'removed') console.log(t('cli.wireRemoved', { client, path }))
+  else console.log(t('cli.wireNotWired', { client, path }))
+  return 0
+}
+
+/** wire: 单客户端非交互/半交互落位(--client 必填; 作用域默认交互询问) */
+async function wire(flags: Flags, runner: Runner): Promise<number> {
+  const t = makeT(await resolveFrameworkLocale(flags, runner))
+  const client = (flags.client ?? '').toLowerCase()
+  if (!isWireClient(client)) {
+    console.error(t('cli.wireUnknownClient', { client }))
+    return 1
+  }
+  const scope = await resolveScope(flags, t)
+  if (!scope) return 1
+  let repoRoot: string | null = null
+  if (scope === 'project') {
+    repoRoot = await resolveRepo(flags, runner)
+    if (!repoRoot) {
+      console.error(t('cli.wireNeedRepo'))
+      return 1
+    }
+  }
+  return wireCore(client, scope, { unwire: flags.unwire, dryRun: flags.dryRun, yes: flags.yes, repoRoot }, t)
+}
+
+/** setup: 交互向导(客户端 → 作用域 → 确认), 安装后一步式接线; 非交互终端拒绝并指路 wire */
+async function setup(flags: Flags, runner: Runner): Promise<number> {
+  const t = makeT(await resolveFrameworkLocale(flags, runner))
+  if (!process.stdin.isTTY) {
+    console.error(t('cli.setupNoTty'))
+    return 1
+  }
+  console.log(t('cli.setupIntro'))
+  const client = (await askLine(t('cli.setupClientAsk'))).trim().toLowerCase()
+  if (!isWireClient(client)) {
+    console.error(t('cli.setupClientInvalid'))
+    return 1
+  }
+  const scope = await resolveScope(flags, t)
+  if (!scope) return 1
+  let repoRoot: string | null = null
+  if (scope === 'project') {
+    repoRoot = await resolveRepo(flags, runner)
+    if (!repoRoot) {
+      console.error(t('cli.wireNeedRepo'))
+      return 1
+    }
+  }
+  return wireCore(client, scope, { yes: flags.yes, repoRoot }, t)
 }
 
 function readStdin(): Promise<string> {
