@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.16
+
+- feat(repo): publish-time discoverability — add the `dsh-plugin` npm keyword, the term the DeepSeek Harness ecosystem indexes plugins by (the official repo topic and community plugin markets key on it); as part of the release, both README lock-version examples are synced to 0.0.16 —— 增加 `dsh-plugin` npm 关键词: DeepSeek Harness 生态索引插件所依的术语(官方仓库 topic 与社区插件市场均以其为键);本次发布同步双语 README 锁版本示例为 0.0.16。
+
 ## 0.0.15
 
 - fix(guard): runtime state is now keyed by the shared repository via git-authoritative resolution (rev-parse --git-common-dir; fs gitdir-pointer parsing replaced after it broke on Windows 8.3 short paths) — previously each linked worktreehistory across directories (a silent semantic change from ≤0.0.13, where state lived inside the shared .git); the key now resolves the worktree gitdir pointer back to the main repository root, restoring shared semantics while keeping state outside any workspace —— 运行时状态改按共享仓库为键,而非每个 linked worktree:0.0.14 起按工作树根哈希,同一仓库的审计历史被分散到多个目录(相对 ≤0.0.13 存于共享 .git 是一次静默语义变化);现解析工作树 .git 指针回主仓库根,恢复共享语义且状态仍在任何工作区之外。新增真实 git worktree 集成测试。
