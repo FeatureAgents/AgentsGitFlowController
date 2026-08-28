@@ -39,7 +39,7 @@
 
 ```bash
 # DSH —— 进程内插件(装完重启 DSH; 插件在进程启动时加载)
-dsh plugin --profile web add agents-gitflow-guard@0.0.18
+dsh plugin --profile web add agents-gitflow-guard@0.0.19
 ```
 
 ```bash
@@ -300,6 +300,12 @@ archive(可选, 发布后你亲手归档)
 | 指向 archive 的 PR/MR | ✅ 可创建;🚫 合并被拦(你在 UI 合并) |
 | 在 integration / preview 上 `git merge feature/x`(本地) | 🚫 拦(须 PR/MR);`update: flexible` 则放行 |
 | 串联命令(`checkout develop && merge feature/x`) | 🚫 拦——逐段模拟分支切换,无法绕序 |
+| 强制重建受保护分支(`git checkout -B/-C <分支>` / `git switch -C`) | 🚫 拦(直改 ref-update 门禁) |
+| 用 `git symbolic-ref` 重定向/删除受保护分支 | 🚫 拦(直改 ref-update 门禁) |
+| 在 integration / preview / production / archive 上 `git cherry-pick` / `git revert` | 🚫 拦(受保护分支上改写历史);`-n`/`--no-commit` 与 `--abort`/`--continue`/`--skip`/`--quit` 放行 |
+| `sudo` 包装的 git 命令(特权外壳) | 🚫 剥壳(含 `sudo -u …`)后按内层命令判定 |
+
+> 两处**刻意不拦**的边界,防止后来者「顺手堵上」造成语义回归:`git tag -f` 移动 tag(即使指向受保护分支)维持豁免——tag 不在分支角色守卫范围,与 `push --tags` 同型;受保护分支上的普通 `git commit` 维持放行——守卫只管分支角色与合入路径、不管内容,后续 `git push` 仍被拦(远端零污染)。
 
 PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有平台 CLI 时插件走保守路径。
 
@@ -317,14 +323,14 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 
 | 客户端 | 安装命令 | 装完再做什么 |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.18` | 重启 DSH——插件自动挂为 profile 层 |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.18` | 在各自 hook 配置里指向 `gitflow-guard` 二进制(见下) |
-| Pi | `npm i -D agents-gitflow-guard@0.0.18` | 把 `pi/gitflow-guard.ts` 拷进 `.pi/extensions/`(见下) |
+| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.19` | 重启 DSH——插件自动挂为 profile 层 |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.19` | 在各自 hook 配置里指向 `gitflow-guard` 二进制(见下) |
+| Pi | `npm i -D agents-gitflow-guard@0.0.19` | 把 `pi/gitflow-guard.ts` 拷进 `.pi/extensions/`(见下) |
 
 **DSH —— 进程内插件**(标准路径,已在[快速开始](#快速开始30-秒用上)覆盖):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.18    # 建议锁版本, 见上文提示
+dsh plugin --profile web add agents-gitflow-guard@0.0.19    # 建议锁版本, 见上文提示
 ```
 
 然后重启 DSH。升级用同一命令,再重启一次。
@@ -341,7 +347,7 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 **各 agent 独立 hook**——Claude Code / Codex / OpenCode / Antigravity,不依赖 DSH。全局装一次 CLI,然后引用 `gitflow-guard` 二进制:
 
 ```bash
-npm i -g agents-gitflow-guard@0.0.18   # 提供 `gitflow-guard` 二进制
+npm i -g agents-gitflow-guard@0.0.19   # 提供 `gitflow-guard` 二进制
 ```
 
 本仓库已自带 `.claude/settings.json`(Claude Code)、`.codex/hooks.json`(Codex)、`.opencode/hook/hooks.yaml`(OpenCode)和 `.agents/hooks.json`(Antigravity / Google);其他仓库加自己的 hooks:
@@ -397,7 +403,7 @@ hooks:
 Pi 以进程内扩展装载(没有 stdin payload,也没有子进程 hook)。把随包发布的入口装进项目、包留在 devDependencies:
 
 ```bash
-npm i -D agents-gitflow-guard@0.0.18
+npm i -D agents-gitflow-guard@0.0.19
 mkdir -p .pi/extensions
 cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
 ```
@@ -435,7 +441,7 @@ cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-
 
 不是,请注意别把它当安全工具。它是工作流守卫:把既定流程变成可机制执行的东西。基于文本的命令识别天然是尽力而为——铁心混淆命令的 agent 可以绕过解析器。
 
-在其支持的命令形态内,角色边界在本地强制生效:合入受保护角色分支(integration / preview / production / archive)必须走配置好的路径(PR/MR,或生产/归档的人工合并)。常见混淆包装已纳入分类与拦截——shell 包装(`sh -c` / `bash -lc`)、子 shell 与反引号/`$()` 内嵌、`env`/`command`/`nohup`/`xargs` 前缀与 `VAR=x` 赋值、绝对路径、管道与 `||` 后半段、git 全局选项(`-C .`、`--git-dir=…`)、通配 refspec(`refs/heads/*:refs/heads/*`)、当 fetch+merge 用的 `git pull`,以及 `send-pack`/`update-ref` 等 plumbing。可执行对抗语料见 `tests/accuracy-audit.spec.ts`。
+在其支持的命令形态内,角色边界在本地强制生效:合入受保护角色分支(integration / preview / production / archive)必须走配置好的路径(PR/MR,或生产/归档的人工合并)。常见混淆包装已纳入分类与拦截——shell 包装(`sh -c` / `bash -lc`)、子 shell 与反引号/`$()` 内嵌、`env`/`command`/`nohup`/`xargs`/`sudo` 前缀与 `VAR=x` 赋值、绝对路径、管道与 `||` 后半段、git 全局选项(`-C .`、`--git-dir=…`)、通配 refspec(`refs/heads/*:refs/heads/*`)、当 fetch+merge 用的 `git pull`,以及 `send-pack`/`update-ref`/`symbolic-ref` 等 plumbing;强制重建受保护分支(`checkout -B`/`switch -C`)与受保护分支上的 cherry-pick/revert 由 ref-update / ref-move 门禁拦截。可执行对抗语料见 `tests/accuracy-audit.spec.ts`。
 
 已知**本地不可防**的通道:直连 forge API(`gh api repos/…/pulls/N/merge`、`curl`)与解释器子进程内嵌(`node -e "child_process.exec('git push …')"`);任意深度的引号/编码变换天然只能尽力而为。真正不可绕过的边界在你托管服务的分支保护设置。两边都用——把本守卫当作即时反馈与审计留痕,而不是安全边界。
 
