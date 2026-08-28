@@ -6,19 +6,21 @@ import { DEFAULT_CONFIG, loadConfig, mergeConfig, validateConfig, matchBranchSpe
 import type { GuardConfig } from '../src/types'
 
 describe('config: 默认值合并', () => {
-  it('最小配置(仅 integration 数组) → 规范化默认', () => {
+  it('最小配置(仅 integration 数组) → 规范化 + 默认角色补全', () => {
     const { config, errors } = mergeConfig({ branches: { integration: ['develop'] } })
     expect(errors).toEqual([])
-    expect(config!.enabled).toBe(false)
+    expect(config!.enabled).toBe(true) // 默认开启(零门槛开箱即用)
     expect(config!.branches.integration).toEqual({ branches: ['develop'], update: 'pr', mergeBy: 'anyone' })
+    expect(config!.branches.archive?.branches).toEqual(['main']) // 默认 archive 由内置补全
     expect(config!.featurePattern).toContain('feature')
     expect(config!.ci.enabled).toBe(true)
   })
 
   it('production 默认 mergeBy=user(合并权默认在人; 突变回归 M1)', () => {
-    const { config, errors } = mergeConfig({ branches: { integration: ['develop'], production: ['main'] } })
+    // 分支名避开默认 archive(main): 深合并下与默认角色重叠会报错, 这里只验证 mergeBy 默认
+    const { config, errors } = mergeConfig({ branches: { integration: ['develop'], production: ['prd'] } })
     expect(errors).toEqual([])
-    expect(config!.branches.production).toEqual({ branches: ['main'], update: 'pr', mergeBy: 'user' })
+    expect(config!.branches.production).toEqual({ branches: ['prd'], update: 'pr', mergeBy: 'user' })
   })
 
   it('对象形式 + 自定义 update', () => {
@@ -38,11 +40,28 @@ describe('config: 默认值合并', () => {
     expect(config!.branches.archive?.branches).toEqual(['main'])
   })
 
-  it('preview/production/archive 可选, 不配则不启用', () => {
-    const { config } = mergeConfig({ branches: { integration: ['develop'] } })
-    expect(config!.branches.preview).toBeUndefined()
-    expect(config!.branches.production).toBeUndefined()
-    expect(config!.branches.archive).toBeUndefined()
+  it('深度合并: 只写 production 也在默认基础上叠加', () => {
+    const { config, errors } = mergeConfig({ branches: { production: ['release/[\\w-]+'] } })
+    expect(errors).toEqual([])
+    expect(config!.branches.integration.branches).toEqual(['develop']) // 默认 integration 仍在
+    expect(config!.branches.archive?.branches).toEqual(['main']) // 默认 archive 仍在
+    expect(config!.branches.production?.branches).toEqual(['release/[\\w-]+'])
+    expect(config!.branches.preview).toBeUndefined() // 未写且无默认 → 不启用
+  })
+
+  it('深度合并: 用户覆盖 integration/archive 时整体替换该角色', () => {
+    const { config, errors } = mergeConfig({ branches: { integration: ['master'], archive: ['archive/\\d+'] } })
+    expect(errors).toEqual([])
+    expect(config!.branches.integration.branches).toEqual(['master'])
+    expect(config!.branches.archive?.branches).toEqual(['archive/\\d+'])
+  })
+
+  it('enabled:false 仍深度合并但关闭(关闭路径)', () => {
+    const { config, errors } = mergeConfig({ enabled: false })
+    expect(errors).toEqual([])
+    expect(config!.enabled).toBe(false)
+    expect(config!.branches.integration.branches).toEqual(['develop'])
+    expect(config!.branches.archive?.branches).toEqual(['main'])
   })
 })
 
@@ -53,9 +72,11 @@ describe('config: 校验', () => {
     expect(mergeConfig(42).errors.length).toBeGreaterThan(0)
   })
 
-  it('缺 integration → 报错', () => {
-    const { errors } = mergeConfig({ branches: { preview: ['ita1'] } })
-    expect(errors.some((e) => e.includes('integration'))).toBe(true)
+  it('缺 integration → 回退内置默认 develop(不再必填)', () => {
+    const { config, errors } = mergeConfig({ branches: { preview: ['ita1'] } })
+    expect(errors).toEqual([])
+    expect(config!.branches.integration.branches).toEqual(['develop'])
+    expect(config!.branches.preview?.branches).toEqual(['ita1'])
   })
 
   it('integration 空数组 → 报错', () => {
@@ -128,19 +149,34 @@ describe('config: 分支匹配(条目支持正则)', () => {
   })
 })
 
-describe('config: 文件加载(opt-in)', () => {
+describe('config: 文件加载(默认配置兜底)', () => {
   function tempRepo(): string {
     const dir = mkdtempSync(join(tmpdir(), 'gfguard-config-'))
     mkdirSync(join(dir, '.git'), { recursive: true })
     return dir
   }
 
-  it('无配置文件 → 未启用', async () => {
+  it('无配置文件 → 内置默认生效(开箱即用), usingDefaults=true', async () => {
     const dir = tempRepo()
     try {
-      const { config, errors } = await loadConfig(dir)
-      expect(config).toBeNull()
+      const { config, errors, usingDefaults } = await loadConfig(dir)
       expect(errors).toEqual([])
+      expect(usingDefaults).toBe(true)
+      expect(config?.enabled).toBe(true)
+      expect(config?.branches.integration.branches).toEqual(['develop'])
+      expect(config?.branches.archive?.branches).toEqual(['main'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('有配置文件(哪怕最小) → usingDefaults=false', async () => {
+    const dir = tempRepo()
+    try {
+      writeFileSync(join(dir, 'gitflow-guard.config.json'), JSON.stringify({ branches: { integration: ['develop'] } }))
+      const { config, usingDefaults } = await loadConfig(dir)
+      expect(usingDefaults).toBe(false)
+      expect(config?.enabled).toBe(true)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -226,9 +262,11 @@ describe('config: strict 位(fail-open/fail-closed 策略)', () => {
 })
 
 describe('config: 默认配置常量', () => {
-  it('DEFAULT_CONFIG 结构完整', () => {
+  it('DEFAULT_CONFIG 结构完整(默认保护 develop+main)', () => {
     const d = DEFAULT_CONFIG as GuardConfig
-    expect(d.enabled).toBe(false)
+    expect(d.enabled).toBe(true)
+    expect(d.branches.integration.branches).toEqual(['develop'])
+    expect(d.branches.archive?.branches).toEqual(['main'])
     expect(d.featurePattern.length).toBeGreaterThan(0)
     expect(d.ci.enabled).toBe(true)
   })
