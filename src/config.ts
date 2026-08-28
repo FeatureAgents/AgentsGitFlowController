@@ -1,4 +1,4 @@
-// 配置层: 加载 gitflow-guard.config.json, 规范化 + 校验(opt-in 启用)
+// 配置层: 加载 gitflow-guard.config.json, 规范化 + 校验(内置默认配置开箱即用, 用户配置深度合并覆盖)
 
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -7,13 +7,21 @@ import type { BranchRole, GuardConfig, MergeBy, UpdateMode } from './types'
 
 export const CONFIG_FILE = 'gitflow-guard.config.json'
 
-/** 默认配置(分支角色必须由项目显式配置, 无默认) */
+/**
+ * 内置默认配置(零门槛开箱即用): 没有 gitflow-guard.config.json 也生效。
+ * 默认保护 develop(integration, 只走 PR/MR) + main(archive, 归档合并在人)。
+ * 用户 config 存在时按字段深度合并覆盖——只写想改的字段, 其余沿用默认。
+ */
 export const DEFAULT_CONFIG = {
-  enabled: false,
+  enabled: true,
   featurePattern: 'feature/[\\w-]+',
+  branches: {
+    integration: { branches: ['develop'], update: 'pr' as const, mergeBy: 'anyone' as const },
+    archive: { branches: ['main'], update: 'pr' as const, mergeBy: 'user' as const },
+  },
   ci: { enabled: true },
   locale: 'en',
-} satisfies Omit<GuardConfig, 'branches'>
+} satisfies GuardConfig
 
 export interface ConfigLoadResult {
   config: GuardConfig | null
@@ -22,6 +30,8 @@ export interface ConfigLoadResult {
   warnings: string[]
   /** 配置存在但损坏/校验失败时, 从原文提取的 strict 位(fail-closed 判定依据); 文件缺失或 config 有效时以 config.strict 为准 */
   strict?: boolean
+  /** 当前生效的是内置默认配置(仓库里根本没有 config 文件) */
+  usingDefaults?: boolean
 }
 
 const REGEX_CHARS = /[\\^$.*+?()[\]{}|]/
@@ -96,18 +106,15 @@ export function mergeConfig(raw: unknown): ConfigLoadResult {
   const errors: string[] = []
   const warnings: string[] = []
   if (typeof raw !== 'object' || raw === null) {
-    return { config: null, errors: ['Config file must be a JSON object'], warnings }
+    return { config: null, errors: ['Config file must be a JSON object'], warnings, usingDefaults: false }
   }
   const r = raw as Record<string, unknown>
   // strict 是策略位: 即使其余字段校验失败也要带出去(cli 据此决定 fail-open 告警还是 fail-closed 拦截)
   const strict = r.strict === true ? true : r.strict === false ? false : undefined
   if (r.strict !== undefined && typeof r.strict !== 'boolean') errors.push('strict must be a boolean')
 
-  const config: GuardConfig = {
-    ...DEFAULT_CONFIG,
-    ci: { ...DEFAULT_CONFIG.ci },
-    branches: { integration: { branches: [], update: 'pr', mergeBy: 'anyone' } },
-  }
+  // 深度合并: 从内置默认出发, 用户写到的字段覆盖默认(深拷贝, 防共享嵌套对象污染)
+  const config: GuardConfig = structuredClone(DEFAULT_CONFIG)
   if (typeof r.enabled === 'boolean') config.enabled = r.enabled
   if (typeof r.featurePattern === 'string' && r.featurePattern !== '') config.featurePattern = r.featurePattern
   if (typeof r.locale === 'string' && r.locale !== '') {
@@ -117,14 +124,20 @@ export function mergeConfig(raw: unknown): ConfigLoadResult {
   } else if (r.locale !== undefined) {
     errors.push('locale must be a string')
   }
+  if (typeof r.ci === 'object' && r.ci !== null) {
+    const ci = r.ci as Record<string, unknown>
+    if (typeof ci.enabled === 'boolean') config.ci.enabled = ci.enabled
+  }
 
+  // 角色级合并: 用户写到的角色覆盖默认, 未写的沿用默认(integration/archive 由默认提供, 不再必填)
+  if (r.branches !== undefined && (typeof r.branches !== 'object' || r.branches === null)) {
+    errors.push('branches must be an object')
+  }
   const b = (r.branches ?? {}) as Record<string, unknown>
   if ('integration' in b) {
     const { role, errors: e } = normalizeRole(b.integration, 'integration', 'pr', 'anyone')
     config.branches.integration = role
     errors.push(...e)
-  } else {
-    errors.push('branches.integration is required')
   }
   if (b.preview !== undefined) {
     const { role, errors: e } = normalizeRole(b.preview, 'preview', 'pr', 'anyone')
@@ -142,12 +155,10 @@ export function mergeConfig(raw: unknown): ConfigLoadResult {
     errors.push(...e)
   }
 
-  const ci = (r.ci ?? {}) as Record<string, unknown>
-  if (typeof ci.enabled === 'boolean') config.ci.enabled = ci.enabled
   if (strict !== undefined) config.strict = strict
 
   errors.push(...validateConfig(config))
-  return { config: errors.length > 0 ? null : config, errors, warnings, ...(strict !== undefined ? { strict } : {}) }
+  return { config: errors.length > 0 ? null : config, errors, warnings, usingDefaults: false, ...(strict !== undefined ? { strict } : {}) }
 }
 
 /** 配置校验: 角色分支重叠等(角色条目正则合法性已在 normalizeRole 预编译报错) */
@@ -174,14 +185,16 @@ export function validateConfig(config: GuardConfig): string[] {
   return errors
 }
 
-/** 从项目根加载配置; 无文件 = 未启用(opt-in) */
+/** 从项目根加载配置; 无文件 = 使用内置默认配置(开箱即用, develop/main 已受保护) */
 export async function loadConfig(repoRoot: string): Promise<ConfigLoadResult> {
   let text: string
   try {
     text = await readFile(join(repoRoot, CONFIG_FILE), 'utf8')
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { config: null, errors: [], warnings: [] }
-    return { config: null, errors: [`Failed to read config file: ${(e as Error).message}`], warnings: [] }
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { config: structuredClone(DEFAULT_CONFIG), errors: [], warnings: [], usingDefaults: true }
+    }
+    return { config: null, errors: [`Failed to read config file: ${(e as Error).message}`], warnings: [], usingDefaults: false }
   }
   let raw: unknown
   try {
@@ -194,6 +207,7 @@ export async function loadConfig(repoRoot: string): Promise<ConfigLoadResult> {
       config: null,
       errors: [`Failed to read config file: ${(e as Error).message}`],
       warnings: [],
+      usingDefaults: false,
       ...(strict ? { strict } : {}),
     }
   }

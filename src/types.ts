@@ -13,7 +13,7 @@ export interface BranchRole {
   mergeBy?: MergeBy
 }
 
-/** 分支角色: 必填 integration; 其余(preview/production/archive)可选, 配了才启用对应保护 */
+/** 分支角色: integration 必填(缺省由内置默认提供); 其余(preview/production/archive)可选, 配了才启用对应保护 */
 export interface BranchRoles {
   integration: BranchRole
   preview?: BranchRole
@@ -144,3 +144,6 @@ export interface PrTargetResolution {
 export type GateDecision =
   | { kind: 'allow' }
   | { kind: 'deny'; reason: string; next: string }
+
+/** wire 目标客户端枚举(dsh/pi 为进程内接入, 无 hook 文件, 仅输出接入引导) */
+export type ClientId = 'dsh' | 'claude' | 'codex' | 'opencode' | 'antigravity' | 'pi'

@@ -36,6 +36,19 @@ function scriptedRunner(overrides: Record<string, Partial<RunResult>> = {}): Run
 }
 
 describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
+  it('无配置文件 → 内置默认生效(develop/main 受保护, feature 自由)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-eval-noconfig-'))
+    mkdirSync(join(dir, '.git'), { recursive: true })
+    try {
+      // 不写 gitflow-guard.config.json: 默认配置(integration=develop, archive=main)开箱即用
+      expect((await evaluateCommand('git push origin develop', { repoRoot: dir, runner: scriptedRunner() })).outcome).toBe('deny')
+      expect((await evaluateCommand('git push origin main', { repoRoot: dir, runner: scriptedRunner() })).outcome).toBe('deny')
+      expect((await evaluateCommand('git push origin feature/dev-x-01', { repoRoot: dir, runner: scriptedRunner() })).outcome).toBe('allow')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('未启用配置的项目 → skipped', async () => {
     const dir = tempRepo({ enabled: false, branches: { integration: ['develop'] } })
     try {
