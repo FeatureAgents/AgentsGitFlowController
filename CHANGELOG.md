@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.19
+
+- feat(guard): Pi agent 真机实测空隙修复(G1/G2/G3/G5) —— `sudo` 前置剥壳(含 `-u <user>` 参数消费, 与 `env` 同型)后递归分类, 特权包装的受保护推送不再放行; `git symbolic-ref` 收编 plumbing 直改面(双参重定向与 `-d/--delete` 删除送 `ref-update` 门禁, 查询形态/`--short` 不误伤); `git cherry-pick`/`git revert` 收编为 `ref-move`(受保护分支上改写历史拒绝、feature 自由, `-n`/`--no-commit` 只改工作树/索引与 `--abort`/`--continue`/`--skip`/`--quit` 恢复旗标豁免); `git checkout -B`/`switch -C`(含 `-Bf` 等短旗标簇)目标名送 `ref-update` 门禁 + checkout 模拟切换两段——强制重建受保护分支拒绝, feature 目标正常放行且按段模拟。G4(`git tag -f` 移动 tag)与 G6(受保护分支上普通 `git commit`)经拍板维持现状, 双语 README 门禁矩阵与 design.md §5 明示豁免理由防回归; 单测/对抗语料/复测矩阵 A 节与 G 节(Pi wire)同步扩充, 矩阵 51 PASS —— Pi 真机空隙修复:G1 `sudo` 剥壳(含 `-u` 参数消费)后递归分类,特权包装的受保护推送不再放行;G2 `symbolic-ref` 收编 plumbing 直改面(重定向/删除送 ref-update,查询形态不误伤);G3 `cherry-pick`/`revert` 收编 ref-move(受保护分支拒绝、feature 自由,`-n`/`--no-commit` 与恢复旗标豁免);G5 `checkout -B`/`switch -C`(含旗标簇)目标名送 ref-update + checkout 模拟切换,G4(tag -f)与 G6(普通 commit)经拍板维持现状并文档明示理由。
+
 ## 0.0.18
 
 - docs(readme): unified install entry & client enumeration — the README install section now opens with a per-agent table around one npm source (`dsh plugin add` for DSH, `npm i -g` for the four stdin-hook clients Claude Code / Codex / OpenCode / Antigravity, `npm i -D` for Pi), the hook examples reference the globally-installed `gitflow-guard` binary, and the Quick Start points non-DSH users at that table; client lists made complete everywhere — blog intro `五个平台`→`六个平台` (+Pi), `docs/design.md` platform table and matrix section gain Pi, `HOOKS.md` registration table gains DSH/Pi as in-process clients —— 安装段统一为「一个 npm 包 + 逐客户端表」:DSH 走 `dsh plugin add`、四个 stdin-hook 客户端 `npm i -g` 后引用 `gitflow-guard`、Pi 用 `npm i -D`;Quick Start 补跨客户端跳转;各文档客户端清单补全——博客「五个平台」→「六个平台」加 Pi、design.md 平台表与矩阵小节补 Pi、HOOKS.md 注册表补 DSH/Pi(进程内客户端)。
