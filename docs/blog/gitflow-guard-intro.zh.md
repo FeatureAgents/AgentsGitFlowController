@@ -1,7 +1,6 @@
 # 让 AI 智能体真正走 GitFlow：从软规则到硬机制
 
-> **状态**：草稿（拟发布于知乎 / 掘金）。文末以"收录 PR"指代 [awesome-dsh-plugin 收录](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/3577)，发布前须以最终收录状态更新。
-> **项目**：[agents-gitflow-guard](https://github.com/FeatureAgents/AgentsGitFlowController) · MIT · [官方社区帖子](https://github.com/deepseek-ai/deepseek-harness/discussions/4896)
+> **项目**：[agents-gitflow-guard](https://github.com/FeatureAgents/AgentsGitFlowController) · MIT · npm：`agents-gitflow-guard`
 
 ---
 
@@ -75,4 +74,4 @@ push the feature first, then `gh pr create --base develop`.
 
 ---
 
-> 反馈 / 建议：GitHub Issues · [官方社区帖子](https://github.com/deepseek-ai/deepseek-harness/discussions/4896) · [awesome-dsh-plugin 收录 PR](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/3577)（合并后可在 DSH 内置插件市场一键安装）
+> 反馈 / 建议：GitHub Issues · [仓库](https://github.com/FeatureAgents/AgentsGitFlowController) · npm：`agents-gitflow-guard`
