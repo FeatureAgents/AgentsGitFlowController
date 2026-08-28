@@ -45,12 +45,12 @@ dsh plugin --profile web add agents-gitflow-guard@0.0.19
 
 ```bash
 # Claude Code · Codex · OpenCode · Antigravity — standalone hooks, no DSH needed
-npm i -g agents-gitflow-guard@0.0.18
+npm i -g agents-gitflow-guard@0.0.19
 ```
 
 ```bash
 # Pi — in-process extension
-npm i -D agents-gitflow-guard@0.0.18
+npm i -D agents-gitflow-guard@0.0.19
 ```
 
 > **Version gotcha**: a bare `add` or unpinned `npm i` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. (DSH users: the pnpm peer-dependency *warning* is expected — DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup; the plugin works normally.)

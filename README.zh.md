@@ -44,12 +44,12 @@ dsh plugin --profile web add agents-gitflow-guard@0.0.19
 
 ```bash
 # Claude Code · Codex · OpenCode · Antigravity —— 独立 hook,不需要 DSH
-npm i -g agents-gitflow-guard@0.0.18
+npm i -g agents-gitflow-guard@0.0.19
 ```
 
 ```bash
 # Pi —— 进程内扩展
-npm i -D agents-gitflow-guard@0.0.18
+npm i -D agents-gitflow-guard@0.0.19
 ```
 
 > **版本坑**: 裸 `add` 或不带版本的 `npm i` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。(DSH 用户: pnpm 打印的 peer 依赖 *警告* 属预期——DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`,插件正常工作。)
