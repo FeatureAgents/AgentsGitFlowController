@@ -82,7 +82,7 @@ gitflow-guard setup
 
 > ⚠️ **main is protected by default.** Trunk / single-branch users (everyone pushes straight to one branch) will get blocked on direct `main` pushes until they opt out — create `gitflow-guard.config.json` with `{ "enabled": false }`, or map your own branches (see [Configuration Reference](#configuration-reference)). `gitflow-guard status` repeats this notice whenever the built-in defaults are in effect.
 
-**Step 3 — verify.** Ask the agent (or run in a DSH session) to `git push origin develop`. Expect the tool call to be denied:
+**Step 3 — verify.** Ask the agent to `git push origin develop`. Expect the tool call to be denied:
 
 ```text
 Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
