@@ -35,18 +35,26 @@
 
 ## 快速开始——30 秒用上
 
-**第 1 步——安装**,然后重启 DSH(插件在进程启动时加载):
+**第 1 步——安装**。六个客户端吃同一个 npm 包 `agents-gitflow-guard`,按你的 agent 选一条:
 
 ```bash
-# 安装最新版
-dsh plugin --profile web add agents-gitflow-guard
-# ...或锁定已知良好版本(推荐; 同时绕开 registry 陈旧缓存)
+# DSH —— 进程内插件(装完重启 DSH; 插件在进程启动时加载)
 dsh plugin --profile web add agents-gitflow-guard@0.0.18
 ```
 
-> **版本坑**: 裸 `add` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。pnpm 打印的 peer 依赖 *警告* 属预期: DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`(插件正常工作)。
+```bash
+# Claude Code · Codex · OpenCode · Antigravity —— 独立 hook,不需要 DSH
+npm i -g agents-gitflow-guard@0.0.18
+```
 
-用的是别的 agent? 同一个 npm 包也适用于 Claude Code / Codex / OpenCode / Antigravity / Pi——见[安装详解](#安装详解)的逐客户端安装表。
+```bash
+# Pi —— 进程内扩展
+npm i -D agents-gitflow-guard@0.0.18
+```
+
+> **版本坑**: 裸 `add` 或不带版本的 `npm i` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。(DSH 用户: pnpm 打印的 peer 依赖 *警告* 属预期——DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`,插件正常工作。)
+>
+> hook 客户端(Claude Code · Codex · OpenCode · Antigravity)和 Pi 装完还要各做一步接线——见[安装详解](#安装详解)的逐客户端表。
 
 **第 2 步——配置**,在**项目根目录**创建 `gitflow-guard.config.json`:
 

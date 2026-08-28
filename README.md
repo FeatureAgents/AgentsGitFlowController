@@ -36,18 +36,26 @@ You define your own branches —
 
 ## Quick Start — 30 seconds to a guarded repo
 
-**Step 1 — install**, then restart DSH (plugins load at process startup):
+**Step 1 — install.** All six clients consume the same npm package `agents-gitflow-guard` — pick yours:
 
 ```bash
-# installs the latest release
-dsh plugin --profile web add agents-gitflow-guard
-# ...or pin an exact known-good version (recommended; also bypasses stale registry caches)
+# DSH — in-process plugin; restart DSH afterwards (plugins load at startup)
 dsh plugin --profile web add agents-gitflow-guard@0.0.18
 ```
 
-> **Version gotcha**: a bare `add` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. The peer-dependency *warning* pnpm may print is expected: DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup (the plugin works normally).
+```bash
+# Claude Code · Codex · OpenCode · Antigravity — standalone hooks, no DSH needed
+npm i -g agents-gitflow-guard@0.0.18
+```
 
-Using another agent? The same npm package also serves Claude Code, Codex, OpenCode, Antigravity, and Pi — see the per-agent install table in [Installation in detail](#installation-in-detail).
+```bash
+# Pi — in-process extension
+npm i -D agents-gitflow-guard@0.0.18
+```
+
+> **Version gotcha**: a bare `add` or unpinned `npm i` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. (DSH users: the pnpm peer-dependency *warning* is expected — DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup; the plugin works normally.)
+>
+> The hook clients (Claude Code · Codex · OpenCode · Antigravity) and Pi need one wiring step after install — walk the per-agent table in [Installation in detail](#installation-in-detail).
 
 **Step 2 — configure**, create `gitflow-guard.config.json` in your **project root**:
 
