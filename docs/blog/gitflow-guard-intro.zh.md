@@ -68,7 +68,7 @@ push the feature first, then `gh pr create --base develop`.
 
 ## 生态与兼容
 
-同一套核心同时服务五个平台：DSH（插件协议）、Claude Code、Codex、OpenCode、Antigravity（stdin hook 协议，README 有各平台配置示例）。MIT 协议，190 个测试全绿，发布在 npm（`agents-gitflow-guard`）。
+同一套核心同时服务六个平台：DSH（插件协议）、Claude Code、Codex、OpenCode、Antigravity（stdin hook 协议，README 有各平台配置示例）、Pi（进程内扩展协议）。MIT 协议，201 个测试全绿，发布在 npm（`agents-gitflow-guard`）。
 
 如果你经历过一次"agent 把代码推进了 develop/main"，这东西一次就能值回票价；没有经历过的团队，也不妨在引入 agent 协作之前先装上——规则先于事故。
 

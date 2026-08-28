@@ -42,10 +42,12 @@ You define your own branches —
 # installs the latest release
 dsh plugin --profile web add agents-gitflow-guard
 # ...or pin an exact known-good version (recommended; also bypasses stale registry caches)
-dsh plugin --profile web add agents-gitflow-guard@0.0.17
+dsh plugin --profile web add agents-gitflow-guard@0.0.18
 ```
 
 > **Version gotcha**: a bare `add` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. The peer-dependency *warning* pnpm may print is expected: DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup (the plugin works normally).
+
+Using another agent? The same npm package also serves Claude Code, Codex, OpenCode, Antigravity, and Pi — see the per-agent install table in [Installation in detail](#installation-in-detail).
 
 **Step 2 — configure**, create `gitflow-guard.config.json` in your **project root**:
 
@@ -307,12 +309,18 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 ---
 ## Installation in detail
 
-**Prerequisite**: a working [DSH](https://github.com/deepseek-ai/deepseek-harness) installation and **Node.js ≥ 22** on your `PATH` (matches the package `engines` floor and the lowest CI matrix tier — standalone hook users bypass npm but still need the runtime).
+**Prerequisite**: **Node.js ≥ 22** on your `PATH` (the package `engines` floor and the lowest CI matrix tier). Every client consumes the **same npm package** `agents-gitflow-guard` — only the mounting step differs.
 
-**From the npm registry** — the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo):
+| Agent | Install command | After that |
+|---|---|---|
+| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.18` | restart DSH — the plugin auto-mounts as a profile layer |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.18` | wire a hook to the `gitflow-guard` binary (below) |
+| Pi | `npm i -D agents-gitflow-guard@0.0.18` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
+
+**DSH — in-process plugin** (the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo)):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.17    # pin recommended, see note above
+dsh plugin --profile web add agents-gitflow-guard@0.0.18    # pin recommended, see note above
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.
@@ -326,14 +334,20 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 
 The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes it a profile layer — no manual profile editing.
 
-**Standalone agent hooks** — the same guard inside those agents, no DSH required. This repo ships project configs at `.claude/settings.json` (Claude Code), `.codex/hooks.json` (Codex), `.opencode/hook/hooks.yaml` (OpenCode), `.agents/hooks.json` (Antigravity / Google) and `.pi/settings.json` + `.pi/extensions/gitflow-guard.ts` (Pi); any other repo adds its own:
+**Standalone agent hooks** — Claude Code / Codex / OpenCode / Antigravity, no DSH required. Install the CLI once, then reference the `gitflow-guard` binary in each hook config:
+
+```bash
+npm i -g agents-gitflow-guard@0.0.18   # provides the `gitflow-guard` binary
+```
+
+This repo ships project configs at `.claude/settings.json` (Claude Code), `.codex/hooks.json` (Codex), `.opencode/hook/hooks.yaml` (OpenCode) and `.agents/hooks.json` (Antigravity / Google); any other repo adds its own:
 
 ```jsonc
 // Claude Code — .claude/settings.json
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "/abs/path/gitflow-guard check --platform claude" }] }
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform claude" }] }
     ]
   }
 }
@@ -344,7 +358,7 @@ The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node bin/gitflow-guard.mjs check --platform codex" }] }
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform codex" }] }
     ]
   }
 }
@@ -357,7 +371,7 @@ hooks:
     event: tool.before.bash
     actions:
       - bash: |
-          node "$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs" check --platform opencode
+          gitflow-guard check --platform opencode
 ```
 
 ```json
@@ -365,7 +379,7 @@ hooks:
 {
   "gitflow-guard": {
     "PreToolUse": [
-      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node bin/gitflow-guard.mjs check --platform antigravity" } ] }
+      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "gitflow-guard check --platform antigravity" } ] }
     ]
   }
 }
@@ -379,7 +393,7 @@ hooks:
 Pi loads extensions in-process (no stdin payload, no subprocess hook). Install the shipped entry point into the project and keep the package in devDependencies:
 
 ```bash
-npm i -D agents-gitflow-guard
+npm i -D agents-gitflow-guard@0.0.18
 mkdir -p .pi/extensions
 cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
 ```
@@ -392,7 +406,7 @@ cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-
 
 - The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout; Antigravity → JSON `{"decision":"deny","reason":...}` on stdout with `exit 0` (Antigravity requires exit 0 and rejects `hookSpecificOutput` / non-allow values). Pi has no stdin protocol: the in-process extension listens to the official `tool_call` event and denies via its return value `{ block: true, reason }` (the CLI subprocess only speaks the internal exit-2 contract).
 - Only the pre-tool event is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no post-tool hooks are required.
-- Use an **absolute path** to the binary — hook subprocesses may not inherit your shell `PATH`. `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs` (Claude Code), `node bin/gitflow-guard.mjs` (Codex, runs from the project working directory), or `$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs` (OpenCode) or `node bin/gitflow-guard.mjs` (Antigravity, relative to the workspace `.agents/` dir) also work from a checkout.
+- The examples above call the globally-installed `gitflow-guard` (`npm i -g`). If a hook subprocess can't see it on its `PATH`, point at the full binary path from `npm bin -g` — hook subprocesses may not inherit your interactive shell `PATH`. The `bin/gitflow-guard.mjs` paths in this repo's shipped configs only work from a checkout.
 - Fully opt-in: the hook does nothing unless the repo has `gitflow-guard.config.json` with `enabled: true`.
 
 ---
