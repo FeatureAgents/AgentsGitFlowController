@@ -13,6 +13,7 @@
 - **覆盖语义**：用户 `gitflow-guard.config.json` 存在时**深度合并覆盖**默认（只写想改的字段，其余沿用默认）。
 - **不做 `init` 子命令**：自定义直接用 README 覆盖说明。
 - **新增**："每客户端默认 hooks"→ 随包内置各客户端 hook 模板 + `gitflow-guard wire --client <name>` 落位命令。
+- **接线作用域 & 安装提示**：`wire`/`setup` 需**交互询问作用域**（`--global` 全局 vs `--project` 当前工程目录，默认工程目录），并在**写入全局目录前显式征得同意**；支持 `--dry-run`/`--unwire`；"安装时提示"落到 README 主路径 + `setup`。
 
 ---
 
@@ -92,10 +93,14 @@
 
 ### 4.2 各客户端默认 hooks（`gitflow-guard wire`）
 - **随包内置 hook 模板**（`hooks/` 下）：`claude.json`（`.claude/settings.json`）/`codex.json`（`.codex/hooks.json`）/`opencode.yaml`（`.opencode/hook/hooks.yaml`）/`antigravity.json`（`.agents/hooks.json`）/`pi/gitflow-guard.ts`（已存在）。
-- **新增子命令**：`gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi> [--project|--global] [--unwire] [--dry-run] [--repo <path>]`
-  - 行为：读取/合并对应客户端 hook 配置文件，**非破坏性**地加入（已存在则跳过/去重）；`--unwire` 移除；`--dry-run` 只打印将要写入的内容；文案走 i18n。
-  - `--client dsh` / `pi`：不写配置文件（进程内），仅打印接入引导。
-  - **安全**：写入用户客户端配置文件属"仓库外写端"，须 `--dry-run` + 输出 diff + `--yes` 确认；OpenCode 是 YAML，落位以"语义id"判重。
+- **新增子命令**：
+  - `gitflow-guard setup`：首次引导向导——交互询问"① 为哪个客户端接线 ② 全局 or 当前工程目录 ③ 是否允许改动配置文件"，然后落位；适合"安装后跑一次"。
+  - `gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi> [--global|--project] [--unwire] [--dry-run] [--yes] [--repo <path>]`：非交互单客户端落位；不传 `--global|--project` 则交互询问作用域。
+  - **作用域**：`--project`（默认）= 写工程的 `.claude/settings.json`、`.codex/hooks.json`、`.opencode/hook/hooks.yaml`、`.agents/hooks.json`；`--global` = 写 `~/.claude/settings.json`、`~/.codex/hooks.json`、`~/.config/opencode/...`、`~/.pi/...` 等。**写入全局目录前必须显式询问 + `--yes`，并打印将写入的完整路径与内容 diff。**
+  - **行为**：读取/合并对应配置文件，**非破坏性**加入（已存在则跳过/去重）；`--unwire` 移除；`--dry-run` 只打印；文案走 i18n。
+  - `--client dsh` / `pi`：不写配置文件（进程内），仅打印接入引导（`dsh plugin add` / 拷 `pi/gitflow-guard.ts`）。
+  - **安全**：写入用户文件（尤其全局目录）属"仓库外写端"，须 `--dry-run` + diff + 显式确认；OpenCode YAML 以"语义id"判重；Antigravity 实验降级标注。
+  - **安装时机**：宿主侧（`dsh plugin add`）无法中途弹窗，故"安装时提示"落到 **README 主路径 + `gitflow-guard setup`**——安装后按提示跑一次 setup，即完成"提示 + 作用域选择"。
 - **Antigravity 实验支持**：`wire --client antigravity` 标注"实验支持"，仅按官方文档落位，提示真机核验。
 
 ---
@@ -115,6 +120,8 @@
 3. `wire` 默认作用域：项目级还是全局？建议项目级（不污染 `~/.codex` 等）。
 4. 内置 hook 模板放包内（`files` 需加）还是仅作为 `wire` 的代码内模板？建议包内模板文件，可被用户直接拷贝。
 5. Antigravity（实验支持）是否纳入 `wire` 第一批，还是暂缓？
+6. `wire`/`setup` 默认作用域：工程目录还是全局？默认工程目录；是否暴露全局（建议是，但写入前须显式确认）。
+7. 是否提供 `setup` 向导（安装后一步式）？建议是——它是"安装时提示"的现实落点（宿主插件安装无法中途弹窗）。
 
 ---
 
@@ -124,8 +131,8 @@
 
 - [ ] **`src/config.ts`**：`DEFAULT_CONFIG` 补 `branches`（develop=integration / main=archive）且 `enabled:true`；`mergeConfig` 改为**深度合并**（用户字段覆盖默认，角色级合并），保留 `validateConfig`；注释默认已启用语义。
 - [ ] **`src/types.ts`**：如需加 `ClientId`（wire 目标枚举）或 `defaults` 开关则同步。
-- [ ] **`src/cli.ts`**：新增 `wire` 子命令（`--client/--unwire/--dry-run/--yes/--repo`）；`status` 输出增加"当前为内置默认 / main 受保护 / 如何关闭"引导。
-- [ ] **`src/i18n.ts`**：新增 wire/默认配置引导 MESSAGE_KEYS（en/zh）：成功/跳过/移除/需确认/已存在/默认启用/trunk 关闭引导。
+- [ ] **`src/cli.ts`**：新增 `wire`（`--client/--global|--project/--unwire/--dry-run/--yes/--repo`）与 `setup`（交互向导：客户端 + 作用域 + 确认）子命令；`status` 输出增加"当前为内置默认 / main 受保护 / 如何关闭"引导。
+- [ ] **`src/i18n.ts`**：新增 wire/setup/默认配置引导 MESSAGE_KEYS（en/zh）：成功/跳过/移除/需确认/已存在/默认启用/trunk 关闭引导/作用域询问（global|project）/写入全局目录确认。
 - [ ] **hook 模板**：新建 `hooks/{claude,codex,opencode,antigravity}.{json|yaml}`（含各平台正确命令前缀与协议）；复用 `pi/gitflow-guard.ts`。
 - [ ] **测试 `tests/config.spec.ts`/`tests/cli.spec.ts`**：无 config=默认生效（develop/main 受保护）；深合并（只写 production 也叠加默认、integration 仍在）；`enabled:false` 关闭；trunk（仅 main）默认提示；`wire` 幂等、`--unwire`、`--dry-run`、OpenCode yaml 落位；`wire dsh/pi` 只提示。
 - [ ] **文档 `README.md`/`README.zh.md`**：Quick Start 改主路径（安装 → 客户端 wire/DSH add → 默认已生效 → 演示拦截）；配置段改"内置默认 + 覆盖 + 关闭"；新增"各客户端默认 hooks（wire）"表；显著标注"main 默认受保护；trunk 用户请关闭"。保持中英结构对等。
@@ -140,7 +147,7 @@
 
 - **默认保护 `main` 会误伤 trunk/单分支用户**——必须强提示 + 易关闭（`status` 引导 + `enabled:false` + README 显著位置）。这是最大反噬风险。
 - **翻转 `enabled` 默认 = 改现有"无 config=关闭"语义**，会波及 `index.ts`（evaluateCommand）与现有测试；务必全矩阵回归。
-- **`wire` 写用户客户端配置文件**（仓库外写入）——必须 `--dry-run` + diff + `--yes`，幂等、不覆盖已有 hook；OpenCode YAML 需语义级去重；Antigravity 实验支持降级标注。
+- **`wire` 写用户客户端配置文件**（仓库外写入）——必须 `--dry-run` + diff + 显式确认；**写入全局目录（`~/.codex`、`~/.claude` 等）尤其要逐条展示将改的文件并征得同意**；幂等、不覆盖已有 hook；OpenCode YAML 语义级去重；Antigravity 实验降级标注。
 - **非安全边界**：默认开启（尤其保护 main）会让人误以为"有绝对保护"——文档与 `status` 输出持续提示"流程守卫，非安全边界；服务端分支保护仍要开"。
 - 所有新文案走 i18n；`verify:matrix` 的 zh-locale 回归可能需补 `wire`/默认配置分支。
 
@@ -149,6 +156,6 @@
 ## 9. 验收标准（DoD）
 
 - **配置**：新仓库无 config → 默认生效，`git push origin develop` 被拦（integration）、`git push origin main` 被拦（archive）；用户写 `{ "branches": { "production": ["release-*"] } }` → 在默认基础上叠加且 integration 仍受保护；`enabled:false` → 关闭。
-- **接线**：`gitflow-guard wire --client claude` 两次不重复（幂等）、`--unwire` 移除、`--dry-run` 只打印；`dsh`/`pi` 只输出引导；OpenCode yaml 正确落位。
+- **接线**：`gitflow-guard setup` 可交互选客户端/作用域/确认；`wire --client claude --project` 两次不重复、`--unwire` 移除、`--dry-run` 只打印；**未确认时不写全局目录**；`dsh`/`pi` 只输出引导；OpenCode yaml 正确落位。
 - **文档**：README 双语 Quick Start 与"默认配置+wire"表在结构上对等；显著标注"main 默认受保护，trunk 请关闭"。
 - **QA 三连**全绿；CHANGELOG 下版双语一条 feat；发布按现有 tag 流程（tag 从合并后 develop tip 打）。
