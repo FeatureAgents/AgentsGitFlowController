@@ -44,6 +44,17 @@ function tempRepo(config) {
   return dir
 }
 
+/** 真实 git 仓库但无 config 文件: 验证内置默认(integration=develop, archive=main)开箱即用 */
+function tempRepoNoConfig() {
+  const dir = mkdtempSync(join(tmpdir(), 'gf-matrix-noconfig-'))
+  execFileSync('git', ['init', '-q', '-b', 'develop'], { cwd: dir })
+  execFileSync('git', ['config', 'user.email', 'm@m'], { cwd: dir })
+  execFileSync('git', ['config', 'user.name', 'm'], { cwd: dir })
+  execFileSync('git', ['commit', '--allow-empty', '-qm', 'init'], { cwd: dir })
+  execFileSync('git', ['branch', 'main'], { cwd: dir })
+  return dir
+}
+
 /** 跑 bin 的 check: 返回 {code, stdout, stderr} */
 function runCheck(platform, payload, cwd) {
   try {
@@ -107,6 +118,25 @@ console.log('[A] DSH plugin logic (evaluateCommand)')
     check('默认 locale=en', d.locale === 'en', `locale=${d.locale}`)
     check('deny 文案为英文', /Protected branch/.test(d.reason?.why ?? ''), d.reason?.why)
     check('引导含 PR/MR', /PR\/MR/.test(d.reason?.next ?? ''), d.reason?.next)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+}
+
+console.log('[A0] 内置默认配置(无 config 文件, 开箱即用)')
+{
+  const repo = tempRepoNoConfig()
+  try {
+    const cases = [
+      ['develop', 'git push origin develop', 'deny'],
+      ['develop', 'git push origin main', 'deny'],
+      ['develop', 'git push origin feature/x', 'allow'],
+      ['feature/x', 'git push origin feature/x', 'allow'],
+    ]
+    for (const [branch, cmd, want] of cases) {
+      const r = await evaluateCommand(cmd, { repoRoot: repo, currentBranch: branch })
+      check(`[默认] [${branch}] ${cmd} → ${want}`, r.outcome === want, `got ${r.outcome}`)
+    }
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }
