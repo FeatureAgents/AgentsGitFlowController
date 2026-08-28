@@ -21,6 +21,10 @@ import type { Runner } from './repo'
 export { MESSAGE_KEYS, registerLocale } from './i18n'
 export type { Dict } from './i18n'
 
+// Pi 进程内扩展适配层(与 DSH 同为 stdin-hook 例外, 见 AGENTS.md §8 与 .agents/hooks/references/pi.md)
+export { createPiExtension } from './pi'
+export type { PiExtensionAPI, PiExtensionContext, PiExtensionOptions, PiToolCallEvent, PiToolCallResult } from './pi'
+
 export const name = 'gitflow-guard'
 
 export interface PluginConfig {

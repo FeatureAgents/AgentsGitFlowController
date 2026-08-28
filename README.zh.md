@@ -2,7 +2,7 @@
 
 > **有没有受够了 agent 跳过你的合入流程?**
 
-一个可自由配置分支角色的流程守卫,为 AI 编码 agent 而生——[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH)、Claude Code、Codex、OpenCode、Antigravity。  
+一个可自由配置分支角色的流程守卫,为 AI 编码 agent 而生——[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH)、Claude Code、Codex、OpenCode、Antigravity、Pi。  
 你自己定义分支——**集成分支**(feature 经 PR/MR 合入)、**预览分支**(环境终点)、**生产分支**、**归档分支**——每个角色各自配规则。agent 无法跳过流程,敏感合并始终留在你手上。
 
 [English](README.md) · [许可证](LICENSE)
@@ -41,7 +41,7 @@
 # 安装最新版
 dsh plugin --profile web add agents-gitflow-guard
 # ...或锁定已知良好版本(推荐; 同时绕开 registry 陈旧缓存)
-dsh plugin --profile web add agents-gitflow-guard@0.0.16
+dsh plugin --profile web add agents-gitflow-guard@0.0.17
 ```
 
 > **版本坑**: 裸 `add` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。pnpm 打印的 peer 依赖 *警告* 属预期: DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`(插件正常工作)。
@@ -308,7 +308,7 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 **从 npm registry**——标准路径,已在[快速开始](#快速开始30-秒用上)覆盖:
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.16    # 建议锁版本, 见上文提示
+dsh plugin --profile web add agents-gitflow-guard@0.0.17    # 建议锁版本, 见上文提示
 ```
 
 然后重启 DSH。升级用同一命令,再重启一次。
@@ -322,7 +322,7 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 
 包自带 `dsh.bundle.patch` 声明,`dsh plugin add` 自动把它挂为 profile 层,无需手工编辑 profile。
 
-**各 agent 独立 hook**——同一守卫也能在这些 agent 里跑,不依赖 DSH。本仓库已自带 `.claude/settings.json`(Claude Code)、`.codex/hooks.json`(Codex)、`.opencode/hook/hooks.yaml`(OpenCode)和 `.agents/hooks.json`(Antigravity / Google);其他仓库加自己的 hooks:
+**各 agent 独立 hook**——同一守卫也能在这些 agent 里跑,不依赖 DSH。本仓库已自带 `.claude/settings.json`(Claude Code)、`.codex/hooks.json`(Codex)、`.opencode/hook/hooks.yaml`(OpenCode)、`.agents/hooks.json`(Antigravity / Google)和 `.pi/settings.json` + `.pi/extensions/gitflow-guard.ts`(Pi);其他仓库加自己的 hooks:
 
 ```jsonc
 // Claude Code — .claude/settings.json
@@ -367,13 +367,26 @@ hooks:
 }
 ```
 
+```jsonc
+// Pi — .pi/settings.json(extensions 路径相对 .pi 解析)
+{ "extensions": ["extensions/gitflow-guard.ts"] }
+```
+
+Pi 以进程内扩展装载(没有 stdin payload,也没有子进程 hook)。把随包发布的入口装进项目、包留在 devDependencies:
+
+```bash
+npm i -D agents-gitflow-guard
+mkdir -p .pi/extensions
+cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
+```
+
 **GitHub Copilot —— 故意不提供 hook**。Copilot 自带这套守卫的原生能力: 工具级 **allow/deny/ask** 权限 + 项目 **rules**(`rules.json` + `AGENTS.md`)。对 Copilot 用户,直接引官方文档即可,不需要我们的插件:
 
 - [允许和拒绝工具使用(GitHub Docs)](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/allowing-tools)
 - [为 Copilot coding agent 添加自定义规则(GitHub Docs)](https://docs.github.com/en/copilot/customizing-copilot/adding-custom-rules-for-the-copilot-coding-agent)
 - 可选: Copilot 也有官方 [hooks 系统](https://docs.github.com/en/copilot/reference/hooks-reference)(`preToolUse` → `permissionDecision:"deny"`),想要命令级拦截可以自己接。
 
-- hook 读 stdin payload,按**各平台协议**作答:Claude Code / OpenCode → `exit 2`(stderr 展示原因 + "下一步"提示);Codex → stdout 输出 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`;Antigravity → stdout 输出 `{"decision":"deny","reason":...}` 且 **exit 0**(Antigravity 要求 exit 0,拒绝 hookSpecificOutput/非 allow 值)。
+- hook 读 stdin payload,按**各平台协议**作答:Claude Code / OpenCode → `exit 2`(stderr 展示原因 + "下一步"提示);Codex → stdout 输出 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`;Antigravity → stdout 输出 `{"decision":"deny","reason":...}` 且 **exit 0**(Antigravity 要求 exit 0,拒绝 hookSpecificOutput/非 allow 值)。Pi 没有 stdin 协议:进程内扩展监听官方 `tool_call` 事件,经返回值 `{ block: true, reason }` 拒绝(守卫 CLI 子进程只承载内部 exit-2 契约)。
 - 只需要**执行前事件**:守卫在命令执行*之前*拦截;没有特许可事后消费,因此无需执行后钩子。
 - 用**绝对路径**指向二进制——hook 子进程不一定继承你的 shell PATH。Claude Code 用 `${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs`,Codex 用 `node bin/gitflow-guard.mjs`,OpenCode 用 `$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs`、Antigravity 用 `node bin/gitflow-guard.mjs`(相对 workspace `.agents/` 目录)也可以。
 - 完全 opt-in:仓库没有 `gitflow-guard.config.json`(或 `enabled` 非 true)时 hook 什么都不做。
@@ -490,12 +503,12 @@ npm install
 npm test          # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit
 npm run typecheck     # tsc --noEmit, 0 Error
 npm run build         # tsdown → lib/(CLI 与插件共用)
-npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claude Code / Codex / OpenCode / Antigravity hook 编码
+npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claude Code / Codex / OpenCode / Antigravity hook 编码 + Pi 扩展
 ```
 
 **铁律**:任何逻辑改动必须 0 Error 构建 + 单测全绿 + 连续复测矩阵(`verify:matrix`)全绿后才算完成。
 
-**接入新的 agent 客户端**(如 Cursor / Windsurf):以下各项必须在同一个 commit 内完成——`src/platform.ts`(含测试与 `HookPlatform` 联合类型)、`.claude/settings.json` / `.codex/hooks.json` 旁新增一份仓库级 hook 配置、`.agents/hooks/references/<tool>.md`、`scripts/verify-matrix.mjs`、README 双语 hook 段与开头宣传语、`package.json` 的 description/keywords,以及 `CHANGELOG`。`npm run verify:matrix` 全绿才算完成。(同一清单见 [AGENTS.md](AGENTS.md) §8;DSH 为进程内插件不走 stdin-hook 清单,见该节例外说明。)
+**接入新的 agent 客户端**(如 Cursor / Windsurf):以下各项必须在同一个 commit 内完成——`src/platform.ts`(含测试与 `HookPlatform` 联合类型)、`.claude/settings.json` / `.codex/hooks.json` 旁新增一份仓库级 hook 配置、`.agents/hooks/references/<tool>.md`、`scripts/verify-matrix.mjs`、README 双语 hook 段与开头宣传语、`package.json` 的 description/keywords,以及 `CHANGELOG`。`npm run verify:matrix` 全绿才算完成。(同一清单见 [AGENTS.md](AGENTS.md) §8;DSH 与 Pi 为进程内接入,见该节例外说明。)
 
 ---
 

@@ -1,0 +1,3 @@
+{
+  "extensions": ["extensions/gitflow-guard.ts"]
+}
