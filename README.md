@@ -40,37 +40,47 @@ You define your own branches —
 
 ```bash
 # DSH — in-process plugin; restart DSH afterwards (plugins load at startup)
-dsh plugin --profile web add agents-gitflow-guard@0.0.19
+dsh plugin --profile web add agents-gitflow-guard@0.0.20
 ```
 
 ```bash
 # Claude Code · Codex · OpenCode · Antigravity — standalone hooks, no DSH needed
-npm i -g agents-gitflow-guard@0.0.19
+npm i -g agents-gitflow-guard@0.0.20
 ```
 
 ```bash
 # Pi — in-process extension
-npm i -D agents-gitflow-guard@0.0.19
+npm i -D agents-gitflow-guard@0.0.20
 ```
 
 > **Version gotcha**: a bare `add` or unpinned `npm i` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. (DSH users: the pnpm peer-dependency *warning* is expected — DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup; the plugin works normally.)
 >
-> The hook clients (Claude Code · Codex · OpenCode · Antigravity) and Pi need one wiring step after install — walk the per-agent table in [Installation in detail](#installation-in-detail).
+> The hook clients (Claude Code · Codex · OpenCode · Antigravity) need one wiring step after install — **one command per client** (below). Pi needs a copy step; DSH is already wired by install.
 
-**Step 2 — configure**, create `gitflow-guard.config.json` in your **project root**:
+**Step 2 — wire your client (no config file needed).** The guard ships with **built-in defaults that protect `develop` (integration) + `main` (archive)** — zero configuration, on by default. The only thing you need is to tell your AI client to invoke the guard, with one command per stdin-hook client (DSH is wired automatically; Pi just copies a file, see below):
 
-```jsonc
-{
-  "enabled": true,
-  "featurePattern": "feature/[\\w-]+",
-  "branches": {
-    "integration": ["develop"],   // integration: features merge in via PR, protected
-    "archive": ["main"]           // archive: archived by you after release
-  }
-}
+```bash
+# Claude Code → this repo's .claude/settings.json
+gitflow-guard wire --client claude --project --yes
 ```
 
-This one file is the entire setup: `integration` is the **only required** role; `preview` / `production` / `archive` are optional — add them only if your flow needs them. The plugin is opt-in per project — absent or `enabled: false`, it does nothing.
+```bash
+# Codex / OpenCode / Antigravity (each its own config file; --yes skips the y/N prompt)
+gitflow-guard wire --client codex --project --yes
+gitflow-guard wire --client opencode --project --yes
+gitflow-guard wire --client antigravity --project --yes     # experimental
+```
+
+```bash
+# Preview (no writes) / remove / interactive guide:
+gitflow-guard wire --client claude --dry-run
+gitflow-guard wire --client claude --unwire
+gitflow-guard setup
+```
+
+`wire` merges into your existing config **non-destructively** (already-present hooks are left untouched), and writes to your **project dir by default** — `--global` (all repos on this machine) always asks first or needs `--yes`. Per-client files and formats are mirrored in [Installation in detail](#installation-in-detail).
+
+> ⚠️ **main is protected by default.** Trunk / single-branch users (everyone pushes straight to one branch) will get blocked on direct `main` pushes until they opt out — create `gitflow-guard.config.json` with `{ "enabled": false }`, or map your own branches (see [Configuration Reference](#configuration-reference)). `gitflow-guard status` repeats this notice whenever the built-in defaults are in effect.
 
 **Step 3 — verify.** Ask the agent (or run in a DSH session) to `git push origin develop`. Expect the tool call to be denied:
 
@@ -79,9 +89,9 @@ Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
 Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-Messages are English by default; add `"locale": "zh"` to the config to switch to Chinese (see [Configuration Reference](#configuration-reference)).
+Messages are English by default; create a config with `"locale": "zh"` to switch to Chinese (see [Configuration Reference](#configuration-reference)).
 
-**Done.** The guard is live for this repo. Keep reading for the [Configuration](#configuration-reference) to map your own branches, or the [Gate Matrix](#gate-matrix--what-gets-blocked-what-passes) for the full decision table.
+**Done.** The guard is live for this repo with the built-in defaults. Want more stages (`preview` / `production`) or different branch names? Write a `gitflow-guard.config.json` and only the fields you care about — everything else keeps the built-in defaults. For the full decision table, see the [Gate Matrix](#gate-matrix--what-gets-blocked-what-passes).
 
 ### Full walkthrough — one feature, end to end
 
@@ -139,7 +149,7 @@ Nobody has to remember the rules — the rules are enforced.
 ## What it does — capabilities
 
 - **Blocks, before execution**: direct push / force-push / delete of protected role branches (integration / preview / production / archive); agent merging into production or archive.
-- **Role-driven, fully configurable**: `integration` is the only required role; `preview` / `production` / `archive` are optional arrays of branch names or regexes, each with its own update rules (`pr` / `flexible`, `mergeBy`).
+- **Role-driven, fully configurable**: `integration` (built-in default: `develop`) is the core role; `preview` / `production` / `archive` are optional arrays of branch names or regexes, each with its own update rules (`pr` / `flexible`, `mergeBy`).
 - **Merge-by-user where it matters**: production & archive merges stay in your hands — the plugin blocks the agent from clicking merge, so your action *is* the confirmation.
 - **Works with any naming**: branch names are mapped by your config, never hard-coded (see [Configuration](#configuration-reference)).
 - **Fully audited**: every deny is appended to an audit log under your user state directory (`~/.local/state/gitflow-guard/`, `%LOCALAPPDATA%\gitflow-guard` on Windows) — outside the repository, never committed, outside the agent's writable sandbox, and shared across all linked worktrees of one repository.
@@ -186,7 +196,7 @@ No chat-confirmation or permit store: sensitive merges (production / archive) ar
 
 #### 1. Config is the single source of truth
 
-Nothing about branch names or rules is hard-coded. `integration` is the only required role; `preview` / `production` / `archive` are optional arrays of exact names or regexes, each with its own `update` and `mergeBy`. The same binary scales from a solo `develop` to an enterprise multi-env pipeline.
+Nothing about branch names or rules is hard-coded. `integration` ships as a built-in default (`develop`); `preview` / `production` / `archive` are optional arrays of exact names or regexes, each with its own `update` and `mergeBy` — deep-merged over the defaults. The same binary scales from a solo `develop` to an enterprise multi-env pipeline.
 
 #### 2. Blocking happens before execution, not after
 
@@ -200,9 +210,28 @@ No plugin code decides "is this merge OK?" for production or archive. The gate s
 
 ## Configuration Reference
 
+### Built-in defaults & deep-merge override
+
+The guard is **on by default** — no `gitflow-guard.config.json` needed. It protects:
+
+| default | role | rule |
+|---|---|---|
+| `develop` | **integration** | no direct push; updates via PR/MR (`update: "pr"`) |
+| `main` | **archive** | no direct push / no agent merge; the archive merge is yours (`mergeBy: "user"`) |
+
+When you do create `gitflow-guard.config.json`, its fields are **deep-merged over the defaults**: each field/role you write replaces the default for that field/role, everything you don't write keeps the default. Write only what you want to change:
+
+```jsonc
+{
+  "branches": { "production": ["release-[\\w-]+"] }  // defaults keep develop+main; production is added
+}
+```
+
+**Disable entirely** (trunk / single-branch flows): `{ "enabled": false }`. Fixing an accidental block is a one-file change, and `gitflow-guard status` always explains what is in effect (including when it is the built-in defaults).
+
 ### Branch roles — the model behind the checks
 
-Only **`integration`** is required. Every other role is optional — configure what your flow actually uses, and each entry is an exact branch name **or** a regex pattern.
+A **role** maps branch names (or regexes) to a rule set. `integration` is provided by the defaults; every other role is optional.
 
 ```text
 feature branches ──(free)──> integration (integration branch; updates via PR/MR)
@@ -216,10 +245,10 @@ archive (optional; you archive after release)
 | role | config key | required? | enforced behavior |
 |---|---|---|---|
 | **feature** | `featurePattern` | — | free: commit / push / sync / rebase |
-| **integration** | `branches.integration` | always | no direct push (default `pr`); features merge in via PR/MR |
+| **integration** | `branches.integration` | default (`develop`) | no direct push (default `pr`); features merge in via PR/MR |
 | **preview** | `branches.preview` (array) | optional | no direct push; updates via PR/MR only (env endpoints) |
 | **production** | `branches.production` (array) | optional | PR/MR only; merge by user only (`mergeBy: "user"`) |
-| **archive** | `branches.archive` (array) | optional | archive PR/MR may be created by agents; the merge stays user-hand only |
+| **archive** | `branches.archive` (array) | default (`main`) | archive PR/MR may be created by agents; the merge stays user-hand only |
 
 ### Customizing branch names & rules — any naming works
 
@@ -259,10 +288,10 @@ archive (optional; you archive after release)
 
 ```jsonc
 {
-  "enabled": true,                     // opt-in: file exists AND enabled=true
+  "enabled": true,                     // default true — set false to turn the guard off
   "featurePattern": "feature/[\\w-]+", // JS regex matching your working/feature branches
   "branches": {
-    "integration": { "branches": ["develop"], "update": "pr" },  // REQUIRED
+    "integration": { "branches": ["develop"], "update": "pr" },  // default: ["develop"] — omit to keep
     "preview":     { "branches": ["ita1"], "update": "pr" },     // optional
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // optional
     "archive":     ["main"]                                      // optional
@@ -288,8 +317,8 @@ archive (optional; you archive after release)
   registerLocale('fr', fr)
   ```
 - **Unknown locales**: an unregistered `"locale"` value falls back to English during interception (by design — hooks never stall on wording), so a typo is easy to miss; the one-line warning shows up in `gitflow-guard status`.
-- **Validation**: `integration` is required; overlapping role entries are rejected; invalid regex is rejected. **Any error disables the plugin for that project** (reported) rather than applying a half-guessed setup.
-- **Strict mode**: by default a broken config warns on stderr once and lets the command pass (fail-open, so a typo can't wedge your tooling). `"strict": true` flips config errors and internal errors to **block** (fail-closed) — for high-risk repos. A missing file or explicit `enabled: false` stays silent either way.
+- **Validation**: overlapping role entries are rejected; invalid regex is rejected. **Any config error reverses the project to "not enabled"** (reported) rather than applying a half-guessed setup; watch out that a role you override with the same branch name as a default role (e.g. mapping `main` to integration while the default archive is still `main`) is an overlap error — cover or drop the other role too.
+- **Strict mode**: by default a broken config warns on stderr once and lets the command pass (fail-open, so a typo can't wedge your tooling). `"strict": true` flips config errors and internal errors to **block** (fail-closed) — for high-risk repos. An explicit `enabled: false` stays silent; a *missing* file is not an error anymore — the built-in defaults (develop+main) are in effect.
 
 ---
 
@@ -327,14 +356,14 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 
 | Agent | Install command | After that |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.19` | restart DSH — the plugin auto-mounts as a profile layer |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.19` | wire a hook to the `gitflow-guard` binary (below) |
-| Pi | `npm i -D agents-gitflow-guard@0.0.19` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
+| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.20` | restart DSH — the plugin auto-mounts as a profile layer |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.20` | `gitflow-guard wire --client <name>` — one command per client (below) |
+| Pi | `npm i -D agents-gitflow-guard@0.0.20` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
 
 **DSH — in-process plugin** (the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo)):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.19    # pin recommended, see note above
+dsh plugin --profile web add agents-gitflow-guard@0.0.20    # pin recommended, see note above
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.
@@ -348,13 +377,17 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 
 The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes it a profile layer — no manual profile editing.
 
-**Standalone agent hooks** — Claude Code / Codex / OpenCode / Antigravity, no DSH required. Install the CLI once, then reference the `gitflow-guard` binary in each hook config:
+**Standalone agent hooks** — Claude Code / Codex / OpenCode / Antigravity, no DSH required. Install the CLI once, then wire one client per command (the guard is on by default via its built-in config, so wiring is all that remains):
 
 ```bash
-npm i -g agents-gitflow-guard@0.0.19   # provides the `gitflow-guard` binary
+npm i -g agents-gitflow-guard@0.0.20   # provides the `gitflow-guard` binary
+gitflow-guard wire --client claude --project --yes
+gitflow-guard wire --client codex --project --yes
+gitflow-guard wire --client opencode --project --yes
+gitflow-guard wire --client antigravity --project --yes   # experimental
 ```
 
-This repo ships project configs at `.claude/settings.json` (Claude Code), `.codex/hooks.json` (Codex), `.opencode/hook/hooks.yaml` (OpenCode) and `.agents/hooks.json` (Antigravity / Google); any other repo adds its own:
+`wire` reads the existing config file (if any), merges the hook entry in without touching anything else, is idempotent (already wired → skipped), supports `--dry-run` to preview and `--unwire` to remove, and asks before touching `--global` files. The exact files it writes (for reference, and for hand-writing instead of `wire`) are:
 
 ```jsonc
 // Claude Code — .claude/settings.json
@@ -407,7 +440,7 @@ hooks:
 Pi loads extensions in-process (no stdin payload, no subprocess hook). Install the shipped entry point into the project and keep the package in devDependencies:
 
 ```bash
-npm i -D agents-gitflow-guard@0.0.19
+npm i -D agents-gitflow-guard@0.0.20
 mkdir -p .pi/extensions
 cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
 ```
@@ -421,7 +454,8 @@ cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-
 - The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout; Antigravity → JSON `{"decision":"deny","reason":...}` on stdout with `exit 0` (Antigravity requires exit 0 and rejects `hookSpecificOutput` / non-allow values). Pi has no stdin protocol: the in-process extension listens to the official `tool_call` event and denies via its return value `{ block: true, reason }` (the CLI subprocess only speaks the internal exit-2 contract).
 - Only the pre-tool event is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no post-tool hooks are required.
 - The examples above call the globally-installed `gitflow-guard` (`npm i -g`). If a hook subprocess can't see it on its `PATH`, point at the full binary path from `npm bin -g` — hook subprocesses may not inherit your interactive shell `PATH`. The `bin/gitflow-guard.mjs` paths in this repo's shipped configs only work from a checkout.
-- Fully opt-in: the hook does nothing unless the repo has `gitflow-guard.config.json` with `enabled: true`.
+- **On by default**: the built-in config (integration=`develop`, archive=`main`) is active without any file. Trunk / single-branch repos: create `gitflow-guard.config.json` with `{ "enabled": false }`, or map your own branches. A custom config **deep-merges** over the defaults — write only the fields you want to change.
+- `wire` never removes or rewrites your existing hook entries — it only adds its own command (deduped) and, with `--unwire`, removes exactly that command again.
 
 ---
 
@@ -429,7 +463,7 @@ cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-
 
 ### My branches don't follow the default names — can I use it?
 
-Yes — nothing about the branch names is fixed. `integration` is the only required role; its entries (and those of `preview` / `production` / `archive`) are any exact branch names or regex patterns you like. `featurePattern` tells the plugin how to recognize your working branches.
+Yes — nothing about the branch names is fixed. `integration` ships as a built-in default (`develop`) and any custom config deep-merges over it; its entries (and those of `preview` / `production` / `archive`) are any exact branch names or regex patterns you like. `featurePattern` tells the plugin how to recognize your working branches.
 
 A team that calls its integration branch `master`, adds a `beta` preview, and prefixes feature branches with `fix/` writes exactly that into the config; every block, report, and audit then speaks those names. There is no convention you must adopt — only a mapping you declare. See [Customizing branch names & rules](#customizing-branch-names--rules--any-naming-works).
 
@@ -475,7 +509,7 @@ The blocks are reserved for: (1) direct writes to protected role branches, and (
 
 A half-guessed setup is never applied by accident: any validation error disables the guard for that project and reports the errors.
 
-Common mistakes: missing `integration` (required), overlapping a branch across two roles (rejected explicitly), and a `featurePattern` that doesn't compile (rejected as invalid regex). The failure is loud and the file is one JSON object, so the fix is usually a thirty-second correction.
+Common mistakes: overriding a role with the same branch name as a default role (e.g. `main` as integration while the default archive is still `main` — an explicit overlap error; cover or drop the other role too), overlapping a branch across two roles (rejected), and a `featurePattern` that doesn't compile (rejected as invalid regex). The failure is loud and the file is one JSON object, so the fix is usually a thirty-second correction.
 
 ---
 
@@ -498,7 +532,7 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 
 | term | meaning |
 |---|---|
-| **integration** | the branch and only required role (`branches.integration`); features merge in via PR/MR; protected |
+| **integration** | the core role (built-in default: `develop`); features merge in via PR/MR; protected |
 | **preview** | optional env-endpoint branches (`branches.preview`, array); updates via PR/MR only |
 | **production** | optional production branches (`branches.production`, array); PR/MR + merge by user only |
 | **archive** | optional post-release archive branch (`branches.archive`); user-hand only |

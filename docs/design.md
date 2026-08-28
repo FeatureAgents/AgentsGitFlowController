@@ -53,17 +53,17 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 返回 {kind:'deny',reason}
 ```
 
-支撑层: `config.ts`(opt-in 配置加载+校验+strict 位)、`i18n.ts`(en/zh + registerLocale 运行时扩展)、`cli.ts`(status / audit / check)、`types.ts`。
+支撑层: `config.ts`(内置默认配置 + 深度合并覆盖 + 校验 + strict 位)、`i18n.ts`(en/zh + registerLocale 运行时扩展)、`cli.ts`(status / audit / check / wire / setup)、`wire.ts`(各客户端默认 hook 落位)、`types.ts`。
 
 ## 4. 分支角色模型
 
 ```jsonc
-// gitflow-guard.config.json(项目根, opt-in: 有文件且 enabled=true 才生效)
+// gitflow-guard.config.json(项目根, 可选): 深度合并覆盖内置默认(默认保护 develop=integration / main=archive; 无文件也生效, enabled:false 关闭)
 {
   "enabled": true,
   "featurePattern": "feature/[\w-]+",       // 自由开发分支识别
   "branches": {
-    "integration": ["develop"],              // 唯一必填角色
+    "integration": ["develop"],              // 核心角色(内置默认); 缺省沿用默认
     "preview":    ["release/.*"],            // 可选; 条目=精确名或正则
     "production": { "branches": ["main"], "update": "pr", "mergeBy": "user" },
     "archive":    ["archive/.*"]
@@ -126,7 +126,8 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 
 | 场景 | 行为 |
 |---|---|
-| 无配置文件 / `"enabled": false` | 静默跳过(opt-in 语义) |
+| 无配置文件 | **内置默认生效**(integration=develop, archive=main; 默认开启语义, 见 §2.1) |
+| `"enabled": false` | 静默关闭(显式关闭路径) |
 | JSON 损坏 / 字段校验失败 | stderr 一行告警(不再静默), 门禁放行; exit 仍 0 不破坏工具管道 |
 | `"strict": true` | 上述异常改为 fail-closed(拦截), 高风险仓库选用 |
 | JSON 整体损坏时的 strict 位 | 按原文正则保守提取, 最坏形态下 fail-closed 仍生效 |
@@ -233,4 +234,5 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 | 0.0.17 | Pi 进程内扩展接入(官方 tool_call 事件 + {block:true} 拒绝; 见 .agents/hooks/references/pi.md), 真机验证 108 用例矩阵全绿 |
 | 0.0.18 | 安装/配置文档统一为「一个 npm 包 + 逐客户端表」, wire scope(global/project)决策与默认配置落档 |
 | 0.0.19 | Pi 真机空隙修复: `sudo` 剥壳(含 -u 消费)、`symbolic-ref` 收编 ref-update、`cherry-pick`/`revert` 收编 ref-move(-n/恢复旗标豁免)、`checkout -B/-C` 目标名送 ref-update; G4(tag -f)与 G6(普通 commit)经拍板维持现状并明示理由(§5) |
+| 0.0.20 | **内置默认配置 + 每客户端默认 hooks**: 无 config 也默认保护 develop(integration)+main(archive), 用户配置深度合并覆盖; 新增 `wire`(落位/卸载/预览/作用域询问/全局显式确认)与 `setup`(交互向导); 各客户端 hook 模板随包内置; status 输出默认配置提示与未接线引导 |
 
