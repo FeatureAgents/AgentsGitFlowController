@@ -6,6 +6,7 @@
 //   D) zh locale
 //   E) antigravity 编码
 //   F) OpenCode hook    (gitflow-guard check --platform opencode)
+//   G) Pi 扩展          (createPiExtension tool_call block 契约, 真实 CLI 走通)
 // 用法: npm run verify:matrix (内含 npm run build + 本脚本)
 
 import { execFileSync } from 'node:child_process'
@@ -13,7 +14,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { evaluateCommand } from '../lib/index.mjs'
+import { createPiExtension, evaluateCommand } from '../lib/index.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BIN = join(ROOT, 'bin', 'gitflow-guard.mjs')
@@ -165,6 +166,29 @@ console.log('[F] OpenCode hook (--platform opencode)')
     check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
     const ok = runCheck('opencode', JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'ls -la' }, cwd: repo }), repo)
     check('放行: exit 0 且无输出(快路径)', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+}
+
+console.log('[G] Pi extension (tool_call block contract, real CLI)')
+{
+  const repo = tempRepo(CONFIG)
+  try {
+    // 真实 wire: 扩展以 node 直接跑本仓库 bin, 不再注入 run
+    const extension = createPiExtension({ bin: [process.execPath, BIN] })
+    let handler
+    extension({ on: (_event, h) => (handler = h) })
+    const evt = (command) => ({ toolName: 'bash', input: { command } })
+    const ctx = { cwd: repo }
+    const deny = await handler(evt('git push origin develop'), ctx)
+    check('拦截: {block:true, reason} 含 Protected branch', deny?.block === true && /Protected branch/.test(deny.reason ?? ''), JSON.stringify(deny))
+    const allow = await handler(evt('git checkout -b feature/y'), ctx)
+    check('放行: 合法 git 命令(走真实 CLI)', allow === undefined, JSON.stringify(allow))
+    const fast = await handler(evt('npm test'), ctx)
+    check('放行: 非 git 命令(快路径)', fast === undefined, JSON.stringify(fast))
+    const skip = await handler({ toolName: 'read', input: { command: 'git push origin develop' } }, ctx)
+    check('放行: 非 bash/powershell 工具', skip === undefined, JSON.stringify(skip))
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }

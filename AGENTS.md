@@ -92,9 +92,10 @@ AgentsGitFlowController/
 
 ## 8. 客户端支持清单(新增 agent 平台时必须逐项同步)
 
-> 每次给守卫新增一个客户端接入(已有 DSH / Claude Code / Codex / OpenCode / Antigravity;未来如 Cursor 等),按以下清单逐项同步,最后 `npm run verify:matrix` 全绿才算完成。**漏一项就是隐性半成品**。
+> 每次给守卫新增一个客户端接入(已有 DSH / Claude Code / Codex / OpenCode / Antigravity / Pi;未来如 Cursor 等),按以下清单逐项同步,最后 `npm run verify:matrix` 全绿才算完成。**漏一项就是隐性半成品**。
 > **例外: GitHub Copilot 不在本插件接入范围** —— 其原生 allow/deny/ask 权限 + rules 已覆盖守卫场景; 官方另有 hooks 系统可由用户自行接入(官方文档见 README)。本插件不为它造半个 hook,也不声称支持该平台。
 > **例外: DSH 走进程内插件协议, 不经 stdin-hook 通道** —— 本清单第 1/3/4 条(stdin payload 形状、hook 注册配置、stdin 参考文档)对 DSH 不适用: 其挂载物是 `patch.yml` + `dsh.bundle.patch`(package.json `"dsh": {"bundle": {"patch": "./patch.yml"}}`), 拦截由 `src/index.ts` 的 `apply()` 监听 `tools/pre-execute`、以返回值 `{kind:'deny', reason}` 表达(stdin payload / exit code 协议对其无意义), 协议记载见 `.agents/hooks/references/dsh.md`。其余平台按全清单逐项执行。
+> **例外: Pi 走进程内扩展协议, 不经 stdin-hook 通道** —— 清单第 1/2/3/4 条对 Pi 按此形态执行: 协议层= `src/pi.ts` 的 `createPiExtension()` + `tests/pi.spec.ts`(监听官方 `tool_call` 事件, 拒绝以返回值 `{block:true, reason}` 表达, 非 stdin/exit code); CLI `--platform` 透传不适用(守卫 CLI 仅作内部子进程, `--platform claude` 只是进程间 deny 编码选择); 仓库级 hook 配置= `.pi/settings.json` + `.pi/extensions/gitflow-guard.ts`(随包发布 `pi/gitflow-guard.ts` 供复制); 参考文档= `.agents/hooks/references/pi.md`(对齐官方 pi.dev/docs/extensions)。第 5/6/7/8 条与其他平台同款执行。
 
 1. **协议层** `src/platform.ts` + `tests/platform.spec.ts`:
    - `detectPlatform`: 加该平台 payload 判别字段;`extractHookPayload`: 加 stdin 形状;`encodeDeny`: 加拦截协议(exit 码 / stdout JSON 形状)。
