@@ -93,9 +93,9 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 | pr-merge 目标 archive | 一律 deny(仅用户亲手) |
 | pr-merge 目标无法解析(gh/glab 失效) | **一律保守 deny**(0.0.11: 不能按 head 推断放行) |
 | branch-delete 受保护分支(-d/-D/--delete) | deny |
-| ref-update(update-ref 直改 refs / branch -m 改名 / branch -f 复位) | 目标为受保护分支 → deny |
-| ref-move(reset/rebase/amend/filter-branch 改写当前 tip) | 当前分支受保护 → deny(与 local-merge 同型); feature/other 自由; rebase --abort/--continue 等恢复旗标豁免 |
-| checkout/switch | 放行; evaluateCommand 用它模拟后续段的当前分支 |
+| ref-update(update-ref / symbolic-ref 直改 refs、branch -m 改名、branch -f 复位、checkout -B/-C 强制重建) | 目标为受保护分支 → deny |
+| ref-move(reset/rebase/amend/filter-branch/cherry-pick/revert 改写当前 tip) | 当前分支受保护 → deny(与 local-merge 同型); feature/other 自由; 恢复旗标(abort/continue/skip/quit)与 -n/--no-commit 形态豁免 |
+| checkout/switch(含 -b/-c 新建) | 放行; evaluateCommand 用它模拟后续段的当前分支 |
 | gitflow-guard status/audit | 放行(只读) |
 | 其余(commit/push feature/只读等) | 放行 |
 
@@ -104,14 +104,21 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 - 多段命令(&&/;/管道拆段)任一段 deny 即整体拦截; 单个非 flag 参数的 push(remote 还是 refspec 歧义)按双解释保守分类。
 - deny 文案 = why(事实+规则)+ next(该做什么), 全部经 i18n 渲染。
 
+**明确维持现状的两处(不扩面, 理由固化防回归)**:
+
+- `git tag -f` 移动 tag(即使指向受保护分支): 维持豁免。与 `push --tags` 同型——tag 不在分支角色守卫语义内; tag 推送/移动由远端 tag 权限与 CI 校验兜底。
+- 受保护分支上的普通 `git commit`(非 --amend): 维持放行。守卫只管分支角色与合入路径、不管内容; 拆条执行导致本地 tip 移动的真实风险由 push 守门兜底(远端受保护, 零污染), 拦截普通 commit 会误伤 hotfix/本地暂存提交等合法工作流。
+
+**新增拦截面(0.0.19, Pi 真机空隙修复)的原理**: `checkout -B/-C`、`symbolic-ref` 与 `cherry-pick`/`revert` 都落在「改写受保护 ref(tip)」的既有语义内——前者直改既有 ref(送 ref-update), 后者改写当前分支 tip(送 ref-move), 只是此前解析面漏掉; `sudo` 与 `env` 同属执行前缀, 剥壳后递归分类即可覆盖。
+
 ## 6. 命令识别层(classify)
 
 纯函数, 无 I/O, 对抗语料回归覆盖:
 
 - **分段**: `&&` `||` `|` `;` 换行拆段, 引号内分隔符不算。
 - **嵌套**: 反引号与 `$()` 内层文本递归送分类(单引号内不展开, 与 shell 语义一致); 子 shell 括号包裹剥离。
-- **解包**: shell 解释器包装(`sh/bash/zsh/dash/ksh -c`, 含 `-lc` 合并短旗标)取脚本体重分类; 执行前缀 `env`/`command`/`nohup`/`xargs` 与 `VAR=x` 赋值逐层剥离; 绝对路径命令取 basename。
-- **git 形态**: 子命令前全局选项(`-C`/`-c k=v`/`--git-dir` 等)剥离后再判; `push` refspec 族(`+` 强推前缀、`src:`/`:dst` 删除、`refs/heads/` 前缀剥离、`--tags` 豁免、HEAD/裸推延迟到门禁按模拟分支解析); `pull` 取末个非 flag 为来源交本地合入门禁(fetch+merge 不再绕过); plumbing 收编(`send-pack` 按推送语义、`update-ref` 直改 refs)。
+- **解包**: shell 解释器包装(`sh/bash/zsh/dash/ksh -c`, 含 `-lc` 合并短旗标)取脚本体重分类; 执行前缀 `env`/`command`/`nohup`/`xargs`/`sudo`(含 `-u <user>` 参数消费)与 `VAR=x` 赋值逐层剥离; 绝对路径命令取 basename。
+- **git 形态**: 子命令前全局选项(`-C`/`-c k=v`/`--git-dir` 等)剥离后再判; `push` refspec 族(`+` 强推前缀、`src:`/`:dst` 删除、`refs/heads/` 前缀剥离、`--tags` 豁免、HEAD/裸推延迟到门禁按模拟分支解析); `pull` 取末个非 flag 为来源交本地合入门禁(fetch+merge 不再绕过); plumbing 收编(`send-pack` 按推送语义、`update-ref`/`symbolic-ref` 直改 refs 送 ref-update); `cherry-pick`/`revert` 送 ref-move(`-n`/`--no-commit` 与恢复旗标豁免); `checkout -B/-C`(含旗标簇)目标名送 ref-update + checkout 模拟切换两段。
 - **gh/glab**: `gh pr create --base|-B`、`glab mr create --target-branch`、`gh pr merge <n>`、`glab mr merge <id>`; `-h/--help/--version` 不误判。
 - **已知不可防**(如实边界, 见 README 局限节): forge API 直连、解释器子进程内嵌脚本——服务端分支保护是最终边界。
 
@@ -223,4 +230,7 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 | 0.0.12 | registerLocale 运行时扩展; CLI 全文案随 --locale; 审计 ISO 时间戳; 包元数据补全 |
 | 0.0.13 | ref-move/ref-update 命令族收编(reset/rebase/amend/filter-branch/update-ref/branch -m/-f); 组合旗标绕过封堵; 发版 tag 改从合并后 develop 打 + 一分支一 PR 铁律; design.md 加历史横幅 |
 | 本版(0.0.14) | **运行时数据迁出仓库**(§10, 堵「agent 伪造自身授权状态」的后门); 本文重写为现行唯一规格(取代历史横幅方案) |
+| 0.0.17 | Pi 进程内扩展接入(官方 tool_call 事件 + {block:true} 拒绝; 见 .agents/hooks/references/pi.md), 真机验证 108 用例矩阵全绿 |
+| 0.0.18 | 安装/配置文档统一为「一个 npm 包 + 逐客户端表」, wire scope(global/project)决策与默认配置落档 |
+| 0.0.19 | Pi 真机空隙修复: `sudo` 剥壳(含 -u 消费)、`symbolic-ref` 收编 ref-update、`cherry-pick`/`revert` 收编 ref-move(-n/恢复旗标豁免)、`checkout -B/-C` 目标名送 ref-update; G4(tag -f)与 G6(普通 commit)经拍板维持现状并明示理由(§5) |
 
