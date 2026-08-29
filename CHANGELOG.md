@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.21
+
+- docs(readme): complete en/zh parity pass — README.md and README.zh.md now align at every paragraph and content point: the Quick Start Step 3 lost its DSH-only parenthetical, the zh Why section regains the four-paragraph structure, the English locale note mirrors the Chinese message sample and the config file name, and the glossary archive row gains the (array) / agents-may-create-PR/MRs points —— README 双语逐段逐内容点对齐:Quick Start 第 3 步移除 DSH-only 括号、「为什么」节中文版恢复四段结构、英文 locale 提示补齐中文效果示例与配置文件文件名、术语表 archive 行补全「(数组)/ agent 可创建 PR/MR」两点。
+
 ## 0.0.20
 
 - feat(config): built-in defaults & deep-merge override — the guard now ships with zero-config defaults that protect develop (integration) + main (archive) and is ON without any gitflow-guard.config.json; a custom config deep-merges over the defaults (write only what you change — roles you don't write keep the default, enabled defaults to true, disable with `enabled: false`), and `status` reports when the built-in defaults are in effect plus a trunk/single-branch opt-out notice (missing integration is no longer an error) —— 内置默认配置 + 深度合并覆盖:无 gitflow-guard.config.json 也默认保护 develop(integration)+main(archive) 并开启守卫;自定义配置在默认之上按字段深度合并(只写想改的,未写的角色沿用默认;enabled 默认 true,写 `enabled: false` 关闭);status 会提示「当前为内置默认」与 trunk/单分支关闭路径(缺 integration 不再报错)。
