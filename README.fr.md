@@ -296,6 +296,12 @@ archive (optionnel ; archivage manuel après release)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // optionnel
     "archive":     ["main"]                                      // optionnel
   },
+  "worktree": {                        // optionnel: garde de l'arbre de travail et de la base amont
+    "requireCleanOnPr": false,         // exige un état propre (staged/unstaged) avant de créer une PR (défaut false)
+    "requireCleanOnMerge": false,      // exige un arbre de travail propre avant de fusionner (défaut false)
+    "allowUntracked": true,            // autorise les fichiers non suivis (??); false bloque en leur présence (défaut true)
+    "requireUpstreamSynced": false     // exige la synchronisation avec la base amont avant de créer une PR (défaut false)
+  },
   "locale": "en",                      // optionnel: langue des messages — toute locale enregistrée ('en'/'zh' intégrées) ; les valeurs inconnues avertissent dans status et basculent sur l'anglais
   "strict": false,                     // optionnel: fail-closed — les erreurs de config / internes bloquent au lieu d'avertir et d'autoriser
   "ci": { "enabled": true }            // optionnel: contrôles gh pr journalisés à titre indicatif

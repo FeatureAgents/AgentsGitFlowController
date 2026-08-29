@@ -296,6 +296,12 @@ archive (optional; Sie archivieren nach dem Release)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // optional
     "archive":     ["main"]                                      // optional
   },
+  "worktree": {                        // optional: Arbeitsbaum- und Upstream-Baseline-Guard
+    "requireCleanOnPr": false,         // vor PR-Erstellung sauberen Zustand fordern (Standard false)
+    "requireCleanOnMerge": false,      // vor Merge sauberen Arbeitsbaum fordern (Standard false)
+    "allowUntracked": true,            // nicht nachverfolgte Dateien (??) erlauben; false blockiert bei Vorhandensein (Standard true)
+    "requireUpstreamSynced": false     // vor PR-Erstellung Synchronisation mit Upstream-Baseline fordern (Standard false)
+  },
   "locale": "en",                      // optional: Nachrichtensprache — jedes registrierte Locale ('en'/'zh' integriert); unbekannte Werte warnen in status und fallen auf Englisch zurück
   "strict": false,                     // optional: Fail-Closed — ungültige Konfiguration / interne Fehler blockieren statt zu warnen und durchzulassen
   "ci": { "enabled": true }            // optional: gh pr checks werden als Referenz protokolliert

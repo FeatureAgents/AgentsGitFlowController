@@ -295,6 +295,12 @@ archive (任意; リリース後に人間がアーカイブ)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // 任意
     "archive":     ["main"]                                      // 任意
   },
+  "worktree": {                        // 任意: ワークツリーと上流ベースラインガード
+    "requireCleanOnPr": false,         // PR 作成前にステージ/未ステージ変更のクリーンを要求 (デフォルト false)
+    "requireCleanOnMerge": false,      // マージ前にワークツリーのクリーンを要求 (デフォルト false)
+    "allowUntracked": true,            // 未追跡ファイル (??) を許可するか; false で存在時にブロック (デフォルト true)
+    "requireUpstreamSynced": false     // PR 作成前に上流ベースラインとの同期を要求 (デフォルト false)
+  },
   "locale": "en",                      // 任意: メッセージ言語 — 登録済み locale ('en'/'zh' 組み込み); 未登録値は status で警告され英語にフォールバック
   "strict": false,                     // 任意: fail-closed モード — 設定エラーや内部エラー時に警告放行ではなくブロックする
   "ci": { "enabled": true }            // 任意: gh pr checks を参考情報として記録

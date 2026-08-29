@@ -61,6 +61,14 @@ const en: Dict = {
   'prMergeArchive.next': () => 'Let the user do the archive merge in their terminal or UI.',
   'prMergeUnknown.why': () => 'Cannot confirm the PR/MR target branch',
   'prMergeUnknown.next': () => 'Retry once gh/glab is available, or let the user handle it.',
+  'denyDirtyWorktree.why': (v) => `Working tree has uncommitted changes (${v.staged} staged, ${v.unstaged} unstaged)`,
+  'denyDirtyWorktree.next': () =>
+    'Commit changes ("git commit") or stash them ("git stash") before creating a PR or merging.',
+  'denyUntrackedWorktree.why': (v) => `Working tree has ${v.untracked} untracked file(s)`,
+  'denyUntrackedWorktree.next': () => 'Track files ("git add") or add them to .gitignore before proceeding.',
+  'denyBehindUpstream.why': (v) => `Current branch is ${v.behind} commit(s) behind upstream baseline`,
+  'denyBehindUpstream.next': () =>
+    'Run "git fetch && git rebase" (or merge upstream) to synchronize baseline before opening a PR.',
 
   // —— branchNext(受保护分支被拦后的下一步) ——
   'next.integration': (v) =>
@@ -88,6 +96,7 @@ const en: Dict = {
   'cli.statusPreview': (v) => `Preview: ${v.list} (update=${v.mode})`,
   'cli.statusProduction': (v) => `Production: ${v.list} (update=${v.mode}, merge=${v.merge})`,
   'cli.statusArchive': (v) => `Archive: ${v.list}`,
+  'cli.statusWorktree': (v) => `Worktree guard: requireCleanOnPr=${v.cleanOnPr}, requireCleanOnMerge=${v.cleanOnMerge}, allowUntracked=${v.allowUntracked}, requireUpstreamSynced=${v.upstreamSynced}`,
   'cli.statusCurrentBranch': (v) => `Current branch: ${v.branch}`,
   'cli.statusUnknownBranch': () => '(unknown)',
   'cli.statusLocalBranches': () => 'Local branches (by role):',
@@ -183,6 +192,12 @@ const zh: Dict = {
   'prMergeArchive.next': () => '请让用户在自己终端或 UI 完成归档合并',
   'prMergeUnknown.why': () => '无法确认 PR/MR 的目标分支',
   'prMergeUnknown.next': () => '请确认 gh/glab 可用后重试, 或让用户亲手处理',
+  'denyDirtyWorktree.why': (v) => `工作区存在未提交改动(暂存区 ${v.staged} 项, 未暂存 ${v.unstaged} 项)`,
+  'denyDirtyWorktree.next': () => '请先提交改动(git commit)或暂存(git stash)后再发起 PR 或执行合并',
+  'denyUntrackedWorktree.why': (v) => `工作区存在 ${v.untracked} 个未追踪文件`,
+  'denyUntrackedWorktree.next': () => '请将文件纳入版本控制(git add)或添加到 .gitignore 后再继续',
+  'denyBehindUpstream.why': (v) => `当前分支落后上游基线 ${v.behind} 个提交`,
+  'denyBehindUpstream.next': () => '请先运行 git fetch && git rebase(或合并上游)同步最新基线后再发起 PR',
 
   'next.integration': (v) =>
     `集成分支(${v.branch})由 PR/MR 合入 feature: 先推 feature 分支, 再 gh pr create --base ${v.branch} / glab mr create --target-branch ${v.branch}`,
@@ -206,6 +221,7 @@ const zh: Dict = {
   'cli.statusPreview': (v) => `预览分支: ${v.list} (update=${v.mode})`,
   'cli.statusProduction': (v) => `生产分支: ${v.list} (update=${v.mode}, 合并=${v.merge})`,
   'cli.statusArchive': (v) => `归档分支: ${v.list}`,
+  'cli.statusWorktree': (v) => `工作区守卫: requireCleanOnPr=${v.cleanOnPr}, requireCleanOnMerge=${v.cleanOnMerge}, allowUntracked=${v.allowUntracked}, requireUpstreamSynced=${v.upstreamSynced}`,
   'cli.statusCurrentBranch': (v) => `当前分支: ${v.branch}`,
   'cli.statusUnknownBranch': () => '(未知)',
   'cli.statusLocalBranches': () => '本地分支(按角色):',

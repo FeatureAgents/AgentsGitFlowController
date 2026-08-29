@@ -296,6 +296,12 @@ archive (opcional; tú archivas tras el release)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // opcional
     "archive":     ["main"]                                      // opcional
   },
+  "worktree": {                        // opcional: guardián del árbol de trabajo y de la línea base aguas arriba
+    "requireCleanOnPr": false,         // exigir cambios staged/unstaged limpios antes de crear PR (predeterminado false)
+    "requireCleanOnMerge": false,      // exigir árbol de trabajo limpio antes de fusionar (predeterminado false)
+    "allowUntracked": true,            // permitir archivos no rastreados (??); false bloquea si existen (predeterminado true)
+    "requireUpstreamSynced": false     // exigir sincronización con la línea base aguas arriba antes de crear PR (predeterminado false)
+  },
   "locale": "en",                      // opcional: idioma de mensajes — cualquier locale registrado ('en'/'zh' integrados); valores no reconocidos alertan en status y usan inglés
   "strict": false,                     // opcional: fail-closed — errores de config / internos bloquean en lugar de advertir y permitir
   "ci": { "enabled": true }            // opcional: comprobaciones de gh pr registradas como referencia

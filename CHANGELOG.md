@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.33
+
+- feat(gate): working tree clean state & upstream baseline divergence guard — added optional `worktree` guard configuration (`requireCleanOnPr`, `requireCleanOnMerge`, `allowUntracked`, `requireUpstreamSynced`) in `gitflow-guard.config.json` to prevent agents from creating PRs or merging with dirty working trees, untracked files, or stale upstream baselines; implemented real-time local status fact inspection in `src/repo.ts` (`getWorktreeStatus`, `getUpstreamDivergence`), pure gate decision rules in `src/gate.ts`, localized why/next guidance in `src/i18n.ts`, and simulated clean tracking across multi-segment compound commands (`git add . && git commit && gh pr create`) in `src/index.ts` —— 工作区脏状态与上游基线偏离门禁: 在 `gitflow-guard.config.json` 引入可选 `worktree` 保护配置（`requireCleanOnPr`、`requireCleanOnMerge`、`allowUntracked`、`requireUpstreamSynced`），阻断 Agent 在工作区存在未提交改动、未追踪文件或落后上游基线时发起 PR 或执行合并；在 `src/repo.ts` 接入毫秒级本地状态查询（`getWorktreeStatus`、`getUpstreamDivergence`），在 `src/gate.ts` 实现纯函数门禁校验与双语下一步引导，并在 `src/index.ts` 支持多段复合命令（如包含前序 `commit`/`stash`/`reset --hard` 时）的干净状态动态模拟。
+
 ## 0.0.32
 
 - docs(readme): achieve 100% full-length structural parity across all 11 languages & add readme-sync skill — expanded all 9 non-EN/ZH README files (Traditional Chinese, Japanese, Korean, German, French, Spanish, Italian, Portuguese, Russian) to 100% full-length structural parity with the English master (44 headings, 7 tables, 24 code blocks, 17 TOC anchors, 9 FAQs, and 8 glossary terms); audited and corrected native developer terminology; created `.agents/skills/readme-sync/SKILL.md`, `scripts/check-readme-equality.mjs`, and `tests/readme-equality.spec.ts` to mechanically enforce document equality across the repository —— 11 语种文档 100% 全量结构对称对齐与引入 readme-sync 规范: 将全部 9 份外语 README 扩充为与英文母本 100% 结构对称的全量版本（44 标题、7 表格、24 代码块、17 TOC 锚点、9 FAQ 与 8 术语表）；深度校验并修正本土化开发者术语；新增 `.agents/skills/readme-sync/SKILL.md` 技能规范、`scripts/check-readme-equality.mjs` 校验脚本及 `tests/readme-equality.spec.ts` 测试用例，通过 CI 与发版门禁机械化守卫多语言文档绝对平等。

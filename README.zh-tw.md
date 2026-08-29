@@ -293,7 +293,13 @@ archive (可選，發布後由你親手歸檔)
     "integration": { "branches": ["develop"], "update": "pr" },  // 預設: ["develop"] — 省略即維持預設
     "preview":     { "branches": ["ita1"], "update": "pr" },     // 可選
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // 可選
-    "archive":     ["main"]                                      // 可選
+    "archive":     ["main"]                                      // 可选
+  },
+  "worktree": {                        // 可選: 工作區與上游基線門禁
+    "requireCleanOnPr": false,         // 建立 PR 前要求暫存區與工作區乾淨 (預設 false)
+    "requireCleanOnMerge": false,      // 合併前要求工作區乾淨 (預設 false)
+    "allowUntracked": true,            // 是否允許未追蹤檔案 (??); false 時存在即阻斷 (預設 true)
+    "requireUpstreamSynced": false     // 建立 PR 前要求已同步上游基線 (預設 false)
   },
   "locale": "en",                      // 可選: 訊息語言 —— 任意已註冊 locale ('en'/'zh' 內建)；未註冊值會在 status 警告並回退為英文
   "strict": false,                     // 可選: fail-closed —— 配置異常或內部錯誤改為攔截，而非警告並放行

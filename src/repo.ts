@@ -1,7 +1,7 @@
 // 状态层: 只读查询本地 git 仓库(可注入 runner; 平台适配器 gh/glab 可选)
 
 import { execFile } from 'node:child_process'
-import type { GuardConfig, PrTargetResolution } from './types'
+import type { DivergenceFact, GuardConfig, PrTargetResolution, WorktreeStatusFact } from './types'
 import { roleOfBranch } from './gate'
 
 export interface RunResult {
@@ -116,4 +116,48 @@ export async function ghPrChecks(runner: Runner, cwd: string, pr: string | null)
 export function resolvePrTarget(info: { base: string; head: string } | null, config: GuardConfig): PrTargetResolution | null {
   if (!info) return null
   return { target: info.base, role: roleOfBranch(info.base, config), head: info.head }
+}
+
+/** 查询工作区暂存区与未追踪文件状态(git status --porcelain=v1 -uall) */
+export async function getWorktreeStatus(runner: Runner, cwd: string): Promise<WorktreeStatusFact> {
+  const r = await runner.run(['status', '--porcelain=v1', '-uall'], cwd)
+  if (r.code !== 0) {
+    return { staged: 0, unstaged: 0, untracked: 0, isDirty: false }
+  }
+  let staged = 0
+  let unstaged = 0
+  let untracked = 0
+  const lines = r.stdout.split('\n')
+  for (const line of lines) {
+    if (line.length < 2) continue
+    const x = line[0]
+    const y = line[1]
+    if (x === '?' && y === '?') {
+      untracked++
+      continue
+    }
+    if (x !== ' ' && x !== '?') staged++
+    if (y !== ' ' && y !== '?') unstaged++
+  }
+  return {
+    staged,
+    unstaged,
+    untracked,
+    isDirty: staged > 0 || unstaged > 0,
+  }
+}
+
+/** 查询当前分支相对 upstream 的 ahead/behind 计数 (git rev-list --left-right --count HEAD...@{upstream}) */
+export async function getUpstreamDivergence(runner: Runner, cwd: string, upstream: string = '@{upstream}'): Promise<DivergenceFact | null> {
+  const r = await runner.run(['rev-list', '--left-right', '--count', `HEAD...${upstream}`], cwd)
+  if (r.code !== 0) return null
+  const parts = r.stdout.trim().split(/\s+/)
+  if (parts.length >= 2) {
+    const ahead = parseInt(parts[0], 10)
+    const behind = parseInt(parts[1], 10)
+    if (!Number.isNaN(ahead) && !Number.isNaN(behind)) {
+      return { ahead, behind }
+    }
+  }
+  return null
 }

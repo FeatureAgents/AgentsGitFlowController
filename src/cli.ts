@@ -126,6 +126,14 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
   if (c.branches.preview) console.log(t('cli.statusPreview', { list: c.branches.preview.branches.join(', '), mode: c.branches.preview.update || 'pr' }))
   if (c.branches.production) console.log(t('cli.statusProduction', { list: c.branches.production.branches.join(', '), mode: c.branches.production.update || 'pr', merge: c.branches.production.mergeBy || 'user' }))
   if (c.branches.archive) console.log(t('cli.statusArchive', { list: c.branches.archive.branches.join(', ') }))
+  if (c.worktree && (c.worktree.requireCleanOnPr || c.worktree.requireCleanOnMerge || c.worktree.allowUntracked === false || c.worktree.requireUpstreamSynced)) {
+    console.log(t('cli.statusWorktree', {
+      cleanOnPr: String(c.worktree.requireCleanOnPr ?? false),
+      cleanOnMerge: String(c.worktree.requireCleanOnMerge ?? false),
+      allowUntracked: String(c.worktree.allowUntracked ?? true),
+      upstreamSynced: String(c.worktree.requireUpstreamSynced ?? false),
+    }))
+  }
   if (loaded.usingDefaults) {
     // 无 config 文件 = 内置默认生效: 提示 main 默认受保护与关闭路径(trunk 用户反噬兜底)
     console.log(t('cli.statusUsingDefaults'))

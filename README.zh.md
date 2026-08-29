@@ -295,6 +295,12 @@ archive(可选, 发布后你亲手归档)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // 可选
     "archive":     ["main"]                                      // 可选
   },
+  "worktree": {                        // 可选: 工作区与上游基线门禁
+    "requireCleanOnPr": false,         // 创建 PR 前要求暂存区与工作区干净 (默认 false)
+    "requireCleanOnMerge": false,      // 合并前要求工作区干净 (默认 false)
+    "allowUntracked": true,            // 是否允许未追踪文件 (??); false 时存在即阻断 (默认 true)
+    "requireUpstreamSynced": false     // 创建 PR 前要求已同步上游基线 (默认 false)
+  },
   "locale": "en",                      // 可选: 文案语言——任意已注册 locale('en'/'zh' 内置); 未注册值在 status 告警并回退英文
   "strict": false,                     // 可选: fail-closed —— 配置异常/内部错误改为拦截, 而非告警放行
   "ci": { "enabled": true }            // 可选: gh pr checks 作参考日志
