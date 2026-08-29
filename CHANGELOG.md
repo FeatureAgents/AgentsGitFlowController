@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.30
+
+- docs(readme): multi-platform documentation neutrality & comprehensive from-source guide — balanced all 11-language README suites, blog post, AGENTS.md, and design specifications to treat all supported AI coding agents (Claude Code, Codex, OpenCode, Antigravity, DSH, Pi) with complete platform neutrality; categorized Quick Start into distinct installation modes (CLI Hook clients, DSH in-process plugin, Pi in-process extension) without subordinate phrasing; expanded the "From Source" guide in installation sections across all platforms to provide complete local build, link, and mounting commands for every client —— 全量文档去中心化与多平台中立化重构: 对 11 语 README 矩阵、博客导读、AGENTS.md 与设计文档进行全量中立化梳理，消除历史遗留的 DSH 单一基准偏向；将快速开始重构为清晰平等的安装模式分类（CLI Hook 客户端、DSH 进程内插件、Pi 进程内扩展）；在各语言安装详解中补齐覆盖所有客户端（CLI Hook、DSH、Pi）的完整从源码构建、链接与挂载指引。
+
 ## 0.0.29
 
 - docs(skills): localize all agent skills to pure English — translated `design-sync`, `e2e-cases`, `e2e-run`, and `start-work` skill definitions and documentation completely into standardized English for international agent and developer usability —— Agent Skills 全量英语化: 将 `design-sync`、`e2e-cases`、`e2e-run` 与 `start-work` 全部 Skill 定义与文档统一英语化，提升跨智能体与全球开发者协作一致性。
