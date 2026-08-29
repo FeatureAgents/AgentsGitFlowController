@@ -11,7 +11,8 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return {
     ...actual,
     readFile: vi.fn((...args: ReadFileArgs) => {
-      if (String(args[0]).includes('opencode/gitflow-guard.ts')) return Promise.reject(new Error('ENOENT: no such file'))
+      // 源路径跨平台匹配: Windows 分隔符为反斜杠, 只用文件名判定
+      if (String(args[0]).includes('gitflow-guard.ts')) return Promise.reject(new Error('ENOENT: no such file'))
       return actual.readFile(...args)
     }),
   }

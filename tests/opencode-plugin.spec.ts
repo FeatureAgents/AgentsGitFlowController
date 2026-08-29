@@ -3,7 +3,7 @@
 // existsSync 保留真实 fs —— 测试运行于仓库根, 项目根 bin/gitflow-guard.mjs 真实存在,
 // 定位链第 1 分支是常态路径; 其余分支用 mock 覆盖。
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const { spawnMock, exits } = vi.hoisted(() => {
@@ -38,6 +38,22 @@ function fakeChild() {
 /** 项目级常态定位: <仓库根>/bin/gitflow-guard.mjs(测试运行于仓库根, 该文件真实存在) */
 const localBin = resolve(fileURLToPath(new URL('../..', import.meta.url)), 'bin', 'gitflow-guard.mjs')
 
+/** 平台形态: unix = shebang 直跑脚本; win32 = PATH 上的 node 解释脚本 */
+const NATIVE_WIN32 = process.platform === 'win32'
+
+/** 断言一次守卫 spawn 的参数形状(按当前平台) */
+function expectGuardSpawned(command: string) {
+  const [bin, args] = spawnMock.mock.calls[0]
+  if (NATIVE_WIN32) {
+    expect(bin).toBe('node')
+    expect(args[0]).toBe(localBin)
+    expect(args.slice(1)).toEqual(['check', '--platform', 'opencode', '--command', command])
+  } else {
+    expect(bin).toBe(localBin)
+    expect(args).toEqual(['check', '--platform', 'opencode', '--command', command])
+  }
+}
+
 /** 共享的假子进程控制器: beforeEach 新建, 测试里按需 emitClose/emitStderr/emitError 后 await */
 let childControl: ReturnType<typeof fakeChild>
 
@@ -51,7 +67,7 @@ describe('opencode plugin: tool.execute.before 事件过滤', () => {
     spawnMock.mockReset()
     beginSpawn()
     exits.mockReset()
-    exits.mockImplementation((p: string) => p.endsWith('bin/gitflow-guard.mjs'))
+    exits.mockImplementation((p: string) => p.endsWith(join('bin', 'gitflow-guard.mjs')))
   })
 
   it('非 bash/powershell 工具(read/edit 等)不经过守卫, 不 spawn', async () => {
@@ -71,15 +87,13 @@ describe('opencode plugin: tool.execute.before 事件过滤', () => {
     expect(spawnMock).not.toHaveBeenCalled()
   })
 
-  it('bash git 命令 → spawn 守卫(unix shebang 形态: bin 为脚本路径, 不含解释器)', async () => {
+  it('bash git 命令 → spawn 守卫(按平台形态: unix shebang / win32 node)', async () => {
     const plugin = await pluginFactory()
     const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git push origin develop' } })
     childControl.emitClose(0)
     await p
     expect(spawnMock).toHaveBeenCalledTimes(1)
-    const [bin, args] = spawnMock.mock.calls[0]
-    expect(bin).toBe(localBin)
-    expect(args).toEqual(['check', '--platform', 'opencode', '--command', 'git push origin develop'])
+    expectGuardSpawned('git push origin develop')
   })
 
   it('powershell 命令同样送守卫', async () => {
@@ -100,7 +114,7 @@ describe('opencode plugin: tool.execute.before 事件过滤', () => {
     expect(args[args.length - 1]).toBe(nasty) // 整串作为单个 argv, 不经 shell
   })
 
-  it('win32: 用 PATH 上的 node 解释脚本', async () => {
+  it.skipIf(NATIVE_WIN32)('win32: 用 PATH 上的 node 解释脚本(仅在非 win32 平台上强制模拟)', async () => {
     const prev = process.platform
     Object.defineProperty(process, 'platform', { value: 'win32' })
     try {
@@ -123,7 +137,7 @@ describe('opencode plugin: exit 语义(阻断 = 抛错, 其余 fail-open)', () =
   beforeEach(() => {
     spawnMock.mockReset()
     exits.mockReset()
-    exits.mockImplementation((p: string) => p.endsWith('bin/gitflow-guard.mjs'))
+    exits.mockImplementation((p: string) => p.endsWith(join('bin', 'gitflow-guard.mjs')))
   })
 
   it('check exit 2 → 抛错阻断, 错误消息含守卫 stderr 文案', async () => {
@@ -231,6 +245,18 @@ describe('opencode plugin: exit 语义(阻断 = 抛错, 其余 fail-open)', () =
   })
 })
 
+/** 断言守卫定位到指定脚本路径(按平台形态) */
+function expectTarget(binPath: string, command = 'git status') {
+  const [bin, args] = spawnMock.mock.calls[0]
+  if (NATIVE_WIN32) {
+    expect(bin).toBe('node')
+    expect(args[0]).toBe(binPath)
+  } else {
+    expect(bin).toBe(binPath)
+  }
+  expect(String(args[args.length - 1])).toBe(command)
+}
+
 describe('opencode plugin: 守卫定位链', () => {
   beforeEach(() => {
     spawnMock.mockReset()
@@ -239,16 +265,16 @@ describe('opencode plugin: 守卫定位链', () => {
   })
 
   it('项目根 bin/ 存在(常态) → 优先用它, 不查环境变量', async () => {
-    exits.mockImplementation((p: string) => p.endsWith('bin/gitflow-guard.mjs'))
+    exits.mockImplementation((p: string) => p.endsWith(join('bin', 'gitflow-guard.mjs')))
     const plugin = await pluginFactory()
     const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git status' } })
     childControl.emitClose(0)
     await p
-    expect(spawnMock.mock.calls[0][0]).toBe(localBin)
+    expectTarget(localBin)
   })
 
   it('项目根缺失 → 回退 $OPENCODE_PROJECT_DIR/bin/', async () => {
-    const viaEnv = '/fake-project/bin/gitflow-guard.mjs'
+    const viaEnv = join('/fake-project', 'bin', 'gitflow-guard.mjs')
     process.env.OPENCODE_PROJECT_DIR = '/fake-project'
     exits.mockImplementation((p: string) => p === viaEnv)
     try {
@@ -256,7 +282,7 @@ describe('opencode plugin: 守卫定位链', () => {
       const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git status' } })
       childControl.emitClose(0)
       await p
-      expect(spawnMock.mock.calls[0][0]).toBe(viaEnv)
+      expectTarget(viaEnv)
     } finally {
       delete process.env.OPENCODE_PROJECT_DIR
     }
@@ -270,7 +296,7 @@ describe('opencode plugin: 守卫定位链', () => {
       const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git status' } })
       childControl.emitClose(0)
       await p
-      expect(spawnMock.mock.calls[0][0]).toBe('/custom/guard.mjs')
+      expectTarget('/custom/guard.mjs')
     } finally {
       delete process.env.GITFLOW_GUARD_BIN
     }
@@ -282,7 +308,7 @@ describe('opencode plugin: 守卫定位链', () => {
     const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git status' } })
     childControl.emitClose(0)
     await p
-    expect(spawnMock.mock.calls[0][0]).toBe('gitflow-guard')
+    expectTarget('gitflow-guard')
     // PATH 回退 spawn 失败也应 fail-open(不抛)
     beginSpawn()
     const p2 = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git status' } })
