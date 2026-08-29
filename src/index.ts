@@ -12,7 +12,7 @@ import { loadConfig } from './config'
 import { decide } from './gate'
 import { makeT, resolveLocale } from './i18n'
 import type { Locale } from './i18n'
-import { commonGitDir, currentBranch as queryCurrentBranch, findRepoRoot, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget } from './repo'
+import { commonGitDir, currentBranch as queryCurrentBranch, findRepoRoot, getUpstreamDivergence, getWorktreeStatus, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget } from './repo'
 import type { Classified, GateFacts, PrTargetResolution } from './types'
 import type { Runner } from './repo'
 
@@ -126,6 +126,7 @@ interface Env {
   runner: Runner
   gh: Runner
   glab: Runner
+  simulatedClean?: boolean
 }
 
 /** 解析一条命令: 分类 → git 事实 → 门禁 → allow/deny */
@@ -142,10 +143,11 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
   const env: Env = { repoRoot: opts.repoRoot, config, branch, runner, gh, glab }
 
   const segments = classify(command, { currentBranch: branch })
-  // 模拟分支状态: checkout/switch 段会改变后续段的当前分支(命令执行前无法得知)
+  // 模拟分支状态: checkout/switch 段会改变后续段的当前分支; commit/stash/reset --hard 会模拟工作区干净状态
   let simulatedBranch = branch
+  let simulatedClean = false
   for (const seg of segments) {
-    const { facts } = await factsFor(seg, { ...env, branch: simulatedBranch })
+    const { facts } = await factsFor(seg, { ...env, branch: simulatedBranch, simulatedClean })
     const decision = decide(seg, facts, config, t)
     if (decision.kind === 'deny') {
       await appendAudit(env.repoRoot, { time: Date.now(), event: 'deny', command, reason: decision.reason }, env.runner)
@@ -153,6 +155,7 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
     }
     await logCiReference(seg, env)
     if (seg.kind === 'checkout' && seg.branch != null) simulatedBranch = seg.branch
+    if ('cleanWorktree' in seg && seg.cleanWorktree) simulatedClean = true
   }
   return { outcome: 'allow', segmentCount: segments.length, locale }
 }
@@ -168,9 +171,11 @@ async function logCiReference(seg: Classified, env: Env): Promise<void> {
 
 /** 按段预取 git 事实(异步 I/O 全部前置, 门禁保持纯函数) */
 async function factsFor(seg: Classified, env: Env): Promise<{ facts: GateFacts; head: string | null }> {
-  const { config, repoRoot, branch } = env
+  const { config, repoRoot, branch, runner, simulatedClean } = env
   let head: string | null = null
   let prRes: PrTargetResolution | null = null
+  let worktreeStatusFact: GateFacts['worktreeStatus'] = null
+  let upstreamDivFact: GateFacts['upstreamDivergence'] = null
 
   if (seg.kind === 'pr-merge') {
     // 先试 GitHub gh, 再试 GitLab glab
@@ -183,11 +188,34 @@ async function factsFor(seg: Classified, env: Env): Promise<{ facts: GateFacts; 
     head = prRes?.head ?? branch
   }
 
+  const wt = config.worktree
+  if (wt) {
+    const needWorktreeCheck =
+      (seg.kind === 'pr-create' && wt.requireCleanOnPr) ||
+      ((seg.kind === 'local-merge' || seg.kind === 'pr-merge') && wt.requireCleanOnMerge) ||
+      ((seg.kind === 'pr-create' || seg.kind === 'local-merge' || seg.kind === 'pr-merge') && wt.allowUntracked === false)
+
+    if (needWorktreeCheck) {
+      const realStatus = await getWorktreeStatus(runner, repoRoot)
+      if (simulatedClean) {
+        worktreeStatusFact = { staged: 0, unstaged: 0, untracked: realStatus.untracked, isDirty: false }
+      } else {
+        worktreeStatusFact = realStatus
+      }
+    }
+
+    if (seg.kind === 'pr-create' && wt.requireUpstreamSynced) {
+      upstreamDivFact = await getUpstreamDivergence(runner, repoRoot)
+    }
+  }
+
   return {
     head,
     facts: {
       currentBranch: branch,
       ...(prRes ? { resolvePrTarget: () => prRes } : {}),
+      ...(worktreeStatusFact ? { worktreeStatus: worktreeStatusFact } : {}),
+      ...(upstreamDivFact ? { upstreamDivergence: upstreamDivFact } : {}),
     },
   }
 }

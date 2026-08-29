@@ -182,3 +182,76 @@ describe('gate: 其他', () => {
     expect(decide({ kind: 'guard-cli', sub: 'other' }, facts(), config).kind).toBe('allow')
   })
 })
+
+describe('gate: 工作区状态与上游偏离门禁 (worktree guard)', () => {
+  const wtConfig = makeConfig({
+    worktree: {
+      requireCleanOnPr: true,
+      requireCleanOnMerge: true,
+      allowUntracked: true,
+      requireUpstreamSynced: true,
+    },
+  })
+
+  it('pr-create: 工作区脏 → deny', () => {
+    const dirtyFacts = facts({
+      worktreeStatus: { staged: 1, unstaged: 0, untracked: 0, isDirty: true },
+    })
+    const res = decide({ kind: 'pr-create', target: 'develop' }, dirtyFacts, wtConfig)
+    expect(res.kind).toBe('deny')
+    if (res.kind === 'deny') {
+      expect(res.reason).toMatch(/uncommitted changes/i)
+    }
+  })
+
+  it('pr-create: allowUntracked=false 时存在未追踪文件 → deny', () => {
+    const strictUntrackedConfig = makeConfig({
+      worktree: {
+        requireCleanOnPr: true,
+        allowUntracked: false,
+      },
+    })
+    const untrackedFacts = facts({
+      worktreeStatus: { staged: 0, unstaged: 0, untracked: 2, isDirty: false },
+    })
+    const res = decide({ kind: 'pr-create', target: 'develop' }, untrackedFacts, strictUntrackedConfig)
+    expect(res.kind).toBe('deny')
+    if (res.kind === 'deny') {
+      expect(res.reason).toMatch(/untracked/i)
+    }
+  })
+
+  it('pr-create: requireUpstreamSynced 且落后 upstream → deny', () => {
+    const behindFacts = facts({
+      worktreeStatus: { staged: 0, unstaged: 0, untracked: 0, isDirty: false },
+      upstreamDivergence: { ahead: 1, behind: 2 },
+    })
+    const res = decide({ kind: 'pr-create', target: 'develop' }, behindFacts, wtConfig)
+    expect(res.kind).toBe('deny')
+    if (res.kind === 'deny') {
+      expect(res.reason).toMatch(/behind upstream/i)
+    }
+  })
+
+  it('pr-create: 干净且已同步 → allow', () => {
+    const cleanFacts = facts({
+      worktreeStatus: { staged: 0, unstaged: 0, untracked: 0, isDirty: false },
+      upstreamDivergence: { ahead: 1, behind: 0 },
+    })
+    expect(decide({ kind: 'pr-create', target: 'develop' }, cleanFacts, wtConfig).kind).toBe('allow')
+  })
+
+  it('local-merge / pr-merge: requireCleanOnMerge 且工作区脏 → deny', () => {
+    const dirtyFacts = facts({
+      currentBranch: 'feature/dev-x-01',
+      worktreeStatus: { staged: 0, unstaged: 1, untracked: 0, isDirty: true },
+    })
+    expect(decide({ kind: 'local-merge', source: 'develop' }, dirtyFacts, wtConfig).kind).toBe('deny')
+
+    const prFacts = facts({
+      resolvePrTarget: resolve('integration', 'develop', 'feature/dev-x-01'),
+      worktreeStatus: { staged: 1, unstaged: 0, untracked: 0, isDirty: true },
+    })
+    expect(decide({ kind: 'pr-merge', pr: '10' }, prFacts, wtConfig).kind).toBe('deny')
+  })
+})

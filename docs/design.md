@@ -61,12 +61,18 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 // gitflow-guard.config.json(项目根, 可选): 深度合并覆盖内置默认(默认保护 develop=integration / main=archive; 无文件也生效, enabled:false 关闭)
 {
   "enabled": true,
-  "featurePattern": "feature/[\w-]+",       // 自由开发分支识别
+  "featurePattern": "feature/[\\w-]+",       // 自由开发分支识别
   "branches": {
     "integration": ["develop"],              // 核心角色(内置默认); 缺省沿用默认
     "preview":    ["release/.*"],            // 可选; 条目=精确名或正则
     "production": { "branches": ["main"], "update": "pr", "mergeBy": "user" },
     "archive":    ["archive/.*"]
+  },
+  "worktree": {                              // 可选工作区与基线状态门禁(默认全部关闭)
+    "requireCleanOnPr": false,               // 发起 PR 时要求暂存区与工作区干净(默认 false)
+    "requireCleanOnMerge": false,            // 执行合并时要求暂存区与工作区干净(默认 false)
+    "allowUntracked": true,                  // 是否允许未追踪文件(??); false 时存在即阻断(默认 true)
+    "requireUpstreamSynced": false           // 发起 PR 时要求已同步上游基线(behind=0)(默认 false)
   },
   "ci": { "enabled": true },                 // 可选适配器(仅日志)
   "locale": "en",                            // en|zh|registerLocale 扩展名
@@ -86,10 +92,10 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 | push → 受保护分支 | integration/preview 配 `flexible` 可直推; 其余一律 deny(删除/强推同拦) |
 | push `--all`/`--mirror`/通配 refspec | 一律 deny(会波及受保护分支) |
 | local-merge 在 production/archive 上 | 一律 deny(合并权在人) |
-| local-merge 在 integration/preview 上 | 来源是 feature/other: 按 update(pr=deny 引导走 PR / flexible=allow); 受保护分支间同步 allow; 无参同步上游 allow |
+| local-merge 在 integration/preview 上 | 来源是 feature/other: 按 update(pr=deny 引导走 PR / flexible=allow); 受保护分支间同步 allow; 无参同步上游 allow; 若开启 `worktree.requireCleanOnMerge` 且工作区脏 → deny |
 | pr-create 指向 archive | ✅ 允许创建(agent 可起草归档 PR); 合并仍被拦(0.0.9 起) |
-| pr-create 指向 integration/preview/production | head 必须是 feature 角色, 否则 deny; 目标不明(--base 缺失)deny |
-| pr-merge 目标 production | `mergeBy:user`(默认)→ deny:「你自己点合并」; `anyone` → allow |
+| pr-create 指向 integration/preview/production | head 必须是 feature 角色, 否则 deny; 目标不明(--base 缺失)deny; 若开启 `worktree.requireCleanOnPr` 且工作区脏 → deny; 若开启 `worktree.requireUpstreamSynced` 且落后 upstream → deny |
+| pr-merge 目标 production | `mergeBy:user`(默认)→ deny:「你自己点合并」; `anyone` → allow; 若开启 `worktree.requireCleanOnMerge` 且工作区脏 → deny |
 | pr-merge 目标 archive | 一律 deny(仅用户亲手) |
 | pr-merge 目标无法解析(gh/glab 失效) | **一律保守 deny**(0.0.11: 不能按 head 推断放行) |
 | branch-delete 受保护分支(-d/-D/--delete) | deny |

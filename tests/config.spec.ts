@@ -269,5 +269,49 @@ describe('config: 默认配置常量', () => {
     expect(d.branches.archive?.branches).toEqual(['main'])
     expect(d.featurePattern.length).toBeGreaterThan(0)
     expect(d.ci.enabled).toBe(true)
+    expect(d.worktree).toEqual({
+      requireCleanOnPr: false,
+      requireCleanOnMerge: false,
+      allowUntracked: true,
+      requireUpstreamSynced: false,
+    })
+  })
+})
+
+describe('config: worktree 保护配置合并与校验', () => {
+  it('worktree 字段正确深度合并', () => {
+    const { config, errors } = mergeConfig({
+      worktree: {
+        requireCleanOnPr: true,
+        requireCleanOnMerge: true,
+        allowUntracked: false,
+        requireUpstreamSynced: true,
+      },
+    })
+    expect(errors).toEqual([])
+    expect(config!.worktree).toEqual({
+      requireCleanOnPr: true,
+      requireCleanOnMerge: true,
+      allowUntracked: false,
+      requireUpstreamSynced: true,
+    })
+  })
+
+  it('worktree 字段类型非法 → 报错', () => {
+    const { config, errors } = mergeConfig({
+      worktree: {
+        requireCleanOnPr: 'yes',
+      },
+    })
+    expect(config).toBeNull()
+    expect(errors.some((e) => e.includes('requireCleanOnPr'))).toBe(true)
+  })
+
+  it('worktree 整体非对象 → 报错', () => {
+    const { config, errors } = mergeConfig({
+      worktree: 'dirty',
+    })
+    expect(config).toBeNull()
+    expect(errors.some((e) => e.includes('worktree'))).toBe(true)
   })
 })

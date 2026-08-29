@@ -217,9 +217,86 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('worktree guard: 工作区脏时拦截 PR 创建', async () => {
+    const dir = tempRepo({
+      enabled: true,
+      branches: { integration: ['develop'] },
+      worktree: { requireCleanOnPr: true },
+    })
+    try {
+      const runner = scriptedRunner({
+        'status --porcelain': { stdout: ' M dirty.txt\n' },
+      })
+      const res = await evaluateCommand('gh pr create --base develop', {
+        repoRoot: dir,
+        runner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(res.outcome).toBe('deny')
+      expect(res.reason?.why).toMatch(/uncommitted changes/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('worktree guard: 复合命令前序包含 commit 时放行 (模拟干净状态)', async () => {
+    const dir = tempRepo({
+      enabled: true,
+      branches: { integration: ['develop'] },
+      worktree: { requireCleanOnPr: true },
+    })
+    try {
+      const runner = scriptedRunner({
+        'status --porcelain': { stdout: 'M  staged.txt\n' },
+      })
+      const res = await evaluateCommand('git commit -m "feat: done" && gh pr create --base develop', {
+        repoRoot: dir,
+        runner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(res.outcome).toBe('allow')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('worktree guard: requireUpstreamSynced 且分支落后 upstream 时拦截', async () => {
+    const dir = tempRepo({
+      enabled: true,
+      branches: { integration: ['develop'] },
+      worktree: { requireUpstreamSynced: true },
+    })
+    try {
+      const runner = scriptedRunner({
+        'rev-list --left-right': { stdout: '1\t3\n' },
+      })
+      const res = await evaluateCommand('gh pr create --base develop', {
+        repoRoot: dir,
+        runner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(res.outcome).toBe('deny')
+      expect(res.reason?.why).toMatch(/behind upstream/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('apply: DSH 插件降级路径(P0-1)', () => {
+  it('DSH 插件 apply: 挂载 pre-execute 并正确透传', async () => {
+    const dir = tempRepo()
+    let handler: ((exec: unknown, next: () => Promise<unknown>) => Promise<unknown>) | null = null
+    const mockCtx = {
+      on(event: string, fn: typeof handler) {
+        if (event === 'tools/pre-execute') handler = fn
+      },
+    } as unknown as Context
+    apply(mockCtx)
+    expect(handler).toBeTruthy()
+  })
+
   it('内部错误 → 英文降级日志(与 cli.checkInternalError 口径一致)+ 放行不阻断', async () => {
     const warnings: string[] = []
     type PreExecuteHandler = (exec: unknown, next: () => Promise<unknown>) => Promise<unknown>

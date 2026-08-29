@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { currentBranch, findRepoRoot, ghPrChecks, ghPrInfo, glabMrInfo, gitRunner, isAncestor, resolvePrTarget } from '../src/repo'
+import { currentBranch, findRepoRoot, getUpstreamDivergence, getWorktreeStatus, ghPrChecks, ghPrInfo, glabMrInfo, gitRunner, isAncestor, resolvePrTarget } from '../src/repo'
 import type { RunResult, Runner } from '../src/repo'
 import type { GuardConfig } from '../src/types'
 
@@ -55,6 +55,43 @@ describe('repo: 只读查询(fake runner)', () => {
     const b = fakeRunner([{ stdout: '[{"state":"SUCCESS"},{"state":"PENDING"}]' }])
     expect(await ghPrChecks(b.runner, cwd, '12')).toBe('PENDING')
     expect(await ghPrChecks(b.runner, cwd, null)).toBeNull()
+  })
+
+  it('getWorktreeStatus: 解析暂存区/工作区修改与未追踪文件', async () => {
+    const porcelain = [
+      'M  staged.txt',
+      ' M unstaged.txt',
+      'MM both.txt',
+      '?? untracked.txt',
+      '?? untracked2.txt',
+    ].join('\n')
+    const { runner } = fakeRunner([{ stdout: porcelain }])
+    const status = await getWorktreeStatus(runner, cwd)
+    expect(status.staged).toBe(2) // staged.txt, both.txt
+    expect(status.unstaged).toBe(2) // unstaged.txt, both.txt
+    expect(status.untracked).toBe(2)
+    expect(status.isDirty).toBe(true)
+
+    // 干净工作区
+    const clean = fakeRunner([{ stdout: '' }])
+    const cleanStatus = await getWorktreeStatus(clean.runner, cwd)
+    expect(cleanStatus.isDirty).toBe(false)
+    expect(cleanStatus.untracked).toBe(0)
+
+    // git 报错 fail-safe 降级为干净
+    const fail = fakeRunner([{ code: 128 }])
+    const failStatus = await getWorktreeStatus(fail.runner, cwd)
+    expect(failStatus.isDirty).toBe(false)
+  })
+
+  it('getUpstreamDivergence: 解析 ahead/behind 计数', async () => {
+    const { runner } = fakeRunner([{ stdout: '3\t5\n' }])
+    const div = await getUpstreamDivergence(runner, cwd)
+    expect(div).toEqual({ ahead: 3, behind: 5 })
+
+    // 无 upstream 或 git 报错 → null
+    const fail = fakeRunner([{ code: 128 }])
+    expect(await getUpstreamDivergence(fail.runner, cwd)).toBeNull()
   })
 })
 
@@ -113,5 +150,18 @@ describe('repo: 真实 git 集成', () => {
     expect(await findRepoRoot(gitRunner, join(repo, 'sub', 'dir'))).toBe(repo)
     expect(await isAncestor(gitRunner, repo, 'feature/dev-x-01', 'ita1')).toBe(false)
     expect(await isAncestor(gitRunner, repo, 'develop', 'ita1')).toBe(true)
+
+    // 初始干净工作区
+    const status1 = await getWorktreeStatus(gitRunner, repo)
+    expect(status1.isDirty).toBe(false)
+    expect(status1.untracked).toBe(0)
+
+    // 写入新文件和修改文件
+    writeFileSync(join(repo, 'untracked.txt'), 'new')
+    writeFileSync(join(repo, 'a.txt'), 'modified')
+    const status2 = await getWorktreeStatus(gitRunner, repo)
+    expect(status2.isDirty).toBe(true)
+    expect(status2.untracked).toBe(1)
+    expect(status2.unstaged).toBe(1)
   })
 })

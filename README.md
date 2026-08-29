@@ -296,6 +296,12 @@ archive (optional; you archive after release)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // optional
     "archive":     ["main"]                                      // optional
   },
+  "worktree": {                        // optional: working tree and upstream baseline guard
+    "requireCleanOnPr": false,         // require clean staged/unstaged changes before creating PR (default false)
+    "requireCleanOnMerge": false,      // require clean working tree before merging (default false)
+    "allowUntracked": true,            // allow untracked files (??); false blocks if untracked exist (default true)
+    "requireUpstreamSynced": false     // require branch to be synced with upstream baseline (default false)
+  },
   "locale": "en",                      // optional: message language — any registered locale ('en'/'zh' built-in); unknown values warn in status and fall back to English
   "strict": false,                     // optional: fail-closed — invalid config / internal errors block instead of warn-and-allow
   "ci": { "enabled": true }            // optional: gh pr checks logged as reference

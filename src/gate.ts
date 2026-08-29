@@ -98,6 +98,42 @@ function decidePush(c: Extract<Classified, { kind: 'push' }>, facts: GateFacts, 
   return { kind: 'allow' }
 }
 
+function checkWorktreeClean(facts: GateFacts, config: GuardConfig, t: T): GateDecision | null {
+  const wt = config.worktree
+  if (!wt) return null
+  const status = facts.worktreeStatus
+  if (!status) return null
+
+  if (status.isDirty) {
+    return deny(
+      t('denyDirtyWorktree.why', { staged: String(status.staged), unstaged: String(status.unstaged) }),
+      t('denyDirtyWorktree.next'),
+    )
+  }
+  if (wt.allowUntracked === false && status.untracked > 0) {
+    return deny(
+      t('denyUntrackedWorktree.why', { untracked: String(status.untracked) }),
+      t('denyUntrackedWorktree.next'),
+    )
+  }
+  return null
+}
+
+function checkUpstreamSynced(facts: GateFacts, config: GuardConfig, t: T): GateDecision | null {
+  const wt = config.worktree
+  if (!wt || !wt.requireUpstreamSynced) return null
+  const div = facts.upstreamDivergence
+  if (!div) return null
+
+  if (div.behind > 0) {
+    return deny(
+      t('denyBehindUpstream.why', { behind: String(div.behind) }),
+      t('denyBehindUpstream.next'),
+    )
+  }
+  return null
+}
+
 function decideMerge(c: Extract<Classified, { kind: 'local-merge' }>, facts: GateFacts, config: GuardConfig, t: T): GateDecision {
   const currentRole = roleOfBranch(facts.currentBranch, config)
   const source = c.source
@@ -113,18 +149,24 @@ function decideMerge(c: Extract<Classified, { kind: 'local-merge' }>, facts: Gat
 
   // 在 integration/preview 上合入
   if (currentRole === 'integration' || currentRole === 'preview') {
-    if (source == null) return { kind: 'allow' } // git merge 无参数 = 同步上游
-    if (sourceRole != null && isProtected(sourceRole)) return { kind: 'allow' } // 受保护分支间同步
-    // 来源是 feature/other: 按该角色的 update 模式判断
-    const role = currentRole === 'integration' ? config.branches.integration : config.branches.preview!
-    if (role?.update === 'flexible') return { kind: 'allow' }
-    return deny(
-      t('mergeFeature.why', { role: roleLabel(currentRole, t, facts.currentBranch) }),
-      t('mergeFeature.next', { branch: facts.currentBranch ?? '' }),
-    )
+    if (source != null && (sourceRole == null || !isProtected(sourceRole))) {
+      // 来源是 feature/other: 按该角色的 update 模式判断
+      const role = currentRole === 'integration' ? config.branches.integration : config.branches.preview!
+      if (role?.update !== 'flexible') {
+        return deny(
+          t('mergeFeature.why', { role: roleLabel(currentRole, t, facts.currentBranch) }),
+          t('mergeFeature.next', { branch: facts.currentBranch ?? '' }),
+        )
+      }
+    }
   }
 
-  // 在 feature/other 分支上: 自由
+  // 角色权限通过后, 检查工作区状态(若配置启用)
+  if (config.worktree?.requireCleanOnMerge) {
+    const wtDecision = checkWorktreeClean(facts, config, t)
+    if (wtDecision) return wtDecision
+  }
+
   return { kind: 'allow' }
 }
 
@@ -149,10 +191,18 @@ function decidePrCreate(c: Extract<Classified, { kind: 'pr-create' }>, facts: Ga
         t('prCreateHead.next'),
       )
     }
-    return { kind: 'allow' }
   }
 
-  // 其余(feature 间 PR / 普通分支)放行
+  // 角色权限通过后, 检查工作区状态与上游偏离(若配置启用)
+  if (config.worktree?.requireCleanOnPr) {
+    const wtDecision = checkWorktreeClean(facts, config, t)
+    if (wtDecision) return wtDecision
+  }
+  if (config.worktree?.requireUpstreamSynced) {
+    const syncDecision = checkUpstreamSynced(facts, config, t)
+    if (syncDecision) return syncDecision
+  }
+
   return { kind: 'allow' }
 }
 
@@ -169,9 +219,16 @@ function decidePrMerge(c: Extract<Classified, { kind: 'pr-merge' }>, facts: Gate
     if (prod?.mergeBy === 'user') {
       return deny(t('prMergeProduction.why'), t('prMergeProduction.next'))
     }
-    return { kind: 'allow' }
+  } else if (role === 'archive') {
+    return deny(t('prMergeArchive.why'), t('prMergeArchive.next'))
   }
-  if (role === 'archive') return deny(t('prMergeArchive.why'), t('prMergeArchive.next'))
+
+  // 角色权限通过后, 检查工作区状态(若配置启用)
+  if (config.worktree?.requireCleanOnMerge) {
+    const wtDecision = checkWorktreeClean(facts, config, t)
+    if (wtDecision) return wtDecision
+  }
+
   return { kind: 'allow' }
 }
 

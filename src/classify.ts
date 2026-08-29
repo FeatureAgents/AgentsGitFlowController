@@ -204,10 +204,31 @@ function classifyGit(args: string[], ctx: ClassifyContext): Classified[] {
   if (sub === 'update-ref') return parseUpdateRef(rest)
   if (sub === 'symbolic-ref') return parseSymbolicRef(rest)
   if (sub === 'cherry-pick' || sub === 'revert') return parseCherryPickLike(rest)
-  if (sub === 'reset' || sub === 'filter-branch') return [{ kind: 'ref-move' }]
+  if (sub === 'reset') return parseReset(rest)
+  if (sub === 'filter-branch') return [{ kind: 'ref-move' }]
+  if (sub === 'stash') return parseStash(rest)
+  if (sub === 'restore') return parseRestore(rest)
   if (sub === 'rebase') return parseRebase(rest)
   if (sub === 'commit') return parseCommit(rest)
   return [{ kind: 'other' }]
+}
+
+/** reset 移动当前分支 tip; --hard 同时清理工作区 */
+function parseReset(args: string[]): Classified[] {
+  if (args.some((a) => a === '--hard')) return [{ kind: 'ref-move', cleanWorktree: true }]
+  return [{ kind: 'ref-move' }]
+}
+
+/** stash 清理工作区; pop / apply 恢复暂存可能把工作区弄脏, 归为 other */
+function parseStash(args: string[]): Classified[] {
+  const [sub] = args
+  if (sub === 'pop' || sub === 'apply') return [{ kind: 'other' }]
+  return [{ kind: 'other', cleanWorktree: true }]
+}
+
+/** restore 放弃本地修改 */
+function parseRestore(_args: string[]): Classified[] {
+  return [{ kind: 'other', cleanWorktree: true }]
 }
 
 /** rebase 移动当前分支 ref; abort/continue/skip 等恢复类旗标不移动(放行, 避免把用户困在中途态) */
@@ -217,10 +238,10 @@ function parseRebase(args: string[]): Classified[] {
   return [{ kind: 'ref-move' }]
 }
 
-/** commit 仅 --amend 改写当前分支 tip; 普通提交不移动既有 ref */
+/** commit 产生新提交(清理暂存区); --amend 同时改写当前分支 tip */
 function parseCommit(args: string[]): Classified[] {
-  if (args.some((a) => a === '--amend')) return [{ kind: 'ref-move' }]
-  return [{ kind: 'other' }]
+  if (args.some((a) => a === '--amend')) return [{ kind: 'ref-move', cleanWorktree: true }]
+  return [{ kind: 'other', cleanWorktree: true }]
 }
 
 /**

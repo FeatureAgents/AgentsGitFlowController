@@ -295,6 +295,12 @@ archive (선택; 배포 후 사람이 직접 아카이브)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // 선택
     "archive":     ["main"]                                      // 선택
   },
+  "worktree": {                        // 선택: 작업 트리 및 업스트림 베이스라인 가드
+    "requireCleanOnPr": false,         // PR 생성 전 스테이징/미스테이징 변경 사항 클린 요구 (기본값 false)
+    "requireCleanOnMerge": false,      // 머지 전 작업 트리 클린 요구 (기본값 false)
+    "allowUntracked": true,            // 미추적 파일 (??) 허용 여부; false 시 존재할 경우 차단 (기본값 true)
+    "requireUpstreamSynced": false     // PR 생성 전 업스트림 베이스라인과의 동기화 요구 (기본값 false)
+  },
   "locale": "en",                      // 선택: 메시지 언어 — 등록된 locale ('en'/'zh' 내장); 미등록 값은 status에서 경고 후 영어로 폴백
   "strict": false,                     // 선택: fail-closed 모드 — 설정 오류/내부 오류 발생 시 경고 후 허용 대신 차단
   "ci": { "enabled": true }            // 선택: gh pr checks 결과를 참고용 로그로 기록

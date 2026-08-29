@@ -26,6 +26,18 @@ export interface CiConfig {
   enabled: boolean
 }
 
+/** 工作区与偏离度门禁配置(可选增强) */
+export interface WorktreeConfig {
+  /** 发起 PR (pr-create) 时是否要求暂存区与工作区干净 (默认 false) */
+  requireCleanOnPr?: boolean
+  /** 执行合并 (local-merge / pr-merge) 时是否要求暂存区与工作区干净 (默认 false) */
+  requireCleanOnMerge?: boolean
+  /** 是否允许存在未追踪文件 (??)。为 false 时存在未追踪文件即视为脏 (默认 true) */
+  allowUntracked?: boolean
+  /** 发起 PR 时是否要求已同步上游基线 (behind upstream == 0) (默认 false) */
+  requireUpstreamSynced?: boolean
+}
+
 /** 文案语言: 默认 en; 'zh' 切中文; 可经 registerLocale 运行时扩展(保留字面量提示的宽字符串) */
 export type Locale = 'en' | 'zh' | (string & {})
 
@@ -36,6 +48,8 @@ export interface GuardConfig {
   featurePattern: string
   branches: BranchRoles
   ci: CiConfig
+  /** 工作区与偏离度门禁 */
+  worktree?: WorktreeConfig
   /** 用户可见文案语言(默认 'en'; 缺失时按 'en' 处理) */
   locale?: Locale
   /** fail-closed 策略位: true 时配置异常/内部异常改为拦截(默认 fail-open 放行) */
@@ -103,10 +117,14 @@ export interface RefUpdateClassified {
 /** 本地改写当前分支 tip 的命令(reset / rebase / commit --amend / filter-branch): 门禁按(模拟)当前分支角色判定 */
 export interface RefMoveClassified {
   kind: 'ref-move'
+  /** 是否重置/清理工作区 (如 reset --hard / commit --amend) */
+  cleanWorktree?: boolean
 }
 
 export interface OtherClassified {
   kind: 'other'
+  /** 是否清理或提交工作区 (如 commit / stash / restore) */
+  cleanWorktree?: boolean
 }
 
 export type Classified =
@@ -126,11 +144,29 @@ export interface ClassifyContext {
   currentBranch?: string | null
 }
 
+/** 工作区与暂存区状态事实 */
+export interface WorktreeStatusFact {
+  staged: number
+  unstaged: number
+  untracked: number
+  isDirty: boolean
+}
+
+/** 分支与上游基线偏离度事实 */
+export interface DivergenceFact {
+  ahead: number
+  behind: number
+}
+
 /** 门禁所需的 git 事实(由插件/CLI 从本地 git 只读查询获得) */
 export interface GateFacts {
   currentBranch: string | null
   /** PR/MR 目标解析(平台适配器); 解析失败返回 null */
   resolvePrTarget?: (pr: string | null) => PrTargetResolution | null
+  /** 本地暂存区/工作区状态 */
+  worktreeStatus?: WorktreeStatusFact | null
+  /** 相对 upstream 的偏离事实 */
+  upstreamDivergence?: DivergenceFact | null
 }
 
 /** PR 解析结果: 目标角色 + head 分支 + 目标分支名(来自 gh/glab view) */
