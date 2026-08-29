@@ -27,8 +27,8 @@
 - [常见疑问(FAQ)](#常见疑问faq)
 - [术语表](#术语表)
 - [路线图](#路线图)
-- [赞助支持](#赞助支持)
 - [开发](#开发)
+- [赞助支持](#赞助支持)
 - [许可证](#许可证)
 
 ---
@@ -88,7 +88,7 @@ Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
 Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-**文案默认是英文**(面向国际化)。要在你的项目里看中文,创建配置并加 `"locale": "zh"`;中文效果是:*已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……*
+**文案默认是英文**(面向国际化)。要在你的项目里看中文,创建配置并加 `"locale": "zh"`;中文效果是:*已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……*(见[配置参考](#配置参考))。
 
 **完成。** 守卫已用内置默认配置生效。想要更多关卡(`preview` / `production`)或改分支名?写一个 `gitflow-guard.config.json`,只写你在意的字段,其余保持内置默认。完整判定表见[门禁矩阵](#门禁矩阵拦什么放什么)。
 
@@ -105,7 +105,7 @@ Next: Integration branch (develop) is updated via PR/MR from a feature branch: p
 | 5 | `gh pr create --base develop` | ✅ 放行(feature → 集成) | PR 已建,由你审查并合并 |
 | 6 | `git push origin main` 或合入 main | 🚫 **拦截**——归档仅用户亲手 | 发布后由你亲自 develop → main 归档 |
 
-注意agent**做不到**的事:把 feature 直接合进 `develop`,或碰 `main` 一下都不行。每个敏感合并都是你在 PR/MR 页面或自己终端里的有意识动作。
+注意 agent **做不到**的事:把 feature 直接合进 `develop`,或碰 `main` 一下都不行。每个敏感合并都是你在 PR/MR 页面或自己终端里的有意识动作。
 
 ---
 
@@ -348,6 +348,7 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 - 每次拦截都追加到用户级审计日志供查阅(`gitflow-guard audit`)。
 
 ---
+
 ## 安装详解
 
 **前置**:`PATH` 上有 **Node.js ≥ 22**(与包 `engines` 及 CI 矩阵最低档一致)。所有客户端都使用**同一个 npm 包** `agents-gitflow-guard`——只有挂载与接线方式不同。
@@ -470,11 +471,17 @@ npm link
 - [为 Copilot coding agent 添加自定义规则(GitHub Docs)](https://docs.github.com/en/copilot/customizing-copilot/adding-custom-rules-for-the-copilot-coding-agent)
 - 可选: Copilot 也有官方 [hooks 系统](https://docs.github.com/en/copilot/reference/hooks-reference)(`preToolUse` → `permissionDecision:"deny"`),想要命令级拦截可以自己接。
 
-- hook 读 stdin payload,按**各平台协议**作答:Claude Code / OpenCode → `exit 2`(stderr 展示原因 + "下一步"提示);Codex → stdout 输出 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`;Antigravity → stdout 输出 `{"decision":"deny","reason":...}` 且 **exit 0**(Antigravity 要求 exit 0,拒绝 hookSpecificOutput/非 allow 值)。Pi 没有 stdin 协议:进程内扩展监听官方 `tool_call` 事件,经返回值 `{ block: true, reason }` 拒绝(守卫 CLI 子进程只承载内部 exit-2 契约)。
-- 只需要**执行前事件**:守卫在命令执行*之前*拦截;没有特许可事后消费,因此无需执行后钩子。
-- 上面示例调的是全局安装的 `gitflow-guard`(`npm i -g`)。若 hook 子进程在它的 `PATH` 里找不到,就指向 `npm bin -g` 给出的完整二进制路径——hook 子进程不一定继承你交互 shell 的 PATH。本仓库自带配置里的 `bin/gitflow-guard.mjs` 路径只对 checkout 贡献者有效。
-- **默认开启**:内置默认配置(integration=`develop`, archive=`main`)无需任何文件即生效。trunk / 单分支仓库:建 `gitflow-guard.config.json` 写 `{ "enabled": false }`,或自行映射分支。自定义配置在默认之上**深度合并**——只写你想改的字段。
-- `wire` 从不删除或重写你已有的 hook 条目——只添加自己的命令(去重);`--unwire` 精确移除同一条命令。
+### 5. Hook 机制与协议细节
+
+- **平台协议规范**: Hook 从 stdin 读取 payload 并按各平台规范响应：
+  - **Claude Code / OpenCode**：`exit 2`（stderr 输出原因与指引）。
+  - **Codex**：stdout 输出 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`。
+  - **Antigravity**：stdout 输出 JSON `{"decision":"deny","reason":...}` 且 `exit 0`（平台要求）。
+  - **Pi**：进程内扩展监听 `tool_call` 事件并返回 `{ block: true, reason }`。
+- **仅拦截前置事件**: 门禁在命令执行*前*完成拦截，无需后置清理或消耗特许令牌。
+- **PATH 与二进制解析**: 全局安装提供 `gitflow-guard` 二进制；若 Agent 子进程环境未继承 `PATH`，可配置 `npm bin -g` 返回的绝对路径。
+- **开箱即用**: 内置默认配置（`integration: ["develop"]`, `archive: ["main"]`）无需额外文件即生效；自定义配置自动深度合并。
+- **安全接线**: `gitflow-guard wire` 幂等合并配置且不影响已有 Hook；`--unwire` 精确移除对应条目。
 
 ---
 
@@ -547,6 +554,7 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 如果它帮你挡掉了一次抄近路,页顶的咖啡按钮欢迎但绝不要求。见[许可证](#许可证)。
 
 ---
+
 ## 术语表
 
 | 术语 | 含义 |
@@ -573,7 +581,21 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 已发布功能与历史版本记录详见 [CHANGELOG.md](CHANGELOG.md)。
 
-欢迎贡献——见[开发](#开发)。
+---
+
+## 开发
+
+```bash
+npm install
+npm test              # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
+npm run typecheck     # tsc --noEmit, 0 Error
+npm run build         # tsdown → lib/(CLI 与插件共用)
+npm run check:pins    # 校验 package.json 版本与 CHANGELOG 标题及版本示例一致
+npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + 多平台 hook 编码 + Pi 扩展
+```
+
+- **质量铁律**: 任何逻辑改动必须通过类型检查（0 错误）、单测全绿及连续复测矩阵（`verify:matrix`）。
+- **客户端接入规范**: 接入新 Agent 平台时，需遵循 [AGENTS.md](AGENTS.md) §8 中的同步清单。
 
 ---
 
@@ -582,23 +604,6 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 插件免费开源(MIT)。如果它帮你和团队挡掉了一次抄近路,一杯咖啡感谢:
 
 [![Support on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/keanz21)
-
----
-
-## 开发
-
-```bash
-npm install
-npm test          # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
-npm run typecheck     # tsc --noEmit, 0 Error
-npm run build         # tsdown → lib/(CLI 与插件共用)
-npm run check:pins    # 校验 package.json 版本与 CHANGELOG 标题及版本示例一致
-npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claude Code / Codex / OpenCode / Antigravity hook 编码 + Pi 扩展
-```
-
-**铁律**:任何逻辑改动必须 0 Error 构建 + 单测全绿 + 连续复测矩阵(`verify:matrix`)全绿后才算完成。
-
-**接入新的 agent 客户端**(如 Cursor / Windsurf):以下各项必须在同一个 commit 内完成——`src/platform.ts`(含测试与 `HookPlatform` 联合类型)、`.claude/settings.json` / `.codex/hooks.json` 旁新增一份仓库级 hook 配置、`.agents/hooks/references/<tool>.md`、`scripts/verify-matrix.mjs`、README 双语 hook 段与开头宣传语、`package.json` 的 description/keywords,以及 `CHANGELOG`。`npm run verify:matrix` 全绿才算完成。(同一清单见 [AGENTS.md](AGENTS.md) §8;DSH 与 Pi 为进程内接入,见该节例外说明。)
 
 ---
 
