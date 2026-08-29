@@ -69,6 +69,7 @@ jobs:
           npm run typecheck
           npm test
           npm run check:pins
+          npm run check:readmes
           npm run build
           npm run verify:matrix
 
