@@ -1,13 +1,18 @@
-# e2e-run · 执行实机测试并取证(基于 gfguard-e2e 测试场)
+---
+name: e2e-run
+description: Execute live end-to-end testing and collect physical git evidence. 执行实机测试并取证(基于自包含测试脚本与受控沙箱).
+---
 
-本技能规范「如何执行实机测试、如何取证」:用例来自 `docs/e2e/<client>.md`,证据写入 `docs/e2e/TestResult/<client>.md`(证据规范见其 README),测试场为 `/Users/kean/Workspace/gfguard-e2e`。
+# e2e-run · 执行实机测试并取证
+
+本技能规范「如何执行实机测试、如何取证」:用例来自 `docs/e2e/<client>.md`,证据写入 `docs/e2e/TestResult/<client>.md`(证据规范见其 README),测试套件脚本位于本仓库 `scripts/`。
 
 ## 前置检查(必做)
 
-1. **守卫版本核对**:被测守卫 = 当前 develop 构建产物(`npm run build` 已跑,`lib/` 最新);测试场挂载版本须与被测一致(gfguard-e2e `node_modules/agents-gitflow-guard/package.json`;不一致时 `npm i -D agents-gitflow-guard@<被测版本>` 或现场替换 node_modules,并记入 TestResult)。
-2. **测试场就绪**:gfguard-e2e 裸远端 `/tmp/gfguard-e2e-origin.git` 存在(reboot 后重建:`git init -q --bare` + `git remote add origin` + 推送 master/beta);缺口:Pi 用例 D 需本地 `task/pi-e2e` 分支(先 `git branch task/pi-e2e`,脚本未自建)。
-3. **受控仓库**:Pi 用 gfguard-e2e 本体;其他客户端建议独立受控仓库(`/tmp/e2e-<client>-repo`:master=integration/beta=preview/(fix|task)/*=feature + 本地裸远端 + config),**禁止对真实远端执行会成功的用例**。
-4. **客户端凭证**:各客户端冒烟一条(如 `claude -p "Reply with exactly: OK"`、`pi --mode json ... "PI-OK"`、`opencode run "OK"`);沙箱受限时按各平台 XDG/临时目录重定向复制凭证(gfguard-pi-cases.sh 已有沙箱处理)。
+1. **守卫版本核对**:被测守卫 = 当前 develop 构建产物(`npm run build` 已跑,`lib/` 最新)。
+2. **全量矩阵与放行流回归**:执行 `npm run test:git-matrix`(135 项 Git 命令决策穷举矩阵)与 `npm run test:realflow`(Feature 分支全生命周期放行流),断言全绿。
+3. **受控沙箱**:各客户端测试一律在临时目录(`/tmp/e2e-<client>-repo`: master=integration / beta=preview / (fix|task)/*=feature + 本地裸远端 + config),**禁止对真实远端执行会成功的用例**。
+4. **客户端凭证**:各客户端冒烟一条(如 `codex exec "Reply with exactly: OK"`、`claude -p "Reply with exactly: OK"`、`pi --mode json ... "PI-OK"`、`opencode run "OK"`);沙箱受限时按各平台 XDG/临时目录重定向复制凭证。
 
 ## 执行流程
 

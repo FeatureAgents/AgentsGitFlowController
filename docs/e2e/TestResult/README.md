@@ -9,7 +9,7 @@
 |---|---|---|
 | DSH | `dsh.md` | ✅ 已实测(2026-08-29,重启后) |
 | Claude Code | `claude-code.md` | ✅ 已实测(2026-08-29) |
-| Codex | `codex.md` | ⛔ 未安装/未测 |
+| Codex | `codex.md` | ✅ 已实测(codex-cli 0.150.1, 2026-08-29) |
 | OpenCode | `opencode.md` | ❌ 已实测,发现缺陷(hook 在 1.18 不生效) |
 | Antigravity | `antigravity.md` | ✅ 已实测(agy 1.1.22,2026-08-29);拦截/放行全通,2 处协议差异待修复 |
 | Pi | `pi.md` | ✅ 已实测(2026-08-29 重跑) |
