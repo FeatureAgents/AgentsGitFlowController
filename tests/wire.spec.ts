@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { isWired, WIRE_CLIENTS } from '../src/wire'
 import { applyWire } from '../src/wire'
@@ -59,6 +59,19 @@ describe('wire: JSON 客户端(claude/codex)幂等落位与移除', () => {
       writeFileSync(path, '{broken')
       await expect(applyWire('claude', path, false, false)).rejects.toThrow(/invalid JSON/)
       expect(readFileSync(path, 'utf8')).toBe('{broken') // 原文件未动
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('isWired 遇无效 JSON → false(不误报已接线)', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.claude/settings.json')
+    try {
+      mkdirSync(join(dir, '.claude'), { recursive: true })
+      writeFileSync(path, '{broken')
+      await expect(isWired('claude', path)).resolves.toBe(false)
+      await expect(isWired('antigravity', path, dir)).resolves.toBe(false)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -185,6 +198,7 @@ describe('wire: 客户端规格表', () => {
     expect(codex.projectPath).toBe('.codex/hooks.json')
     const opencode = WIRE_CLIENTS.find((c) => c.client === 'opencode')!
     expect(opencode.projectPath).toBe('.opencode/plugins/gitflow-guard.ts')
+    expect(opencode.globalPath()).toBe(join(homedir(), '.config', 'opencode', 'plugins', 'gitflow-guard.ts'))
     const ag = WIRE_CLIENTS.find((c) => c.client === 'antigravity')!
     expect(ag.projectPath).toBe('.agents/hooks.json')
     expect(ag.experimental).toBeUndefined() // 真机核验闭环(AGY-D1..D4)后摘除实验标注

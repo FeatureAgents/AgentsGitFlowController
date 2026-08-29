@@ -54,3 +54,13 @@
 | OPENCODE-B1 | `git push origin fix/verify-01` | **PASS** | 真实执行:远端出现 `refs/heads/fix/verify-01` = `ff6fafe...`(与本地 commit 一致) |
 
 > 插件实现要点(防再踩坑):① 插件导出必须是**函数**(工厂)返回事件处理器对象;② 插件运行在 opencode 进程内,`process.execPath` 是 opencode 自身,不能当解释器,Unix 靠脚本 shebang 直跑、Windows 用 PATH 上的 `node`;③ 守卫定位:插件上两级(项目根)`bin/` → `$OPENCODE_PROJECT_DIR/bin/` → `GITFLOW_GUARD_BIN` → PATH;④ 拒绝语义 = handler 抛错,其余 fail-open。
+
+## 边界核验(2026-08-29,追加)
+
+| 场景 | 结果 | 证据/说明 |
+|---|---|---|
+| 从仓库子目录启动会话 | **客户端语义确认(非缺陷)** | `sub/deep` 目录启动 opencode:**项目级插件不被加载**(OpenCode 按启动目录解析 `.opencode/plugins`,不向上探测),守卫零介入,受保护推送直接执行("Everything up-to-date")。多目录/子目录场景应使用全局插件 + 全局安装的守卫;已写入 docs/e2e/opencode.md 前置条件 |
+| 全局插件形态真机 | NOT RUN(环境受限) | 本机受限 shell 对 `~` 全域只读(`test -w ~` = false,`npm i -g` 亦被拒),无法落位 `~/.config/opencode/plugins/`;守卫定位链第 2/3 分支(OPENCODE_PROJECT_DIR / GITFLOW_GUARD_BIN)已有单测覆盖,第 1 分支(项目级)真机 PASS |
+| 守卫不可用 fail-open 真机(删除 bin 后会话) | 未执行 | 受控仓库 bin 删除会同时影响后续用例;fail-open 三路径(exit 非 0 / spawn 失败 / 定位缺失)已有单测锁定;且已确认守卫缺失场景下监控告警输出 |
+
+> 沙箱注记:本机受限 shell 下 `~/.npm`、`~/.gemini` 等主目录写操作被拒,影响全局安装与 agy 会话缓存;项目级形态(受控仓库在 /tmp)不受影响。

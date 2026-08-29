@@ -11,7 +11,11 @@
 - wire 落位:正常安装形态 `gitflow-guard wire --client opencode --project --yes` 即复制插件到 `.opencode/plugins/gitflow-guard.ts`;
   **复制挂载形态(bin+lib 拷进受控仓库)** 下包内 opencode/ 不在现场, wire 会报错指路——直接手工复制
   `cp opencode/gitflow-guard.ts <repo>/.opencode/plugins/gitflow-guard.ts` 即可(或装包后 wire)。
-- 会话 cwd 必须在受控仓库内(守卫 CLI 从 cwd 向上定位仓库根)。
+- 会话**必须从仓库根启动**:OpenCode 项目级插件目录按启动目录解析,不向上探测——从子目录启动时
+  `.opencode/plugins/` 不会被加载(2026-08-29 实机验证:sub/deep 启动,守卫零介入,受保护推送直接执行)。
+  子目录/任意目录启动场景需**全局插件**(`wire --client opencode --global`,落位 `~/.config/opencode/plugins/`)
+  + 全局安装的 `gitflow-guard`(或 `GITFLOW_GUARD_BIN` 指向可执行守卫)。
+- `$OPENCODE_PROJECT_DIR` 环境变量官方未承诺一定设置,插件守卫定位不依赖它(见 references/opencode.md)。
 
 ## 用例
 
