@@ -142,6 +142,29 @@ describe('cli: 其他', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('audit 接受并透传注入的 runner，不硬编码 gitRunner（bug 回归: cli.ts L172）', async () => {
+    // 验证 audit() 使用注入的 runner 而非硬编码 gitRunner:
+    // 当不传 --repo 时, 内部调用 resolveRepo(flags, runner) 来定位仓库根;
+    // 若 audit 写死 gitRunner, 注入的 trackingRunner 不会被调用, calledCount 保持 0
+    const dir = tempRepo()
+    let calledCount = 0
+    const trackingRunner: Runner = {
+      async run(args) {
+        calledCount++
+        if (args[0] === 'rev-parse') return { code: 0, stdout: dir + '\n', stderr: '' }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    try {
+      // 不传 --repo, 强制 resolveRepo 通过 runner 查询
+      await captureStdout(() => main(['audit'], { runner: trackingRunner }))
+      // 注入的 runner 必须被调用(resolveRepo 内部调用 rev-parse)
+      expect(calledCount).toBeGreaterThan(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('cli: check(agent hook 门禁)', () => {

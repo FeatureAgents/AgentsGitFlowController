@@ -52,7 +52,7 @@ dsh plugin --profile web add agents-gitflow-guard
 npm i -D agents-gitflow-guard
 ```
 
-> **提示**：預設安裝 npm 註冊表上的最新版本。若鏡像源快取有延遲或需鎖定版本，可指定版本號（例如 `npm i -g agents-gitflow-guard@<版本>`）。（使用 DSH 時若 pnpm 印出 peer 依賴警告屬正常預期 —— DSH 執行階段會自動透過共享模組解析 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`；外掛可正常運作。）
+> **提示**：預設安裝 npm 註冊表上的最新版本。若鏡像源快取有延遲或需鎖定版本，可指定版本號（例如 `npm i -g agents-gitflow-guard@<版本>`）。DSH 專用 peer 依賴（`@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`）已宣告為 **optional** —— 僅 DSH 進程內外掛需要，由 DSH 執行階段透過共享模組解析；CLI / Pi / OpenCode 使用者不會被強制安裝。
 >
 > CLI Hook 客戶端安裝後執行一步接線指令（每個客戶端一條指令，見第 2 步）；Pi 複製一個擴充檔案；DSH 在外掛新增後自動完成掛載。
 

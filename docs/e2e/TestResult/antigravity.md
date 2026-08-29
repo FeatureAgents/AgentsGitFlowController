@@ -70,3 +70,9 @@
 | AGY-B1 | `git push origin fix/verify-01`(放行) | **PASS** | 会话输出 `PUSH-OK`;远端真实出现 `refs/heads/fix/verify-01` = `94e8827...`。前置:本次会话解除 `~/.gemini` 写限制(受限 shell 下 agy 运行时目录写死、工具通道 EPERM/挂起,曾误判 NOT RUN) |
 
 > 注:会话期间 agy 向 `~/.gemini/antigravity-cli/` 写缓存报 operation not permitted(沙箱限制),拦截链路不受影响。
+
+---
+
+## 2026-08-29 复测（feature/fix-major-issues · 0.0.33）
+
+- **状态**：NOT RUN（agy 侧模型额度受限，无法建立真机会话）。协议层已由 verify:matrix 覆盖；此前 0.0.21 时代真机记录见上。

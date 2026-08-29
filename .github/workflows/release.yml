@@ -12,13 +12,12 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-  id-token: write # npm publish --provenance: OIDC token required to generate provenance attestation
-
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # npm publish --provenance: OIDC token required to generate provenance attestation
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,7 +25,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
 
       - name: Determine release eligibility
@@ -70,6 +69,7 @@ jobs:
           npm run typecheck
           npm test
           npm run check:pins
+          npm run check:readmes
           npm run build
           npm run verify:matrix
 
@@ -87,8 +87,6 @@ jobs:
       - name: Publish to npm
         if: steps.check_release.outputs.should_release == 'true'
         run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Extract Changelog & Create GitHub Release
         if: steps.check_release.outputs.should_release == 'true'

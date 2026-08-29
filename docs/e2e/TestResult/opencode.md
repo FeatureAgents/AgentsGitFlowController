@@ -65,3 +65,15 @@
 | 守卫不可用 fail-open 真机 | 覆盖 | 上述纯全局无守卫场景即真实 fail-open 链路:push 放行 + 告警输出,与单测语义一致 |
 
 > 沙箱注记:本机受限 shell 下 `~/.npm`、`~/.gemini` 等主目录写操作被拒,影响全局安装与 agy 会话缓存;项目级形态(受控仓库在 /tmp)不受影响。
+
+---
+
+## 2026-08-29 复测（feature/fix-major-issues · 0.0.33）
+
+| 用例 | 操作 | 结果 | 证据 |
+|---|---|---|---|
+| OPENCODE-C1 | 插件落位 | **PASS(文件层面)** | 受控仓库 `.opencode/plugins/gitflow-guard.ts` 存在，含 3 处 `tool.execute.before`（复制挂载形态手拷插件） |
+| OPENCODE-A1 | `git push origin master` | **NOT RUN** | 真机会话 `opencode run -m opencode-go/deepseek-v4-flash --auto` 卡在 `> build · deepseek-v4-flash` 3 分钟无输出，中断；疑模型/额度/网络挂起。协议层已由 verify:matrix 覆盖 |
+| OPENCODE-B1 | `git push origin task/e2e-oc` | **NOT RUN** | A1 会话未完成故未跑；协议层已覆盖 |
+
+> 本次 0.0.33 复测中 opencode 真实会话通道未能完成（模型挂起），此前 0.0.21 时代「修复后复测（真机会话）」已有 PASS 记录，本次仅作增量确认受限于运行环境。

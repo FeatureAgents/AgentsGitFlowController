@@ -1,6 +1,6 @@
 {
   "name": "agents-gitflow-guard",
-  "version": "0.0.33",
+  "version": "0.0.34",
   "description": "A configurable branch-role guard for AI coding agents (DSH / Claude Code / Codex / OpenCode / Antigravity / Pi) — zero-config defaults (develop+main) out of the box, deep-merge override, and per-client native hooks via gitflow-guard wire/setup; integration/preview/production/archive, each with its own update rules",
   "license": "MIT",
   "type": "module",
@@ -92,6 +92,14 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-tools": "^0.1.0-rc.5"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",

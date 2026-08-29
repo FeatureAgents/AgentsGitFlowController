@@ -24,6 +24,8 @@ jobs:
       - run: npm test
       # 版本锁定一致性: package.json ↔ 双语 README 锁版本示例 ↔ CHANGELOG 小节标题
       - run: npm run check:pins
+      # 多语种 README 100% 结构对称性: 11 种语言标题/表格/代码块/TOC 锚点必须全部对齐
+      - run: npm run check:readmes
       - run: npm run build
       # 连续复测矩阵: DSH 逻辑 + Claude Code / Codex / OpenCode / antigravity hook 编码回归
       - run: npm run verify:matrix

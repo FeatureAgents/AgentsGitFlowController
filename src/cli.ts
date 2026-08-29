@@ -169,7 +169,7 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
 }
 
 async function audit(flags: Flags, runner: Runner): Promise<number> {
-  const repoRoot = await resolveRepo(flags, gitRunner)
+  const repoRoot = await resolveRepo(flags, runner)
   if (!repoRoot) {
     console.error(makeT(resolveLocale(flags.locale))('cli.cannotLocate'))
     return 1

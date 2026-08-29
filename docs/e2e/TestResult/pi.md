@@ -43,3 +43,9 @@
 2. **版本挂载方式**:`^0.0.17` 不解析到 0.0.21(0.0.x 的 caret 锁 patch),现场以 node_modules 替换挂载;正式复测建议直接 `npm i -D agents-gitflow-guard@0.0.21`。
 3. **Pi 会话拆条风险**:2026-08-28 事故(拆条后普通 commit 放行、push 仍拦、远端零污染)为已知设计,复测未再现该路径。
 4. 决策矩阵 135 用例(CLI 文本级)与扩展通道联动:本次未全量重跑矩阵(需 `GUARD_BIN` 指向被测 bin),下次守卫逻辑变更时按 docs/e2e/pi.md PI-D3 执行。
+
+---
+
+## 2026-08-29 复测（feature/fix-major-issues · 0.0.33）
+
+`npm run test:pi`（scripts/test-pi-extension.sh）**PASS**：A/B/C/D 四用例全通过；POST-STATE 显示 `origin/master` 与 `beta` 前后均 UNCHANGED，受控 `task` 分支放行并真实创建远端 ref。Pi 扩展通道在本次修复下无回归。
