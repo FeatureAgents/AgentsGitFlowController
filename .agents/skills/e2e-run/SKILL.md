@@ -1,44 +1,44 @@
 ---
 name: e2e-run
-description: Execute live end-to-end testing and collect physical git evidence. 执行实机测试并取证(基于自包含测试脚本与受控沙箱).
+description: Execute live end-to-end testing and collect physical Git evidence based on self-contained test scripts and controlled sandboxes.
 ---
 
-# e2e-run · 执行实机测试并取证
+# e2e-run · Execute Live E2E Testing and Collect Evidence
 
-本技能规范「如何执行实机测试、如何取证」:用例来自 `docs/e2e/<client>.md`,证据写入 `docs/e2e/TestResult/<client>.md`(证据规范见其 README),测试套件脚本位于本仓库 `scripts/`。
+This skill defines how to execute live end-to-end testing and collect physical evidence: test cases originate from `docs/e2e/<client>.md`, evidence is recorded in `docs/e2e/TestResult/<client>.md` (refer to its README for evidence guidelines), and test suite scripts are located in `scripts/`.
 
-## 前置检查(必做)
+## Mandatory Prerequisites
 
-1. **守卫版本核对**:被测守卫 = 当前 develop 构建产物(`npm run build` 已跑,`lib/` 最新)。
-2. **全量矩阵与放行流回归**:执行 `npm run test:git-matrix`(135 项 Git 命令决策穷举矩阵)与 `npm run test:realflow`(Feature 分支全生命周期放行流),断言全绿。
-3. **受控沙箱**:各客户端测试一律在临时目录(`/tmp/e2e-<client>-repo`: master=integration / beta=preview / (fix|task)/*=feature + 本地裸远端 + config),**禁止对真实远端执行会成功的用例**。
-4. **客户端凭证**:各客户端冒烟一条(如 `codex exec "Reply with exactly: OK"`、`claude -p "Reply with exactly: OK"`、`pi --mode json ... "PI-OK"`、`opencode run "OK"`);沙箱受限时按各平台 XDG/临时目录重定向复制凭证。
+1. **Verify Guard Build**: Ensure the guard under test is built from the latest codebase (`npm run build` has been executed, `lib/` is fresh).
+2. **Matrix and Realflow Regression**: Execute `npm run test:git-matrix` (the 135-case exhaustive Git command decision matrix) and `npm run test:realflow` (full feature branch lifecycle flow), asserting that all tests pass.
+3. **Controlled Sandboxes**: Run client tests strictly within temporary directories (e.g., `/tmp/e2e-<client>-repo` with `master=integration`, `beta=preview`, `(fix|task)/*=feature`, local bare remotes, and local config). **Never execute commands with successful push side-effects against real remotes.**
+4. **Client Credentials**: Smoke-test each client with a simple prompt (e.g., `codex exec "Reply with exactly: OK"`, `claude -p "Reply with exactly: OK"`, `pi --mode json ... "PI-OK"`, `opencode run "OK"`). When running in restricted sandbox environments, mirror credentials using platform-specific XDG/temporary directory variables.
 
-## 执行流程
+## Execution Workflow
 
-1. **wire 落位**(stdin-hook 客户端):`gitflow-guard wire --client <x> --project --yes`(受控仓库内),确认产物;DSH/Pi 走进程内(DSH 需重装 profile + 重启)。
-2. **按 docs/e2e/<client>.md 执行用例**,顺序:拦截组(A)→ 放行组(B)→ 接线组(C)→ 平台特有(D)。
-3. **每个用例取证**:
-   - 命令执行前记录远端 ref(`git ls-remote origin <ref>`);
-   - 执行后对比(拦截:未动;放行:出现/前移);
-   - 摘录客户端展示的拒绝原因与 hook stderr(会话输出/日志);
-   - 审计证据:`gitflow-guard audit`(受控仓库内)或 `~/.local/state/gitflow-guard/repos/*/audit.jsonl`;
-   - 原始日志保存到可引用路径,关键内容**摘录进 TestResult**(临时文件重启会消失)。
+1. **Wire Configuration** (stdin-hook clients): Run `gitflow-guard wire --client <x> --project --yes` inside the sandbox repository and verify generated artifacts; DSH and Pi use in-process extensions (DSH requires reinstalling the profile and restarting the session).
+2. **Execute Cases per `docs/e2e/<client>.md`**: Run in sequence: Deny group (A) → Allow group (B) → Wiring group (C) → Platform-specific group (D).
+3. **Collect Physical Evidence for Each Case**:
+   - Record remote refs before execution (`git ls-remote origin <ref>`).
+   - Compare remote refs after execution (Deny: untouched; Allow: new ref created or advanced).
+   - Capture rejection reasons and hook stderr displayed by the client (from session transcripts / logs).
+   - Collect audit evidence: `gitflow-guard audit` (inside repository) or `~/.local/state/gitflow-guard/repos/*/audit.jsonl`.
+   - Store raw logs and **extract key evidence snippets into `TestResult`** (temporary files may vanish across system restarts).
 
-## 证据写入(TestResult 规范,必含)
+## Evidence Recording (Required in `TestResult`)
 
-- 测试信息表:日期/守卫版本/客户端版本/测试场/LLM provider·model/挂载方式;
-- 结果汇总表:用例 ID(与 docs/e2e 对应)/PASS·FAIL·NOT RUN/一句话证据;
-- 证据细节:输出摘录 + 远端 ref 前后;
-- 发现与遗留:缺陷/待办/复现方式。
+- Test Information Table: Date, guard version, client version, test environment, LLM provider/model, and mounting method.
+- Summary Table: Case ID (matching `docs/e2e`), status (PASS / FAIL / NOT RUN), and concise evidence statement.
+- Evidence Details: Session output excerpts + remote ref comparison before and after.
+- Findings and Action Items: Defects, pending items, and reproduction steps.
 
-## 发现缺陷时的处置
+## Handling Defects
 
-1. **先记录,再判断**:原样记录失败现象与证据(参考 OpenCode 1.18 hook 失效案例:协议层绿 ≠ 实机有效);
-2. 区分「测试场前置问题」(如分支缺失、版本挂载)与「产品缺陷」;
-3. 产品缺陷 → TestResult 写清影响面与复现,另开 issue/PR 修复;修复后**重跑该平台全量用例**;
-4. 各平台判定口径与互证:拦截 = 命令未执行 + 拒绝原因展示;放行 = 真实副作用。
+1. **Record First, Analyze Second**: Log failure symptoms and raw evidence verbatim (e.g., the OpenCode 1.18 hook deprecation case where green wire protocol tests did not guarantee live execution).
+2. Distinguish between "test environment prerequisite issues" (missing branches, stale mounted versions) and "genuine product defects".
+3. For genuine defects: Document the impact scope and reproduction steps in `TestResult`, open an issue/PR to resolve, and **re-run the complete test suite for that platform** after fixing.
+4. Consistent criteria: Deny = command did not execute + rejection reason shown; Allow = physical side-effects visible on remote ref.
 
-## 收尾
+## Finalization
 
-- 全部受影响平台执行完毕后,按项目纪律 QA 三连并提交(TestResult 与用例文档随功能 PR 一并提交);未测平台在 TestResult 标注 NOT RUN + 用户所需准备(如安装/凭证)。
+- Once all affected platforms complete execution, run the full QA suite and commit documentation along with the feature PR. Unverified platforms must be marked as `NOT RUN` in `TestResult` with necessary user setup instructions (installation / credentials).

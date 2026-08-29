@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.29
+
+- docs(skills): localize all agent skills to pure English — translated `design-sync`, `e2e-cases`, `e2e-run`, and `start-work` skill definitions and documentation completely into standardized English for international agent and developer usability —— Agent Skills 全量英语化: 将 `design-sync`、`e2e-cases`、`e2e-run` 与 `start-work` 全部 Skill 定义与文档统一英语化，提升跨智能体与全球开发者协作一致性。
+
 ## 0.0.28
 
 - feat(ci): fully automated release upon PR merge into develop — added automated release detection in `.github/workflows/release.yml` and a dedicated changelog extraction utility `scripts/extract-changelog.mjs`: when a PR containing a version bump and CHANGELOG entry is merged into `develop`, CI automatically validates all matrix tests, creates and pushes the annotated Git tag (`vX.Y.Z`), publishes to npm with provenance attestation, and generates the GitHub Release with extracted release notes, eliminating manual local tag creation and push commands —— 自动化合并发版体系: 在 `.github/workflows/release.yml` 引入自动化版本检测与发布机制，并新增 CHANGELOG 提取工具 `scripts/extract-changelog.mjs`; 当包含版本更新与 CHANGELOG 的 PR 合并入 `develop` 时，CI 自动执行全矩阵回归测试、在 `develop` 自动打 Git Tag (`vX.Y.Z`) 并推送、发布 npm (带 provenance 认证) 及自动创建包含更新日志的 GitHub Release，实现零本地命令的全自动化发版闭环。
