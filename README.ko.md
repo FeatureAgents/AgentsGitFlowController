@@ -2,7 +2,7 @@
 
 > **AI 에이전트가 GitFlow 규칙을 무단으로 건너뛰는 문제로 고민하고 계신가요?**
 
-AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 플러그인 — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, OpenCode, Antigravity 및 Pi 지원.  
+AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 플러그인 — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 및 [Pi](https://github.com/mariozechner/pi) 지원.  
 자신만의 브랜치 역할을 자유롭게 정의하세요 — **integration** (PR/MR을 통해 feature 통합), **preview** (스테이징/테스트 환경 엔드포인트), **production** (운영), **archive** (아카이브) — 각각 고유한 업데이트 규칙을 설정할 수 있습니다. 에이전트는 정의된 흐름을 임의로 건너뛸 수 없으며, 민감한 머지 권한은 확실하게 사람의 손에 유지됩니다.
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [라이선스](LICENSE)
@@ -35,20 +35,20 @@ AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 
 
 ## 빠른 시작 — 30초 만에 저장소 보호하기
 
-**1단계 — 설치.** 6개 클라이언트 모두 동일한 npm 패키지 `agents-gitflow-guard`를 사용합니다:
+**1단계 — 설치.** 6개 클라이언트 모두 동일한 npm 패키지 `agents-gitflow-guard`를 사용하며, 사용하는 에이전트에 맞는 방식을 선택합니다:
 
 ```bash
-# DSH — 프로세스 내 플러그인 (설치 후 DSH 재시작 필요)
-dsh plugin --profile web add agents-gitflow-guard
-```
-
-```bash
-# Claude Code · Codex · OpenCode · Antigravity — 독립형 훅 (DSH 불필요)
+# 모드 A: CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity)
 npm i -g agents-gitflow-guard
 ```
 
 ```bash
-# Pi — 프로세스 내 확장
+# 모드 B: DSH 프로세스 내 플러그인 (설치 후 DSH 재시작 필요)
+dsh plugin --profile web add agents-gitflow-guard
+```
+
+```bash
+# 모드 C: Pi 프로세스 내 확장
 npm i -D agents-gitflow-guard
 ```
 
@@ -119,7 +119,9 @@ AI 코딩 에이전트는 저장소 내에서 직접 작업합니다. 프로젝�
 
 ## 상세 설치 가이드
 
-**사전 요구사항**: `PATH`에 **Node.js ≥ 22** 설치 필요.
+**사전 요구사항**: `PATH`에 **Node.js ≥ 22** 설치 필요. 모든 클라이언트는 **동일한 npm 패키지** `agents-gitflow-guard`를 사용합니다.
+
+### 1. CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity)
 
 ```bash
 npm i -g agents-gitflow-guard
@@ -127,6 +129,23 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
+```
+
+### 2. 프로세스 내 플러그인 및 확장 (DSH · Pi)
+
+- **DeepSeek Harness (DSH)**: `dsh plugin --profile web add agents-gitflow-guard` (설치 후 DSH 재시작)
+- **Pi**: `npm i -D agents-gitflow-guard` 및 `node_modules/agents-gitflow-guard/pi/gitflow-guard.ts` 파일을 `.pi/extensions/`로 복사
+
+### 3. 소스코드 직접 설치 및 개발 (From Source)
+
+```bash
+git clone https://github.com/FeatureAgents/AgentsGitFlowController.git
+cd AgentsGitFlowController
+npm install && npm run build
+
+# 클라이언트에 맞게 로컬 빌드 연결:
+npm link # CLI Hook 클라이언트 또는 Pi
+dsh plugin --profile web add file:/path/to/AgentsGitFlowController # DSH
 ```
 
 ---

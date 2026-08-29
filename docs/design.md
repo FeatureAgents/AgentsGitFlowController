@@ -171,7 +171,7 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 覆盖入口:    GITFLOW_GUARD_STATE_ROOT(所有平台, 测试/特殊部署用)
 ```
 
-**为什么不在仓库里(v0 曾放 repo 内 .git 目录)**: 凡 agent 可写之处的状态都可能被 agent 伪造——放在仓库内等于把「自我授权」后门留在门上。用户级目录位于 DSH workspace-write 文件沙箱之外, agent 的文件工具与 shell 都写不进, 篡改必须触发用户审批, 「人是唯一例外权」由机制保证而非自觉。
+**为什么不在仓库里(v0 曾放 repo 内 .git 目录)**: 凡 agent 可写之处的状态都可能被 agent 伪造——放在仓库内等于把「自我授权」后门留在门上。用户级目录位于各 Agent 平台的 workspace-write 文件沙箱之外（如 DSH、Claude Code 等）, agent 的文件工具与 shell 都写不进, 篡改必须触发用户审批, 「人是唯一例外权」由机制保证而非自觉。
 
 附带收益: 重克隆、移动 .git、清理工作树均不丢审计历史; 键经 realpath 规范化(macOS /tmp 符号链接、Windows 8.3 短名)保持稳定。linked worktree 的 .git 为 gitdir 指针文件, 解析回主仓库根作键——同一仓库所有工作树共用一份审计(与 ≤0.0.13 存于共享 .git 的语义一致)。
 
@@ -185,7 +185,7 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 
 ## 12. 测试策略
 
-- **单元/集成**(vitest, 无需 DSH): classify(对抗语料)、gate、config(校验/strict)、i18n(键一致性)、repo、index(evaluateCommand 编排/降级路径)、cli(status/audit/check/--locale)、platform(四平台 stdin-hook extract/detect/encode)、stateDir(确定性/隔离性/XDG 重定向)。
+- **单元/集成**(vitest, 无需特定 agent 宿主环境): classify(对抗语料)、gate、config(校验/strict)、i18n(键一致性)、repo、index(evaluateCommand 编排/降级路径)、cli(status/audit/check/--locale)、platform(四平台 stdin-hook extract/detect/encode)、stateDir(确定性/隔离性/XDG 重定向)。
 - **accuracy-audit 语料**: §1.1 对抗样本(shell 包装、git 形态、组合旗标)固化为回归清单。
 - **复测矩阵** `npm run verify:matrix` 七节 A–G: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity / Pi 扩展——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段)。
 - **铁律**: `npm run typecheck`(0 错)+ `npm test`(全绿)+ `npm run verify:matrix`(全绿)才算完成。CI 矩阵 ubuntu/macOS/Windows × Node 22/24。
@@ -217,5 +217,5 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 1. 文本解析 best-effort: 已实测穿透文本层的混淆形态与两条本地不可防通道(forge API 直连、解释器子进程内嵌)记录于 README 局限节; **服务端分支保护是最终边界**, 本插件叠加在其内侧的时序防线。
 2. 分支正则由项目作者编写, 注意避免灾难性回溯(README 有提示); 非法正则在加载期报错。
 3. 审计单机存储(§10), 多机协同需 v2 同步。
-4. 插件改动需重建重启 DSH(`npm run build`); 核心逻辑全部纯函数 + 配置驱动, 把「改代码」压到最少。
+4. 插件改动需重新构建(`npm run build`)，DSH 需重启宿主进程；核心逻辑全部纯函数 + 配置驱动, 把「改代码」压到最少。
 

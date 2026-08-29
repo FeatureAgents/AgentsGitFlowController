@@ -14,10 +14,13 @@
 
 <!-- 填写项目的构建 / 测试 / 运行 / 部署命令 -->
 
-- 构建：`npm run build`(tsdown → lib/; 插件改代码后需重建并重启 DSH)
+- 构建：`npm run build`(tsdown → lib/; 代码改动后重新构建)
 - 测试：`npm test`(vitest, 全绿才算完成)
 - 类型检查：`npm run typecheck`(tsc --noEmit, 0 Error 才算完成)
-- 安装进 DSH：`node scripts/install-dsh.mjs [profile]`(本机无 DSH 时跳过)
+- 本地调试与安装：
+  - CLI Hook 客户端（Claude Code / Codex / OpenCode / Antigravity）：`npm link` 后 `gitflow-guard wire --client <client> --project --yes`
+  - DSH 进程内插件：`node scripts/install-dsh.mjs [profile]`（本机无 DSH 时跳过，装完需重启 DSH）
+  - Pi 进程内扩展：`npm link` 或将 `pi/gitflow-guard.ts` 复制到目标仓库 `.pi/extensions/`
 - **发布(全自动化)**：bump 叠加在**待合并的内容 PR 分支**上(`npm version patch`, 版本提交落在该分支; feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ 用户在 GitHub 合并该 PR(内容+changelog+版本号一次带进 develop)→ **CI 自动检测新版本 → 全量矩阵校验 → 自动在 develop 最新 commit 打 annotated tag 并推送 → 自动 npm publish 与创建 GitHub Release**
   —— 零本地命令发布: 无需在本地手动打 tag 或推送, CI 自动闭环发版
   —— 仅当内容已合入后的纯补发(如版本同步)才开独立 `feature/release-<版本>` PR
