@@ -36,11 +36,25 @@
 
 ## 30 秒用上
 
+六个客户端支持同一个 npm 包 `agents-gitflow-guard`：
+
+**1. CLI Hook 客户端（Claude Code · Codex · OpenCode · Antigravity）**：
 ```bash
-dsh plugin --profile web add agents-gitflow-guard
+npm i -g agents-gitflow-guard
+gitflow-guard wire --client <claude|codex|opencode|antigravity> --project --yes
 ```
 
-重启 DSH，放上配置文件，然后让 agent `git push origin develop`——你会看到：
+**2. 进程内插件 / 扩展（DSH · Pi）**：
+```bash
+# DSH
+dsh plugin --profile web add agents-gitflow-guard
+
+# Pi
+npm i -D agents-gitflow-guard
+mkdir -p .pi/extensions && cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/
+```
+
+开箱即用（默认保护 `develop` 与 `main`），无需额外配置文件。让 agent 执行 `git push origin develop`——你会看到：
 
 ```text
 Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
