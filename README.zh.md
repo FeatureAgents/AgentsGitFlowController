@@ -543,10 +543,18 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 ## 路线图
 
-- **i18n——拦截文案本地化** ✅(0.0.3):默认英文,`"locale": "zh"` 切中文。
-- **v2——审计同步**:跨机器同步用户级审计日志(现仅本地)。
-- **v2——更多预制模板**:常用流程(solo `develop`、多环境企业)的现成配置模板,由社区贡献。
-- **v2——CI 硬门槛研究**:`pr checks` 能否在不伤平台无关核心的前提下变成真实门槛。
+**已落地**:
+
+- ✅ **i18n——拦截文案本地化**(0.0.3):默认英文,`"locale": "zh"` 切中文;0.0.12 起支持 `registerLocale` 自定义语言。
+- ✅ **零配置开箱**(0.0.20):内置 `develop` + `main` 默认配置、深度合并覆盖,无配置文件也默认开启守卫。
+- ✅ **一键接线**(0.0.20):`gitflow-guard wire` / `setup` 一条命令写入各 stdin-hook 客户端(Claude Code / Codex / OpenCode / Antigravity)的 hook 条目。
+- ✅ **六个平台**(0.0.2–0.0.17):DSH(进程内)、Claude Code、Codex、OpenCode、Antigravity、Pi(进程内)。
+
+**v2 规划中**:
+
+- **审计同步**:跨机器同步用户级审计日志(现仍仅本地;0.0.14 起已存于仓库外)。
+- **更多预制模板**:在内置默认之上延伸,为常用流程(solo `develop`、多环境企业)提供社区贡献的现成配置预设。
+- **CI 硬门槛研究**:`pr checks` 能否在不伤平台无关核心的前提下变成真实门槛。
 
 欢迎贡献——见[开发](#开发)。
 
@@ -564,9 +572,10 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 ```bash
 npm install
-npm test          # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit
+npm test          # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
 npm run typecheck     # tsc --noEmit, 0 Error
 npm run build         # tsdown → lib/(CLI 与插件共用)
+npm run check:pins    # 校验 package.json 版本与双语 README 锁版本示例及 CHANGELOG 标题一致
 npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claude Code / Codex / OpenCode / Antigravity hook 编码 + Pi 扩展
 ```
 

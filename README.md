@@ -545,10 +545,18 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 
 ## Roadmap
 
-- **i18n — localized block messages** ✅ (0.0.3): English by default, `"locale": "zh"` for Chinese.
-- **v2 — audit sync**: sync the user-level audit log across machines (audit is local-only today).
-- **v2 — more pre-built templates**: ready-made config templates for common flows (solo `develop`, multi-env enterprise) as community-contributed presets.
-- **v2 — CI hard-gating research**: whether `pr checks` could become a real gate without hurting the platform-agnostic core.
+**Shipped**:
+
+- ✅ **i18n — localized block messages** (0.0.3): English by default, `"locale": "zh"` for Chinese; custom locales via `registerLocale` since 0.0.12.
+- ✅ **Zero-config onboarding** (0.0.20): built-in `develop` + `main` defaults, deep-merge override, guard on by default with no config file.
+- ✅ **One-command wiring** (0.0.20): `gitflow-guard wire` / `setup` writes each stdin-hook client's hook entry (Claude Code / Codex / OpenCode / Antigravity).
+- ✅ **Six platforms** (0.0.2–0.0.17): DSH (in-process), Claude Code, Codex, OpenCode, Antigravity, Pi (in-process).
+
+**v2 (open)**:
+
+- **audit sync**: sync the user-level audit log across machines (audit is local-only today; since 0.0.14 it lives outside the repository).
+- **more pre-built templates**: extend the built-in defaults with ready-made presets for common flows (solo `develop`, multi-env enterprise) as community-contributed configs.
+- **CI hard-gating research**: whether `pr checks` could become a real gate without hurting the platform-agnostic core.
 
 Contributions welcome — see [Development](#development).
 
@@ -566,9 +574,10 @@ The plugin is free and open source (MIT). If it saves you and your team from a s
 
 ```bash
 npm install
-npm test          # unit tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit
+npm test          # unit tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
 npm run typecheck     # tsc --noEmit, 0 errors
 npm run build         # tsdown → lib/ (CLI and plugin share the build)
+npm run check:pins    # assert package.json version matches every README lock-version pin and the CHANGELOG heading
 npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale regression + Claude Code / Codex / OpenCode / Antigravity hook wiring + Pi extension
 ```
 
