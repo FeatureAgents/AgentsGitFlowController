@@ -199,13 +199,24 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 │   ├── gate.ts         # 门禁矩阵(纯函数)
 │   ├── config.ts       # 配置加载/规范化/校验/strict
 │   ├── repo.ts         # git 只读查询 + gh/glab Runner(可注入)
-│   ├── platform.ts     # 五平台 hook 协议(extract/detect/encodeDeny)
+│   ├── platform.ts     # 六平台 hook 协议 (DSH / Claude Code / Codex / OpenCode / Antigravity / Pi)(extract/detect/encodeDeny)
+│   ├── wire.ts         # 脚手架 wire/setup(各 agent 平台 hook 配置接入与更新)
+│   ├── pi.ts           # Pi 扩展工厂(createPiExtension 进程内事件拦截)
 │   ├── i18n.ts         # en/zh 字典 + registerLocale + MESSAGE_KEYS
-│   ├── cli.ts          # status / audit / check
+│   ├── cli.ts          # status / audit / check / wire
 │   └── types.ts
 ├── tests/              # vitest(setup.ts 重定向状态根) + accuracy-audit 语料
 ├── bin/gitflow-guard.mjs
-├── scripts/verify-matrix.mjs
+├── pi/                 # 随包分发的 Pi 扩展入口 (pi/gitflow-guard.ts)
+├── opencode/           # 随包分发的 OpenCode 插件入口 (opencode/gitflow-guard.ts)
+├── scripts/
+│   ├── verify-matrix.mjs      # 全平台真实 payload 拦截与放行矩阵校验
+│   ├── check-version-pins.mjs # 依赖版本对齐校验
+│   ├── extract-changelog.mjs  # CHANGELOG 发版内容提取
+│   ├── install-dsh.mjs        # DSH 插件本地安装辅助
+│   ├── test-git-matrix.sh     # 多版本 Git 兼容性测试
+│   ├── test-git-realflow.sh   # 真实 GitFlow 全流程实机验证
+│   └── test-pi-extension.sh   # Pi 扩展集成测试
 ├── patch.yml           # DSH profile 挂载声明
 └── docs/design.md      # 本文
 ```

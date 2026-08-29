@@ -33,13 +33,26 @@
 ```
 AgentsGitFlowController/
 ├── AGENTS.md            # 唯一的智能体规范（本文件）
+├── gitflow-guard.config.json # 仓库级 GitFlow 守卫配置（dogfood）
+├── patch.yml            # DSH 插件挂载描述
 ├── .gitignore           # 忽略本机与系统文件
-├── .github/workflows/   # GitHub Actions（init.yml 初始化后自删）
-└── .agents/             # 智能体扩展，内容全部自建，不引入外部
-    ├── agents/          # 自建子智能体（architect 等 7 个，见 4. 工作流约定）
-    ├── hooks/           # 自建 hook，规范见 HOOKS.md
-    ├── skills/          # 自建 skill
-    └── commands/        # 自建命令
+├── .github/workflows/   # CI (ci.yml) 与全自动发布 (release.yml) 工作流
+├── .agents/             # Antigravity 智能体扩展（自建 agents / hooks / skills）
+│   ├── agents/          # 自建子智能体（architect 等 7 个，见 4. 工作流约定）
+│   ├── hooks/           # 自建 hook 脚本与参考文档
+│   └── skills/          # 自建 skill 工作流（start-work、design-sync 等）
+├── .claude/             # Claude Code dogfood 配置（settings.json / agents）
+├── .codex/              # Codex dogfood 配置（hooks.json）
+├── .opencode/           # OpenCode dogfood 配置（plugins/）
+├── .pi/                 # Pi dogfood 配置（settings.json / extensions/）
+├── src/                 # 核心源码（门禁、命令分类、平台协议、CLI、wire 脚手架、Pi 扩展等）
+├── tests/               # 单元测试、集成测试与准确率审计语料
+├── scripts/             # 构建、矩阵校验、版本检查、发版与 E2E 脚本
+├── bin/                 # CLI 二进制入口（gitflow-guard.mjs）
+├── lib/                 # 构建产物（tsdown 输出）
+├── docs/                # 设计文档、E2E 测试用例与博客文章
+├── pi/                  # 随 npm 包分发的 Pi 扩展入口（pi/gitflow-guard.ts）
+└── opencode/            # 随 npm 包分发的 OpenCode 插件入口（opencode/gitflow-guard.ts）
 ```
 
 ## 4. 工作流约定
