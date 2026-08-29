@@ -1,10 +1,14 @@
 name: Release
 
-# 打 v* 标签时自动发布: 校验版本 → 测试 → 构建 → npm publish → GitHub Release
-# 用法: npm version patch && git push origin develop && git push --tags(develop 为打 tag 发布分支)
+# 自动发版工作流:
+# 1. develop 分支合并 (push 且带版本/CHANGELOG 变更): 自动比对远端 tag，发现新版本即全量校验、自动打 tag、推 npm 与 GitHub Release
+# 2. 手动打 v* 标签推送 (push tags): 兜底触发直接校验发布
+# 流程: 版本检测 → 全量测试/构建/矩阵验证 → 自动打 tag 并推送 → npm publish (--provenance) → GitHub Release (带 CHANGELOG 提取说明)
 
 on:
   push:
+    branches:
+      - develop
     tags:
       - 'v*'
 
@@ -17,33 +21,85 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 检出完整 tags 历史以供比对
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'
 
-      # npm ci 安装(package-lock.json 已提交), 免装 pnpm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
-
-      - name: Verify tag matches package version
+      - name: Determine release eligibility
+        id: check_release
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          PKG="$(node -p "require('./package.json').version")"
-          if [ "$TAG" != "$PKG" ]; then
-            echo "::error::tag v${TAG} does not match package.json version ${PKG}"
-            exit 1
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TARGET_TAG="v${PKG_VERSION}"
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG_FROM_REF="${GITHUB_REF_NAME}"
+            if [ "$TAG_FROM_REF" != "$TARGET_TAG" ]; then
+              echo "::error::Tag ${TAG_FROM_REF} does not match package.json version ${PKG_VERSION}"
+              exit 1
+            fi
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "need_tag=false" >> "$GITHUB_OUTPUT"
+            echo "tag=${TARGET_TAG}" >> "$GITHUB_OUTPUT"
+            echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Release triggered by manual tag push: ${TARGET_TAG}"
+          else
+            # develop 分支 push 事件
+            if git rev-parse "$TARGET_TAG" >/dev/null 2>&1; then
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              echo "Tag ${TARGET_TAG} already exists, skipping release."
+            else
+              echo "should_release=true" >> "$GITHUB_OUTPUT"
+              echo "need_tag=true" >> "$GITHUB_OUTPUT"
+              echo "tag=${TARGET_TAG}" >> "$GITHUB_OUTPUT"
+              echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+              echo "New version detected on develop: ${TARGET_TAG}, proceeding to release."
+            fi
           fi
 
+      - name: Install dependencies
+        if: steps.check_release.outputs.should_release == 'true'
+        run: npm ci
+
+      - name: Run verification suite
+        if: steps.check_release.outputs.should_release == 'true'
+        run: |
+          npm run typecheck
+          npm test
+          npm run check:pins
+          npm run build
+          npm run verify:matrix
+
+      - name: Create and push Git tag
+        if: steps.check_release.outputs.should_release == 'true' && steps.check_release.outputs.need_tag == 'true'
+        run: |
+          TAG="${{ steps.check_release.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Publish to npm
+        if: steps.check_release.outputs.should_release == 'true'
         run: npm publish --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Create GitHub Release
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes --title "$GITHUB_REF_NAME"
+      - name: Extract Changelog & Create GitHub Release
+        if: steps.check_release.outputs.should_release == 'true'
+        run: |
+          TAG="${{ steps.check_release.outputs.tag }}"
+          VERSION="${{ steps.check_release.outputs.version }}"
+          node scripts/extract-changelog.mjs "$VERSION" > RELEASE_NOTES.md
+          if [ -s RELEASE_NOTES.md ]; then
+            gh release create "$TAG" --title "$TAG" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
