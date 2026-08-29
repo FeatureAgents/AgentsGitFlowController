@@ -2,7 +2,7 @@
 
 > **AI エージェントが勝手に GitFlow をスキップするのにうんざりしていませんか？**
 
-AI コーディングエージェントのための、柔軟にカスタマイズ可能なブランチ役割ガードプラグイン — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、Claude Code、Codex、OpenCode、Antigravity、Pi をサポート。  
+AI コーディングエージェントのための、柔軟にカスタマイズ可能なブランチ役割ガードプラグイン — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://github.com/opencode-ai/opencode)、[Antigravity](https://github.com/google-deepmind)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、[Pi](https://github.com/mariozechner/pi) をサポート。  
 ブランチの役割は自由に定義可能 — **integration**（PR/MR 経由で feature をマージ）、**preview**（検証環境用エンドポイント）、**production**（本番）、**archive**（アーカイブ）— それぞれに独自の更新ルールを設定できます。エージェントによるプロセスのスキップを物理的に防ぎ、重要なマージ権限を確実に人間の手に残します。
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [ライセンス](LICENSE)
@@ -35,20 +35,20 @@ AI コーディングエージェントのための、柔軟にカスタマイ�
 
 ## クイックスタート — 30秒でリポジトリを保護
 
-**ステップ 1 — インストール。** 6 つのクライアントすべてが共通の npm パッケージ `agents-gitflow-guard` を使用します。ご利用の環境に合わせて選択してください：
+**ステップ 1 — インストール。** 6 つのクライアントすべてが共通の npm パッケージ `agents-gitflow-guard` を使用します。ご利用のエージェント種別に応じて選択してください：
 
 ```bash
-# DSH — プロセス内プラグイン（インストール後に DSH を再起動してください。起動時に読み込まれます）
-dsh plugin --profile web add agents-gitflow-guard
-```
-
-```bash
-# Claude Code · Codex · OpenCode · Antigravity — 独立したフックとして動作（DSH 不要）
+# モード A: CLI Hook クライアント (Claude Code · Codex · OpenCode · Antigravity)
 npm i -g agents-gitflow-guard
 ```
 
 ```bash
-# Pi — プロセス内拡張
+# モード B: DSH プロセス内プラグイン（インストール後に DSH を再起動してください）
+dsh plugin --profile web add agents-gitflow-guard
+```
+
+```bash
+# モード C: Pi プロセス内拡張
 npm i -D agents-gitflow-guard
 ```
 
@@ -331,13 +331,13 @@ archive (任意; リリース後に人間がアーカイブ)
 
 **前提条件**: `PATH` に **Node.js ≥ 22** がインストールされていること。全クライアント共通で **同じ npm パッケージ** `agents-gitflow-guard` を使用します。
 
-| クライアント | インストールコマンド | 次の手順 |
+| クライアント種別 / プラットフォーム | インストールコマンド | 配線・マウント手順 |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard` | DSH を再起動（プロファイル層として自動マウント） |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name>`（コマンド 1 回） |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
+| DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | DSH を再起動（プロファイル層として自動マウント） |
 | Pi | `npm i -D agents-gitflow-guard` | `pi/gitflow-guard.ts` を `.pi/extensions/` にコピー |
 
-### 独立したエージェントフックの配線 (Wire)
+### 1. 独立した CLI フック系クライアント (Claude Code · Codex · OpenCode · Antigravity)
 
 ```bash
 npm i -g agents-gitflow-guard   # `gitflow-guard` バイナリを提供
@@ -382,10 +382,35 @@ gitflow-guard wire --client antigravity --project --yes
 }
 ```
 
-```jsonc
-// Pi — .pi/settings.json
-{ "extensions": ["extensions/gitflow-guard.ts"] }
+### 2. プロセス内プラグイン・拡張機能 (DSH · Pi)
+
+- **DeepSeek Harness (DSH)**：
+  ```bash
+  dsh plugin --profile web add agents-gitflow-guard
+  ```
+  インストール後に DSH を再起動します。`dsh.bundle.patch` 宣言により自動的にプロファイル層として組み込まれます。
+
+- **Pi**：
+  ```bash
+  npm i -D agents-gitflow-guard
+  mkdir -p .pi/extensions
+  cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
+  ```
+  `.pi/settings.json` に設定: `{ "extensions": ["extensions/gitflow-guard.ts"] }`
+
+### 3. ソースコードからのインストールと開発 (From Source)
+
+```bash
+git clone https://github.com/FeatureAgents/AgentsGitFlowController.git
+cd AgentsGitFlowController
+npm install && npm run build
+
+# 利用するエージェントに応じてマウント:
+npm link # CLI Hook クライアントまたは Pi
+dsh plugin --profile web add file:/path/to/AgentsGitFlowController # DSH
 ```
+
+### 4. GitHub Copilot について
 
 **GitHub Copilot について**: Copilot は自身でツールごとの **allow/deny/ask** 権限およびプロジェクトルール（`rules.json` + `AGENTS.md`）を備えているため、本プラグインではフックを提供していません。
 

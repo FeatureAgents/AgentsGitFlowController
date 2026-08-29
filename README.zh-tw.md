@@ -2,7 +2,7 @@
 
 > **有沒有受夠了 AI Agent 隨意跳過你的 GitFlow 合併流程？**
 
-一個可自由配置分支角色的流程守衛，專為 AI 寫碼 Agent 而生 — 支援 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、Claude Code、Codex、OpenCode、Antigravity 與 Pi。  
+一個可自由配置分支角色的流程守衛，專為主流 AI 寫碼 Agent 平台而生 — 支援 [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://github.com/opencode-ai/opencode)、[Antigravity](https://github.com/google-deepmind)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 與 [Pi](https://github.com/mariozechner/pi)。  
 你自己定義分支 — **集成分支**（feature 經 PR/MR 合入）、**預覽分支**（環境端點）、**生產分支**、**歸檔分支** — 每個角色各自配置規則。Agent 無法跳過流程，敏感合併始終留在你手上。
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [授權條款](LICENSE)
@@ -21,7 +21,7 @@
 - [服務端分支保護 vs 本外掛](#服務端分支保護-vs-本外掛)
 - [運作機制 — 三行看懂底層原理](#運作機制--三行看懂底層原理)
 - [配置參考](#配置參考)
-- [門禁判定矩陣 — 攔截與放行清單](#門禁判定矩陣--攔截與放行清單)
+- [門禁判定矩陣 — 攔截與放行清單](#門禁判定矩陣--攔截与放行清單)
 - [人為介入與控制點](#人為介入與控制點)
 - [詳細安裝指南](#詳細安裝指南)
 - [常見問題 (FAQ)](#常見問題-faq)
@@ -35,20 +35,20 @@
 
 ## 快速上手 — 30 秒為倉庫啟用守衛
 
-**第 1 步 — 安裝。** 六個客戶端共用同一個 npm 套件 `agents-gitflow-guard`：
+**第 1 步 — 安裝。** 六個客戶端共用同一個 npm 套件 `agents-gitflow-guard`，依據你的 Agent 類型選擇安裝方式：
 
 ```bash
-# DSH — 進程內外掛（安裝後重啟 DSH 生效）
-dsh plugin --profile web add agents-gitflow-guard
-```
-
-```bash
-# Claude Code · Codex · OpenCode · Antigravity — 獨立 Hook（無需 DSH）
+# 模式 A: CLI Hook 客戶端 (Claude Code · Codex · OpenCode · Antigravity)
 npm i -g agents-gitflow-guard
 ```
 
 ```bash
-# Pi — 進程內擴充
+# 模式 B: DSH 進程內外掛（安裝後重啟 DSH 生效）
+dsh plugin --profile web add agents-gitflow-guard
+```
+
+```bash
+# 模式 C: Pi 進程內擴充
 npm i -D agents-gitflow-guard
 ```
 
@@ -119,7 +119,9 @@ AI 寫碼 Agent 直接在你的程式碼倉庫中工作。儘管在專案文檔�
 
 ## 詳細安裝指南
 
-**前置條件**：系統 `PATH` 中需有 **Node.js ≥ 22**。
+**前置條件**：系統 `PATH` 中需有 **Node.js ≥ 22**。所有客戶端使用**同一個 npm 套件** `agents-gitflow-guard`。
+
+### 1. CLI Hook 客戶端 (Claude Code · Codex · OpenCode · Antigravity)
 
 ```bash
 npm i -g agents-gitflow-guard
@@ -127,6 +129,23 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
+```
+
+### 2. 進程內外掛與擴充 (DSH · Pi)
+
+- **DeepSeek Harness (DSH)**：`dsh plugin --profile web add agents-gitflow-guard`（安裝後重啟 DSH）
+- **Pi**：`npm i -D agents-gitflow-guard` 並將 `node_modules/agents-gitflow-guard/pi/gitflow-guard.ts` 複製到 `.pi/extensions/`
+
+### 3. 從源碼安裝與本地開發 (From Source)
+
+```bash
+git clone https://github.com/FeatureAgents/AgentsGitFlowController.git
+cd AgentsGitFlowController
+npm install && npm run build
+
+# 根據客戶端進行掛載：
+npm link # CLI Hook (Claude Code / Codex / OpenCode / Antigravity) 或 Pi
+dsh plugin --profile web add file:/path/to/AgentsGitFlowController # DSH
 ```
 
 ---

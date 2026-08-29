@@ -2,7 +2,7 @@
 
 > **Are you tired of agents skipping your GitFlow?**
 
-A configurable branch-role guard for AI coding agents — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, OpenCode, Antigravity, and Pi.
+A configurable branch-role guard for AI coding agents — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), and [Pi](https://github.com/mariozechner/pi).
 You define your own branches —
 **integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Agents can't skip the flow, and sensitive merges stay in your hands.
 
@@ -36,26 +36,26 @@ You define your own branches —
 
 ## Quick Start — 30 seconds to a guarded repo
 
-**Step 1 — install.** All six clients consume the same npm package `agents-gitflow-guard` — pick yours:
+**Step 1 — install.** All six clients consume the same npm package `agents-gitflow-guard` — choose the installation mode matching your agent:
 
 ```bash
-# DSH — in-process plugin; restart DSH afterwards (plugins load at startup)
-dsh plugin --profile web add agents-gitflow-guard
-```
-
-```bash
-# Claude Code · Codex · OpenCode · Antigravity — standalone hooks, no DSH needed
+# Mode A: CLI Hook clients (Claude Code · Codex · OpenCode · Antigravity)
 npm i -g agents-gitflow-guard
 ```
 
 ```bash
-# Pi — in-process extension
+# Mode B: DSH in-process plugin (restart DSH afterwards; plugins load at startup)
+dsh plugin --profile web add agents-gitflow-guard
+```
+
+```bash
+# Mode C: Pi in-process extension
 npm i -D agents-gitflow-guard
 ```
 
-> **Note**: A bare `add` or `npm i` installs the latest version from npm registry. If your registry mirror has a cache delay or you need to lock to a specific version, append `@<version>` (e.g. `npm i -g agents-gitflow-guard@<version>`). (DSH users: the pnpm peer-dependency *warning* is expected — DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup; the plugin works normally.)
+> **Note**: A bare `add` or `npm i` installs the latest version from npm registry. If your registry mirror has a cache delay or you need to lock to a specific version, append `@<version>` (e.g. `npm i -g agents-gitflow-guard@<version>`). (When using DSH, the pnpm peer-dependency *warning* is expected — DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at runtime; the plugin works normally.)
 >
-> The hook clients (Claude Code · Codex · OpenCode · Antigravity) need one wiring step after install — **one command per client** (below). Pi needs a copy step; DSH is already wired by install.
+> CLI hook clients perform one wiring command after install (see Step 2); Pi copies an extension file; DSH auto-mounts on plugin installation.
 
 **Step 2 — wire your client (no config file needed).** The guard ships with **built-in defaults that protect `develop` (integration) + `main` (archive)** — zero configuration, on by default. The only thing you need is to tell your AI client to invoke the guard, with one command per stdin-hook client (DSH is wired automatically; Pi just copies a file, see below):
 
@@ -345,39 +345,24 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 ---
 
 ## Where the human stays in control
-
 - **Production merge** and **archive** are user-only by default: an agent may help prepare the PR/MR, but **you click the merge button** — that click *is* the confirmation. There is no separate permit store to outsource that decision.
 - Every deny is appended to the user-level audit log for review (`gitflow-guard audit`).
 
 ---
+
 ## Installation in detail
 
-**Prerequisite**: **Node.js ≥ 22** on your `PATH` (the package `engines` floor and the lowest CI matrix tier). Every client consumes the **same npm package** `agents-gitflow-guard` — only the mounting step differs.
+**Prerequisite**: **Node.js ≥ 22** on your `PATH` (the package `engines` floor and the lowest CI matrix tier). Every client consumes the **same npm package** `agents-gitflow-guard` — only the mounting and wiring step differs.
 
-| Agent | Install command | After that |
+| Client Type / Platform | Install Command | Mounting & Wiring Step |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard` | restart DSH — the plugin auto-mounts as a profile layer |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name>` — one command per client (below) |
-| Pi | `npm i -D agents-gitflow-guard` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
+| DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | Restart DSH — plugin auto-mounts as a profile layer |
+| Pi | `npm i -D agents-gitflow-guard` | Copy `pi/gitflow-guard.ts` into `.pi/extensions/` |
 
-**DSH — in-process plugin** (the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo)):
+### 1. Standalone CLI Hook Clients (Claude Code · Codex · OpenCode · Antigravity)
 
-```bash
-dsh plugin --profile web add agents-gitflow-guard
-```
-
-Then restart DSH. Upgrades are the same command, followed by another restart.
-
-**From source** — for contributors, or to run the latest checkout:
-
-```bash
-npm install && npm run build
-dsh plugin --profile web add file:/path/to/agents-gitflow-guard
-```
-
-The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes it a profile layer — no manual profile editing.
-
-**Standalone agent hooks** — Claude Code / Codex / OpenCode / Antigravity, no DSH required. Install the CLI once, then wire one client per command (the guard is on by default via its built-in config, so wiring is all that remains):
+Install the CLI globally once, then **wire each client with a single command** (the guard is on by default via its built-in config, so wiring is all that remains):
 
 ```bash
 npm i -g agents-gitflow-guard   # provides the `gitflow-guard` binary
@@ -412,17 +397,11 @@ gitflow-guard wire --client antigravity --project --yes
 ```
 
 ```ts
-// OpenCode — `.opencode/plugins/gitflow-guard.ts` (copy of the shipped `opencode/gitflow-guard.ts`;
-// OpenCode 1.18+ dropped hooks.yaml, the extension point is now plugins — `tool.execute.before`,
-// deny = throwing; `wire --client opencode` copies the file for you)
+// OpenCode — `.opencode/plugins/gitflow-guard.ts`
 ```
-`gitflow-guard wire --client opencode` writes this file from the package; hand-write only if you know what you are doing.
 
 ```json
 // Antigravity (Google) — .agents/hooks.json
-// (Antigravity hook processes run with cwd = the config file's directory, so a relative
-// bin/… path breaks; `wire` writes an absolute path for project scope, `gitflow-guard`
-// from PATH for global scope. Shown here: globally-installed form.)
 {
   "gitflow-guard": {
     "PreToolUse": [
@@ -432,18 +411,55 @@ gitflow-guard wire --client antigravity --project --yes
 }
 ```
 
-```jsonc
-// Pi — .pi/settings.json (extensions resolve relative to .pi)
-{ "extensions": ["extensions/gitflow-guard.ts"] }
-```
+### 2. In-Process Plugins and Extensions (DSH · Pi)
 
-Pi loads extensions in-process (no stdin payload, no subprocess hook). Install the shipped entry point into the project and keep the package in devDependencies:
+- **DeepSeek Harness (DSH)**:
+  ```bash
+  dsh plugin --profile web add agents-gitflow-guard
+  ```
+  Then restart DSH. The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically mounts it as a profile layer without manual profile editing. Upgrades follow the same command and restart.
+
+- **Pi**:
+  Pi loads extensions in-process (no stdin payload, no subprocess hook). Install the shipped entry point into the project and keep the package in devDependencies:
+  ```bash
+  npm i -D agents-gitflow-guard
+  mkdir -p .pi/extensions
+  cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
+  ```
+  Configure `.pi/settings.json`:
+  ```jsonc
+  // Pi — .pi/settings.json (extensions resolve relative to .pi)
+  { "extensions": ["extensions/gitflow-guard.ts"] }
+  ```
+
+### 3. From Source & Local Development
+
+For contributors or developers looking to run and debug against the latest source checkout:
 
 ```bash
-npm i -D agents-gitflow-guard
-mkdir -p .pi/extensions
-cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
+# Clone and build
+git clone https://github.com/FeatureAgents/AgentsGitFlowController.git
+cd AgentsGitFlowController
+npm install && npm run build
 ```
+
+Mount the local build into your target agent platform:
+
+```bash
+# A. Standalone CLI Hook Clients (Claude Code · Codex · OpenCode · Antigravity)
+npm link # or npm install -g .
+gitflow-guard wire --client <claude|codex|opencode|antigravity> --project --yes
+
+# B. DeepSeek Harness (DSH)
+dsh plugin --profile web add file:/path/to/AgentsGitFlowController
+# or run: node scripts/install-dsh.mjs web (restart DSH afterwards)
+
+# C. Pi
+npm link
+# or copy the repository's pi/gitflow-guard.ts directly to .pi/extensions/
+```
+
+### 4. GitHub Copilot Note
 
 **GitHub Copilot — deliberately no hook here.** Copilot ships its own guardrails for exactly this job: per-tool **allow/deny/ask** permissions and project **rules** (`rules.json` + `AGENTS.md`). Point Copilot users at the official docs instead of a plugin hook:
 
@@ -453,9 +469,9 @@ cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-
 
 - The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout; Antigravity → JSON `{"decision":"deny","reason":...}` on stdout with `exit 0` (Antigravity requires exit 0 and rejects `hookSpecificOutput` / non-allow values). Pi has no stdin protocol: the in-process extension listens to the official `tool_call` event and denies via its return value `{ block: true, reason }` (the CLI subprocess only speaks the internal exit-2 contract).
 - Only the pre-tool event is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no post-tool hooks are required.
-- The examples above call the globally-installed `gitflow-guard` (`npm i -g`). If a hook subprocess can't see it on its `PATH`, point at the full binary path from `npm bin -g` — hook subprocesses may not inherit your interactive shell `PATH`. The `bin/gitflow-guard.mjs` paths in this repo's shipped configs only work from a checkout.
-- **On by default**: the built-in config (integration=`develop`, archive=`main`) is active without any file. Trunk / single-branch repos: create `gitflow-guard.config.json` with `{ "enabled": false }`, or map your own branches. A custom config **deep-merges** over the defaults — write only the fields you want to change.
-- `wire` never removes or rewrites your existing hook entries — it only adds its own command (deduped) and, with `--unwire`, removes exactly that command again.
+- The examples above invoke the globally-installed binary `gitflow-guard` (`npm i -g`). If your agent's hook runner does not inherit your interactive `PATH`, supply the full absolute path from `npm bin -g`. The `bin/gitflow-guard.mjs` path in this repo's self-contained configs is only for repository checkout contributors.
+- **Enabled by default**: Built-in defaults (integration=`develop`, archive=`main`) take effect without any file. For trunk / single-branch repos, write a `gitflow-guard.config.json` containing `{ "enabled": false }` or map your branches. Custom configurations **deep-merge** on top of the defaults — configure only the keys you want to change.
+- `wire` never deletes or rewrites your existing hook entries — it only adds its own command (deduplicated); `--unwire` precisely removes that same command.
 
 ---
 

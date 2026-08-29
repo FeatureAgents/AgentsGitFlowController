@@ -2,7 +2,7 @@
 
 > **Cansado de agentes de IA ignorando seu GitFlow?**
 
-Um guardião configurável para papéis de branches Git, desenvolvido para agentes de codificação IA — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, OpenCode, Antigravity e Pi.  
+Um guardião configurável para papéis de branches Git, desenvolvido para agentes de codificação IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) e [Pi](https://github.com/mariozechner/pi).  
 Defina suas próprias branches — **integration** (funcionalidades são mescladas via PR/MR), **preview** (ambientes de teste), **production** (produção), **archive** (arquivo) — cada uma com suas próprias regras de atualização. Os agentes não podem burlar o processo e os merges críticos permanecem sob seu controle humano.
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Licença](LICENSE)
@@ -35,20 +35,20 @@ Defina suas próprias branches — **integration** (funcionalidades são mesclad
 
 ## Início Rápido — 30 segundos para proteger seu repositório
 
-**Passo 1 — Instalação.** Todos os seis clientes utilizam o mesmo pacote npm `agents-gitflow-guard`:
+**Passo 1 — Instalação.** Todos os seis clientes utilizam o mesmo pacote npm `agents-gitflow-guard` — selecione o modo adequado para seu agente:
 
 ```bash
-# DSH — Plugin in-process (reinicie o DSH após a instalação)
-dsh plugin --profile web add agents-gitflow-guard
-```
-
-```bash
-# Claude Code · Codex · OpenCode · Antigravity — Hooks autônomos (sem necessidade de DSH)
+# Modo A: Clientes Hook CLI (Claude Code · Codex · OpenCode · Antigravity)
 npm i -g agents-gitflow-guard
 ```
 
 ```bash
-# Pi — Extensão in-process
+# Modo B: Plugin in-process DSH (reinicie o DSH após a instalação)
+dsh plugin --profile web add agents-gitflow-guard
+```
+
+```bash
+# Modo C: Extensão in-process Pi
 npm i -D agents-gitflow-guard
 ```
 
@@ -120,7 +120,9 @@ Este plugin transforma regras de texto em **mecanismos rígidos**. Qualquer coma
 
 ## Instalação Detalhada
 
-**Pré-requisito**: **Node.js ≥ 22** no seu `PATH`.
+**Pré-requisito**: **Node.js ≥ 22** no seu `PATH`. Todos os clientes utilizam o **mesmo pacote npm** `agents-gitflow-guard`.
+
+### 1. Clientes Hook CLI autônomos (Claude Code · Codex · OpenCode · Antigravity)
 
 ```bash
 npm i -g agents-gitflow-guard
@@ -128,6 +130,23 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
+```
+
+### 2. Plugins e extensões in-process (DSH · Pi)
+
+- **DeepSeek Harness (DSH)**: `dsh plugin --profile web add agents-gitflow-guard` (reinicie o DSH após a instalação)
+- **Pi**: `npm i -D agents-gitflow-guard` e copie `node_modules/agents-gitflow-guard/pi/gitflow-guard.ts` para `.pi/extensions/`
+
+### 3. Instalação a partir do código-fonte (From Source)
+
+```bash
+git clone https://github.com/FeatureAgents/AgentsGitFlowController.git
+cd AgentsGitFlowController
+npm install && npm run build
+
+# Conectar de acordo com seu cliente:
+npm link # Clientes Hook CLI ou Pi
+dsh plugin --profile web add file:/path/to/AgentsGitFlowController # DSH
 ```
 
 ---

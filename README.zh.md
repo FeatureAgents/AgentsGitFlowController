@@ -2,7 +2,7 @@
 
 > **有没有受够了 agent 跳过你的合入流程?**
 
-一个可自由配置分支角色的流程守卫,为 AI 编码 agent 而生——[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH)、Claude Code、Codex、OpenCode、Antigravity、Pi。  
+一个可自由配置分支角色的流程守卫，为主流 AI 编码 agent 平台而生——[Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://github.com/opencode-ai/opencode)、[Antigravity](https://github.com/google-deepmind)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、[Pi](https://github.com/mariozechner/pi)。  
 你自己定义分支——**集成分支**(feature 经 PR/MR 合入)、**预览分支**(环境终点)、**生产分支**、**归档分支**——每个角色各自配规则。agent 无法跳过流程,敏感合并始终留在你手上。
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [许可证](LICENSE)
@@ -35,26 +35,26 @@
 
 ## 快速开始——30 秒用上
 
-**第 1 步——安装**。六个客户端吃同一个 npm 包 `agents-gitflow-guard`,按你的 agent 选一条:
+**第 1 步——安装**。六个客户端全部使用同一个 npm 包 `agents-gitflow-guard`，按你的 agent 类型选择对应方式：
 
 ```bash
-# DSH —— 进程内插件(装完重启 DSH; 插件在进程启动时加载)
-dsh plugin --profile web add agents-gitflow-guard
-```
-
-```bash
-# Claude Code · Codex · OpenCode · Antigravity —— 独立 hook,不需要 DSH
+# 模式 A: CLI Hook 客户端 (Claude Code · Codex · OpenCode · Antigravity)
 npm i -g agents-gitflow-guard
 ```
 
 ```bash
-# Pi —— 进程内扩展
+# 模式 B: DSH 进程内插件 (安装后重启 DSH，插件在进程启动时加载)
+dsh plugin --profile web add agents-gitflow-guard
+```
+
+```bash
+# 模式 C: Pi 进程内扩展
 npm i -D agents-gitflow-guard
 ```
 
-> **提示**: 裸 `add` 或 `npm i` 会默认安装 npm 注册表上的最新版本。若镜像源缓存有延迟或需锁定版本，可指定版本号（如 `npm i -g agents-gitflow-guard@<版本>`）。(DSH 用户: pnpm 打印的 peer 依赖 *警告* 属预期——DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`,插件正常工作。)
+> **提示**: 默认安装 npm 注册表上的最新版本。若镜像源缓存有延迟或需锁定版本，可指定版本号（如 `npm i -g agents-gitflow-guard@<版本>`）。(使用 DSH 时若 pnpm 打印 peer 依赖警告属正常预期——DSH 运行时会自动通过共享模块解析 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`。)
 >
-> hook 客户端(Claude Code · Codex · OpenCode · Antigravity)装完还要各做一步接线——**每个客户端一条命令**(见下)。Pi 拷贝一个文件;DSH 装完即已接线。
+> CLI Hook 客户端装完后执行一步接线（每个客户端一条命令，见第 2 步）；Pi 复制一个扩展文件；DSH 在插件添加后自动完成挂载。
 
 **第 2 步——接线(无需配置文件)。** 守卫内置**默认配置,开箱即用:默认保护 `develop`(integration)+ `main`(archive)**,零配置。你要做的只是让 AI 客户端去调用守卫——每个 stdin-hook 客户端一条命令(DSH 自动接线;Pi 拷文件,见下):
 
@@ -350,32 +350,17 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 ---
 ## 安装详解
 
-**前置**:`PATH` 上有 **Node.js ≥ 22**(与包 `engines` 及 CI 矩阵最低档一致)。所有客户端都吃**同一个 npm 包** `agents-gitflow-guard`——只有挂载步骤不同。
+**前置**:`PATH` 上有 **Node.js ≥ 22**(与包 `engines` 及 CI 矩阵最低档一致)。所有客户端都使用**同一个 npm 包** `agents-gitflow-guard`——只有挂载与接线方式不同。
 
-| 客户端 | 安装命令 | 装完再做什么 |
+| 客户端类型 / 平台 | 安装命令 | 挂载与接线步骤 |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard` | 重启 DSH——插件自动挂为 profile 层 |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <名>`——每个客户端一条命令(见下) |
-| Pi | `npm i -D agents-gitflow-guard` | 把 `pi/gitflow-guard.ts` 拷进 `.pi/extensions/`(见下) |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <名> --project --yes` |
+| DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | 重启 DSH —— 插件自动挂为 profile 层 |
+| Pi | `npm i -D agents-gitflow-guard` | 把 `pi/gitflow-guard.ts` 拷进 `.pi/extensions/` |
 
-**DSH —— 进程内插件**(标准路径,已在[快速开始](#快速开始30-秒用上)覆盖):
+### 1. CLI Hook 客户端 (Claude Code · Codex · OpenCode · Antigravity)
 
-```bash
-dsh plugin --profile web add agents-gitflow-guard
-```
-
-然后重启 DSH。升级用同一命令,再重启一次。
-
-**从源码**——给贡献者,或想跑最新 checkout:
-
-```bash
-npm install && npm run build
-dsh plugin --profile web add file:/path/to/agents-gitflow-guard
-```
-
-包自带 `dsh.bundle.patch` 声明,`dsh plugin add` 自动把它挂为 profile 层,无需手工编辑 profile。
-
-**各 agent 独立 hook**——Claude Code / Codex / OpenCode / Antigravity,不依赖 DSH。全局装一次 CLI,然后**每客户端一条命令接线**(守卫凭内置默认配置已默认开启,接线是唯一剩下的事):
+全局安装一次 CLI，然后**每客户端执行一条命令完成接线**（守卫凭内置默认配置已默认开启，接线是唯一剩下的事）：
 
 ```bash
 npm i -g agents-gitflow-guard   # 提供 `gitflow-guard` 二进制
@@ -429,18 +414,55 @@ gitflow-guard wire --client antigravity --project --yes
 }
 ```
 
-```jsonc
-// Pi — .pi/settings.json(extensions 路径相对 .pi 解析)
-{ "extensions": ["extensions/gitflow-guard.ts"] }
-```
+### 2. 进程内插件与扩展 (DSH · Pi)
 
-Pi 以进程内扩展装载(没有 stdin payload,也没有子进程 hook)。把随包发布的入口装进项目、包留在 devDependencies:
+- **DeepSeek Harness (DSH)**：
+  ```bash
+  dsh plugin --profile web add agents-gitflow-guard
+  ```
+  安装后重启 DSH。包自带 `dsh.bundle.patch` 声明，`dsh plugin add` 自动把它挂为 profile 层，无需手工编辑 profile。升级使用相同命令并重启。
+
+- **Pi**：
+  Pi 以进程内扩展装载(没有 stdin payload,也没有子进程 hook)。把随包发布的入口装进项目、包留在 devDependencies:
+  ```bash
+  npm i -D agents-gitflow-guard
+  mkdir -p .pi/extensions
+  cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
+  ```
+  并在 `.pi/settings.json` 中配置：
+  ```jsonc
+  // Pi — .pi/settings.json(extensions 路径相对 .pi 解析)
+  { "extensions": ["extensions/gitflow-guard.ts"] }
+  ```
+
+### 3. 从源码安装与本地开发 (From Source)
+
+给贡献者，或想在本地直接运行最新源码 checkout：
 
 ```bash
-npm i -D agents-gitflow-guard
-mkdir -p .pi/extensions
-cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
+# 克隆仓库并构建
+git clone https://github.com/FeatureAgents/AgentsGitFlowController.git
+cd AgentsGitFlowController
+npm install && npm run build
 ```
+
+根据你使用的 agent 客户端挂载本地开发版本：
+
+```bash
+# A. CLI Hook 客户端 (Claude Code · Codex · OpenCode · Antigravity)
+npm link # 或 npm install -g .
+gitflow-guard wire --client <claude|codex|opencode|antigravity> --project --yes
+
+# B. DeepSeek Harness (DSH)
+dsh plugin --profile web add file:/path/to/AgentsGitFlowController
+# 或使用脚本: node scripts/install-dsh.mjs web (装完重启 DSH)
+
+# C. Pi
+npm link
+# 或直接将仓库内的 pi/gitflow-guard.ts 复制到目标工程的 .pi/extensions/
+```
+
+### 4. GitHub Copilot 说明
 
 **GitHub Copilot —— 故意不提供 hook**。Copilot 自带这套守卫的原生能力: 工具级 **allow/deny/ask** 权限 + 项目 **rules**(`rules.json` + `AGENTS.md`)。对 Copilot 用户,直接引官方文档即可,不需要我们的插件:
 
