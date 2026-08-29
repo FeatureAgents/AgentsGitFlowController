@@ -86,7 +86,8 @@
     "typecheck": "tsc --noEmit",
     "verify:matrix": "npm run build && node scripts/verify-matrix.mjs",
     "check:pins": "node scripts/check-version-pins.mjs",
-    "prepublishOnly": "npm run check:pins"
+    "check:readmes": "node scripts/check-readme-equality.mjs",
+    "prepublishOnly": "npm run check:pins && npm run check:readmes"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
