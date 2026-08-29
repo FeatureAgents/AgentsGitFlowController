@@ -53,7 +53,7 @@ npm i -g agents-gitflow-guard
 npm i -D agents-gitflow-guard
 ```
 
-> **Note**: A bare `add` or `npm i` installs the latest version from npm registry. If your registry mirror has a cache delay or you need to lock to a specific version, append `@<version>` (e.g. `npm i -g agents-gitflow-guard@0.0.22`). (DSH users: the pnpm peer-dependency *warning* is expected — DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup; the plugin works normally.)
+> **Note**: A bare `add` or `npm i` installs the latest version from npm registry. If your registry mirror has a cache delay or you need to lock to a specific version, append `@<version>` (e.g. `npm i -g agents-gitflow-guard@<version>`). (DSH users: the pnpm peer-dependency *warning* is expected — DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup; the plugin works normally.)
 >
 > The hook clients (Claude Code · Codex · OpenCode · Antigravity) need one wiring step after install — **one command per client** (below). Pi needs a copy step; DSH is already wired by install.
 

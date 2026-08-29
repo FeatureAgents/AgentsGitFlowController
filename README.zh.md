@@ -52,7 +52,7 @@ npm i -g agents-gitflow-guard
 npm i -D agents-gitflow-guard
 ```
 
-> **提示**: 裸 `add` 或 `npm i` 会默认安装 npm 注册表上的最新版本。若镜像源缓存有延迟或需锁定版本，可指定版本号（如 `npm i -g agents-gitflow-guard@0.0.22`）。(DSH 用户: pnpm 打印的 peer 依赖 *警告* 属预期——DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`,插件正常工作。)
+> **提示**: 裸 `add` 或 `npm i` 会默认安装 npm 注册表上的最新版本。若镜像源缓存有延迟或需锁定版本，可指定版本号（如 `npm i -g agents-gitflow-guard@<版本>`）。(DSH 用户: pnpm 打印的 peer 依赖 *警告* 属预期——DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`,插件正常工作。)
 >
 > hook 客户端(Claude Code · Codex · OpenCode · Antigravity)装完还要各做一步接线——**每个客户端一条命令**(见下)。Pi 拷贝一个文件;DSH 装完即已接线。
 
