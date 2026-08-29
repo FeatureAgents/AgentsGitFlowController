@@ -39,17 +39,17 @@
 
 ```bash
 # DSH —— 进程内插件(装完重启 DSH; 插件在进程启动时加载)
-dsh plugin --profile web add agents-gitflow-guard@0.0.21
+dsh plugin --profile web add agents-gitflow-guard@0.0.22
 ```
 
 ```bash
 # Claude Code · Codex · OpenCode · Antigravity —— 独立 hook,不需要 DSH
-npm i -g agents-gitflow-guard@0.0.21
+npm i -g agents-gitflow-guard@0.0.22
 ```
 
 ```bash
 # Pi —— 进程内扩展
-npm i -D agents-gitflow-guard@0.0.21
+npm i -D agents-gitflow-guard@0.0.22
 ```
 
 > **版本坑**: 裸 `add` 或不带版本的 `npm i` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。(DSH 用户: pnpm 打印的 peer 依赖 *警告* 属预期——DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`,插件正常工作。)
@@ -354,14 +354,14 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 
 | 客户端 | 安装命令 | 装完再做什么 |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.21` | 重启 DSH——插件自动挂为 profile 层 |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.21` | `gitflow-guard wire --client <名>`——每个客户端一条命令(见下) |
-| Pi | `npm i -D agents-gitflow-guard@0.0.21` | 把 `pi/gitflow-guard.ts` 拷进 `.pi/extensions/`(见下) |
+| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.22` | 重启 DSH——插件自动挂为 profile 层 |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.22` | `gitflow-guard wire --client <名>`——每个客户端一条命令(见下) |
+| Pi | `npm i -D agents-gitflow-guard@0.0.22` | 把 `pi/gitflow-guard.ts` 拷进 `.pi/extensions/`(见下) |
 
 **DSH —— 进程内插件**(标准路径,已在[快速开始](#快速开始30-秒用上)覆盖):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.21    # 建议锁版本, 见上文提示
+dsh plugin --profile web add agents-gitflow-guard@0.0.22    # 建议锁版本, 见上文提示
 ```
 
 然后重启 DSH。升级用同一命令,再重启一次。
@@ -378,7 +378,7 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 **各 agent 独立 hook**——Claude Code / Codex / OpenCode / Antigravity,不依赖 DSH。全局装一次 CLI,然后**每客户端一条命令接线**(守卫凭内置默认配置已默认开启,接线是唯一剩下的事):
 
 ```bash
-npm i -g agents-gitflow-guard@0.0.21   # 提供 `gitflow-guard` 二进制
+npm i -g agents-gitflow-guard@0.0.22   # 提供 `gitflow-guard` 二进制
 gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
@@ -437,7 +437,7 @@ gitflow-guard wire --client antigravity --project --yes
 Pi 以进程内扩展装载(没有 stdin payload,也没有子进程 hook)。把随包发布的入口装进项目、包留在 devDependencies:
 
 ```bash
-npm i -D agents-gitflow-guard@0.0.21
+npm i -D agents-gitflow-guard@0.0.22
 mkdir -p .pi/extensions
 cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
 ```

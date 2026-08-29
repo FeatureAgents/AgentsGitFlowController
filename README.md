@@ -40,17 +40,17 @@ You define your own branches —
 
 ```bash
 # DSH — in-process plugin; restart DSH afterwards (plugins load at startup)
-dsh plugin --profile web add agents-gitflow-guard@0.0.21
+dsh plugin --profile web add agents-gitflow-guard@0.0.22
 ```
 
 ```bash
 # Claude Code · Codex · OpenCode · Antigravity — standalone hooks, no DSH needed
-npm i -g agents-gitflow-guard@0.0.21
+npm i -g agents-gitflow-guard@0.0.22
 ```
 
 ```bash
 # Pi — in-process extension
-npm i -D agents-gitflow-guard@0.0.21
+npm i -D agents-gitflow-guard@0.0.22
 ```
 
 > **Version gotcha**: a bare `add` or unpinned `npm i` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. (DSH users: the pnpm peer-dependency *warning* is expected — DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup; the plugin works normally.)
@@ -356,14 +356,14 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 
 | Agent | Install command | After that |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.21` | restart DSH — the plugin auto-mounts as a profile layer |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.21` | `gitflow-guard wire --client <name>` — one command per client (below) |
-| Pi | `npm i -D agents-gitflow-guard@0.0.21` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
+| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.22` | restart DSH — the plugin auto-mounts as a profile layer |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.22` | `gitflow-guard wire --client <name>` — one command per client (below) |
+| Pi | `npm i -D agents-gitflow-guard@0.0.22` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
 
 **DSH — in-process plugin** (the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo)):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.21    # pin recommended, see note above
+dsh plugin --profile web add agents-gitflow-guard@0.0.22    # pin recommended, see note above
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.
@@ -380,7 +380,7 @@ The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes
 **Standalone agent hooks** — Claude Code / Codex / OpenCode / Antigravity, no DSH required. Install the CLI once, then wire one client per command (the guard is on by default via its built-in config, so wiring is all that remains):
 
 ```bash
-npm i -g agents-gitflow-guard@0.0.21   # provides the `gitflow-guard` binary
+npm i -g agents-gitflow-guard@0.0.22   # provides the `gitflow-guard` binary
 gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
@@ -440,7 +440,7 @@ gitflow-guard wire --client antigravity --project --yes
 Pi loads extensions in-process (no stdin payload, no subprocess hook). Install the shipped entry point into the project and keep the package in devDependencies:
 
 ```bash
-npm i -D agents-gitflow-guard@0.0.21
+npm i -D agents-gitflow-guard@0.0.22
 mkdir -p .pi/extensions
 cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
 ```
