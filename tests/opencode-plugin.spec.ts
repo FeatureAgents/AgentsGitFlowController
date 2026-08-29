@@ -90,6 +90,16 @@ describe('opencode plugin: tool.execute.before 事件过滤', () => {
     expect(spawnMock).toHaveBeenCalledTimes(1)
   })
 
+  it('特殊字符命令原样透传(spawn 数组参数, 不 shell 展开不注入)', async () => {
+    const nasty = 'git commit -m "a b;$HOME" && echo "x > y < z" | cat; #comment'
+    const plugin = await pluginFactory()
+    const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: nasty } })
+    childControl.emitClose(0)
+    await p
+    const args = spawnMock.mock.calls[0][1]
+    expect(args[args.length - 1]).toBe(nasty) // 整串作为单个 argv, 不经 shell
+  })
+
   it('win32: 用 PATH 上的 node 解释脚本', async () => {
     const prev = process.platform
     Object.defineProperty(process, 'platform', { value: 'win32' })
