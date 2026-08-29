@@ -20,7 +20,7 @@ describe('wire: JSON 客户端(claude/codex)幂等落位与移除', () => {
       const path = join(dir, client === 'claude' ? '.claude/settings.json' : '.codex/hooks.json')
       try {
         expect(await applyWire(client, path, false, false)).toBe('added')
-        expect(isWired(client, path)).resolves.toBe(true)
+        await expect(isWired(client, path)).resolves.toBe(true)
         const first = JSON.parse(readFileSync(path, 'utf8'))
         expect(first.hooks.PreToolUse).toHaveLength(1)
 

@@ -368,7 +368,7 @@ describe('cli: wire(客户端默认 hook 落位)', () => {
       const first = await captureStdout(() => main(['wire', '--client', 'claude', '--project', '--yes', '--repo', dir]))
       expect(first.code).toBe(0)
       expect(first.text).toContain('hook written')
-      expect(first.text).toContain('.claude/settings.json')
+      expect(first.text).toContain(path) // Windows 下分隔符为 \, 与 wire 输出同源
       expect(existsSync(path)).toBe(true)
 
       const second = await captureStdout(() => main(['wire', '--client', 'claude', '--project', '--yes', '--repo', dir]))
@@ -451,9 +451,12 @@ describe('cli: wire(客户端默认 hook 落位)', () => {
   it('--global 非交互不确认 → 拒绝并 exit 1; --yes 才写入', async () => {
     const home = mkdtempSync(join(tmpdir(), 'gfguard-home-'))
     const dir = tempRepo()
-    const before = process.env.HOME
+    // os.homedir(): POSIX 读 HOME, Windows 读 USERPROFILE —— 双平台都要覆盖到临时目录
+    const beforeHome = process.env.HOME
+    const beforeProfile = process.env.USERPROFILE
     try {
       process.env.HOME = home
+      if (process.platform === 'win32') process.env.USERPROFILE = home
       const refused = await captureConsoleError(() => main(['wire', '--client', 'claude', '--global', '--repo', dir]))
       expect(refused.code).toBe(1)
       expect(refused.text).toContain('Refusing')
@@ -467,8 +470,10 @@ describe('cli: wire(客户端默认 hook 落位)', () => {
       expect(removed.code).toBe(0)
       expect(removed.text).toContain('hook removed')
     } finally {
-      if (before === undefined) delete process.env.HOME
-      else process.env.HOME = before
+      if (beforeHome === undefined) delete process.env.HOME
+      else process.env.HOME = beforeHome
+      if (beforeProfile === undefined) delete process.env.USERPROFILE
+      else process.env.USERPROFILE = beforeProfile
       rmSync(dir, { recursive: true, force: true })
       rmSync(home, { recursive: true, force: true })
     }
