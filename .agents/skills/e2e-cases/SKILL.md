@@ -1,40 +1,40 @@
 ---
 name: e2e-cases
-description: Synchronize and expand real-machine E2E test cases after guard logic/protocol changes. 守卫逻辑/协议修改后同步增加实机测试用例并执行。
+description: Synchronize and expand real-machine E2E test cases after guard logic or protocol changes.
 ---
 
-# e2e-cases · 修改后同步增加实机测试用例并执行
+# e2e-cases · Synchronize and Execute Real-Device E2E Test Cases
 
-在**任何守卫逻辑/协议/接线修改**通过单测与复测矩阵后,本技能负责把改动同步进实机测试用例并**真实执行取证**(与 design-sync 搭配:一个管文档,一个管测试)。
+After **any guard logic, protocol, or wiring change** passes unit tests and the verification matrix, this skill synchronizes changes into real-device test cases and **executes physical verification to collect evidence** (paired with `design-sync`: one governs specifications, one governs testing).
 
-## 触发场景
+## Trigger Scenarios
 
-- 判定内核变化(classify/gate/config):新增拦截面/豁免、修复空隙
-- 协议/接线变化(platform/wire/pi/index):编码、payload、落位文件、hook 命令
+- Guard kernel changes (`classify`/`gate`/`config`): adding blocked command surfaces, exemptions, or closing logic gaps.
+- Protocol or wiring changes (`platform`/`wire`/`pi`/`index`): encoding, payload extraction, config file placement, or hook commands.
 
-## 步骤
+## Steps
 
-1. **判断影响面**:按改动类型映射受影响客户端——
-   | 改动层 | 受影响客户端 |
+1. **Assess Impact Scope**: Map affected clients according to the modified layer:
+   | Modified Layer | Affected Clients |
    |---|---|
-   | classify/gate/config/i18n(判定内核) | **全部 6 客户端**(共用 evaluateCommand 内核) |
-   | platform.ts(编码/payload) | 对应平台文件(claude/codex/opencode/antigravity) |
-   | pi.ts / index.ts(进程内) | pi / dsh |
-   | wire.ts(落位) | 对应 stdin-hook 客户端 |
-2. **同步 docs/e2e/<client>.md**:按统一用例 ID 体系(`<CLIENT>-A*` 拦截 / `B*` 放行 / `C*` 接线 / `D*` 平台特有)增补或更新用例——注明命令/前置分支/期望/断言要点;改动涉及新命令族时,同时把用例加入 `scripts/test-git-matrix.sh`(135 用例决策矩阵)。
-3. **执行测试**:调用 **e2e-run** 技能真实执行受影响客户端的用例;判定内核改动须在**至少一个真实客户端通道**(如 Codex / Pi 扩展通道)抽测被改命令族;wire/协议改动须该客户端实测(wire 产物真实触发拦截/放行,仅文件出现不算)。
-4. **更新 TestResult**:执行结果与证据(输出摘录 + 远端 ref 前后 + 审计)写入 `docs/e2e/TestResult/<client>.md`,按"证据规范"保留历史节。
-5. **收尾**:QA 连环测(`npm run test:all`,含类型检查/单测/平台矩阵/Git 135 矩阵/生命周期流);用例文档/TestResult 与代码改动走同一 PR。
+   | `classify`/`gate`/`config`/`i18n` (Guard kernel) | **All 6 clients** (share the `evaluateCommand` core) |
+   | `platform.ts` (Encoding / Payload extraction) | Corresponding platform files (`claude`/`codex`/`opencode`/`antigravity`) |
+   | `pi.ts` / `index.ts` (In-process integration) | `pi` / `dsh` |
+   | `wire.ts` (Configuration file drop-in) | Corresponding stdin-hook clients |
+2. **Synchronize `docs/e2e/<client>.md`**: Add or update test cases under the unified case ID system (`<CLIENT>-A*` Deny / `B*` Allow / `C*` Wire / `D*` Platform-Specific). Specify commands, prerequisite branches, expectations, and key assertion criteria. If changes involve new command families, add cases to `scripts/test-git-matrix.sh` (the 135-case decision matrix) simultaneously.
+3. **Execute Testing**: Invoke the **`e2e-run`** skill to run live test cases for affected clients. Guard kernel changes must be sampled against **at least one real client channel** (e.g., Codex or Pi extension channel) for the modified command family. Wire/protocol changes must be verified against that specific client (wire artifacts must actively trigger blocking/allowing; file existence alone is insufficient).
+4. **Update `TestResult`**: Record test outcomes and physical evidence (session output excerpts, remote ref comparison before/after execution, and audit entries) in `docs/e2e/TestResult/<client>.md`, preserving historical test sections per the evidence specification.
+5. **Finalize**: Run the full QA verification suite (`npm run test:all`, including type checking, unit tests, platform matrix, Git 135 matrix, and lifecycle realflow). Test case documentation and `TestResult` entries must ship within the same PR as the code changes.
 
-## 判定口径(与 TestResult/README.md 一致)
+## Decision Criteria (Consistent with `TestResult/README.md`)
 
-- 拦截用例通过 = 命令**未真实执行**(受保护远端 ref 未动/无副作用)+ 客户端展示拒绝原因;
-- 放行用例通过 = 命令**真实执行且副作用可见**;
-- 协议层全绿(verify:matrix)不构成实机证据——必须真实客户端通道验证。
+- Deny case PASS: The command is **NOT executed physically** (protected remote refs remain untouched with zero side-effects), and the client displays the rejection reason.
+- Allow case PASS: The command is **executed physically with visible side-effects**.
+- Protocol-level matrix passing (`verify:matrix`) does NOT substitute for physical evidence — verification through real client channels is mandatory.
 
-## 陷阱记录
+## Pitfalls & Lessons Learned
 
-- **前置状态**:Pi 用例 D 依赖本地 feature 分支存在(`gfguard-pi-cases.sh` 未自建)——先建分支再跑,失败先怀疑脚本前置而非守卫。
-- **版本挂载**:`^0.0.17` 不解析 0.0.21(0.0.x caret 锁 patch);实机测试前核对测试场挂载的守卫版本 = 被测版本(DSH profile 曾长期挂 0.0.11 的实证)。
-- **真实远端污染**:受控仓库一律用本地裸远端(/tmp),禁止对真实远端执行会成功推送的用例。
-- **模型改写命令**:headless 会话可能改写命令(如自动加 `--set-upstream`),断言以远端 ref 前后为准,不依赖模型措辞。
+- **Prerequisite State**: Pi Case D depends on the presence of a local feature branch (`gfguard-pi-cases.sh` does not create it automatically) — create the branch before executing; investigate script prerequisites before suspecting the guard.
+- **Version Mounting**: `^0.0.17` will not resolve to `0.0.21` (Node/npm caret semver on `0.0.x` locks patches). Verify that the testbed mounts the exact version under test before execution.
+- **Bare Remote Isolation**: Controlled repositories must strictly use local bare remotes (`/tmp`), and never execute allow/push test cases against real production remotes.
+- **Model Command Rewriting**: Headless agent sessions may rewrite commands (e.g., adding `--set-upstream`). Base assertions strictly on physical Git refs before and after execution, never relying solely on model phrasing.

@@ -1,33 +1,33 @@
 ---
 name: start-work
-description: Run BEFORE touching any file in this repo. Fetches origin, verifies which ref the workspace sits on, derives feature/<topic> from latest origin/develop, and shows the branch-rule digest. 在本仓库开始任何内容工作(写码/改文档/配置/提交)前必读必跑:核对基线并派生工作分支。
+description: Run BEFORE touching any file in this repo. Fetches origin, verifies which ref the workspace sits on, derives feature/<topic> from latest origin/develop, and displays the branch-rule digest.
 ---
 
-# start-work · 开工第零步(基线先行)
+# start-work · Step Zero Before Starting Work (Baseline First)
 
-在本仓库开始**任何内容工作**之前执行本流程;禁止在完成基线核查前编辑任何文件。
+Execute this workflow before touching **any content files** in this repository. Editing any files before completing baseline verification is strictly forbidden.
 
-## 步骤
+## Steps
 
-1. `git fetch origin`
-2. `git status --short --branch` 与 `git log --oneline -3`:确认当前分支、落后量、有无未提交改动
-3. 按下表分派:
+1. Run `git fetch origin`.
+2. Run `git status --short --branch` and `git log --oneline -3`: check the current branch, commit lag, and any uncommitted changes.
+3. Dispatch according to the state table:
 
-| 当前状态 | 动作 |
+| Current State | Action |
 |---|---|
-| 已在**未合并**的 `feature/*` 工作分支 | 可继续工作;develop 若前进,是否 rebase 由用户决定 |
-| 在 main / 其他任何非工作分支(无论新旧) | **禁止就地编辑**。有未提交改动先 `git stash push -u` 存档;然后 `git switch -c feature/<主题> origin/develop`;stash 的旧改动禁止直接 pop 携带提交,必须逐文件对照新树重放 |
-| 停在本地 develop | 「本地 develop 零变更」铁律:什么都不做,一律从 `origin/develop` 派生 |
+| Already on an **unmerged** `feature/*` branch | Proceed with work. If `origin/develop` has advanced, rebase only upon user confirmation. |
+| On `main` or any non-working branch (old or new) | **Never edit in place.** If there are uncommitted changes, save them with `git stash push -u`, then run `git switch -c feature/<topic> origin/develop`. Never blindly `stash pop` into a commit — replay changes against the fresh tree file by file. |
+| Sits on local `develop` | Follow the "Zero Local develop Changes" iron rule: do not edit or commit; derive a new branch from `origin/develop`. |
 
-4. 向用户报告一句结论:原分支 / 落后多少 / 本次使用的工作分支名。
+4. Report a one-line summary to the user: original branch / commit lag / newly derived feature branch name.
 
-## 分支规矩速览(权威全文见 AGENTS.md §4)
+## Branch Rules Digest (Authoritative text in AGENTS.md §4)
 
-- 一切工作从**最新 `origin/develop`** 派生;本地 develop 零变更。
-- 禁止直接 commit/push develop;develop 只经 GitHub 的 PR 合并与用户推送演进。
-- **一分支一 PR,合并即弃**;禁止在已合并过的分支上追加提交(rebase 改写 SHA → 两份平行履历 → 大面积假冲突,v0.0.12 实证)。
-- bump(`npm version patch`)叠加在内容分支上;CHANGELOG 用版本号标题随同一 PR;用户合并进 develop 后由 CI 自动检测新版本、打 tag 并发布(无需本地手动打 tag)。
+- All work branches derive from the **latest `origin/develop`**; local `develop` remains untouched.
+- Direct `commit` / `push` to `develop` is strictly forbidden; `develop` evolves exclusively through GitHub PR merges.
+- **One Branch, One PR, Merge and Discard**: Never append new commits to a branch that has already been merged (rebase rewrites SHAs → split commit histories → spurious merge conflicts, as verified in v0.0.12).
+- Version bumps (`npm version patch`) are applied directly on the content feature branch; `CHANGELOG.md` updates accompany the exact same PR. Once merged into `develop`, CI automatically detects the new version, tags the commit, and publishes releases (zero manual local tagging required).
 
-## 为什么有这一步
+## Why This Step Exists
 
-会话工作区可能停在任意陈旧检出上(实例:曾停在 0.0.6 时代的 main 而 develop 已到 0.0.13)。在旧基线上改文件再开 PR,轻则大面积真冲突,重则**无冲突但静默回退** develop 上已合入的功能——后者是埋雷。
+An agent workspace session may linger on any stale checkout (e.g., historical incident where a workspace sat on `main` from 0.0.6 while `develop` had progressed to 0.0.13). Editing files on an outdated baseline before opening a PR causes severe merge conflicts at best, or **silent regressions of already merged features** without conflicts at worst.
