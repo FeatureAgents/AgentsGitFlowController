@@ -528,4 +528,17 @@ describe('cli: status 内置默认与接线提示', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('opencode 插件文件已落位 → status 接线提示不含 opencode', async () => {
+    const dir = tempRepo()
+    mkdirSync(join(dir, '.opencode', 'plugins'), { recursive: true })
+    writeFileSync(join(dir, '.opencode', 'plugins', 'gitflow-guard.ts'), '// wired')
+    try {
+      const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner: scriptedRunner() }))
+      expect(code).toBe(0)
+      expect(text).not.toContain('wire --client opencode')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
