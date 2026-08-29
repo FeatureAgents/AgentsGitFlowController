@@ -18,11 +18,11 @@
 - 测试：`npm test`(vitest, 全绿才算完成)
 - 类型检查：`npm run typecheck`(tsc --noEmit, 0 Error 才算完成)
 - 安装进 DSH：`node scripts/install-dsh.mjs [profile]`(本机无 DSH 时跳过)
-- **发布(自动化)**：bump 叠加在**待合并的内容 PR 分支**上(`npm version patch`, 版本提交落在该分支; feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ 用户合并该 PR(内容+changelog+版本号一次带进 develop)→ **从最新 `origin/develop` 打 annotated tag 并推送**(`git fetch && git tag -a vX.Y.Z origin/develop && git push origin vX.Y.Z`)→ CI 自动发布
-  —— tag 不打在内容分支上: rebase 式合并会改写 SHA, 分支侧的 tag 会成为不在 develop 历史里的悬空提交(v0.0.12 实证), 发布物与仓库溯源断裂
+- **发布(全自动化)**：bump 叠加在**待合并的内容 PR 分支**上(`npm version patch`, 版本提交落在该分支; feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ 用户在 GitHub 合并该 PR(内容+changelog+版本号一次带进 develop)→ **CI 自动检测新版本 → 全量矩阵校验 → 自动在 develop 最新 commit 打 annotated tag 并推送 → 自动 npm publish 与创建 GitHub Release**
+  —— 零本地命令发布: 无需在本地手动打 tag 或推送, CI 自动闭环发版
   —— 仅当内容已合入后的纯补发(如版本同步)才开独立 `feature/release-<版本>` PR
-  —— 本地 develop 永不直接变更(§4); develop 的一切演进只经 GitHub 的 PR 合并与用户推送产生
-  —— CI 自动: 校验 tag=package.json 版本 → 测试 → 构建 → npm publish → GitHub Release
+  —— 本地 develop 永不直接变更(§4); develop 的一切演进只经 GitHub 的 PR 合并产生
+  —— CI 自动: 校验 package.json 与 CHANGELOG → 完整矩阵测试 → 自动打 tag → npm publish (--provenance) → GitHub Release (带 CHANGELOG 提取说明)
   —— 前提: GitHub 仓库 Secrets 已配 `NPM_TOKEN`(Publish 类型 access token)
 
 ## 3. 目录结构
