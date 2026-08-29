@@ -39,20 +39,20 @@
 
 ```bash
 # DSH —— 进程内插件(装完重启 DSH; 插件在进程启动时加载)
-dsh plugin --profile web add agents-gitflow-guard@0.0.22
+dsh plugin --profile web add agents-gitflow-guard
 ```
 
 ```bash
 # Claude Code · Codex · OpenCode · Antigravity —— 独立 hook,不需要 DSH
-npm i -g agents-gitflow-guard@0.0.22
+npm i -g agents-gitflow-guard
 ```
 
 ```bash
 # Pi —— 进程内扩展
-npm i -D agents-gitflow-guard@0.0.22
+npm i -D agents-gitflow-guard
 ```
 
-> **版本坑**: 裸 `add` 或不带版本的 `npm i` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。(DSH 用户: pnpm 打印的 peer 依赖 *警告* 属预期——DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`,插件正常工作。)
+> **提示**: 裸 `add` 或 `npm i` 会默认安装 npm 注册表上的最新版本。若镜像源缓存有延迟或需锁定版本，可指定版本号（如 `npm i -g agents-gitflow-guard@0.0.22`）。(DSH 用户: pnpm 打印的 peer 依赖 *警告* 属预期——DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`,插件正常工作。)
 >
 > hook 客户端(Claude Code · Codex · OpenCode · Antigravity)装完还要各做一步接线——**每个客户端一条命令**(见下)。Pi 拷贝一个文件;DSH 装完即已接线。
 
@@ -354,14 +354,14 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 
 | 客户端 | 安装命令 | 装完再做什么 |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.22` | 重启 DSH——插件自动挂为 profile 层 |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.22` | `gitflow-guard wire --client <名>`——每个客户端一条命令(见下) |
-| Pi | `npm i -D agents-gitflow-guard@0.0.22` | 把 `pi/gitflow-guard.ts` 拷进 `.pi/extensions/`(见下) |
+| DSH | `dsh plugin --profile web add agents-gitflow-guard` | 重启 DSH——插件自动挂为 profile 层 |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <名>`——每个客户端一条命令(见下) |
+| Pi | `npm i -D agents-gitflow-guard` | 把 `pi/gitflow-guard.ts` 拷进 `.pi/extensions/`(见下) |
 
 **DSH —— 进程内插件**(标准路径,已在[快速开始](#快速开始30-秒用上)覆盖):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.22    # 建议锁版本, 见上文提示
+dsh plugin --profile web add agents-gitflow-guard
 ```
 
 然后重启 DSH。升级用同一命令,再重启一次。
@@ -378,7 +378,7 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 **各 agent 独立 hook**——Claude Code / Codex / OpenCode / Antigravity,不依赖 DSH。全局装一次 CLI,然后**每客户端一条命令接线**(守卫凭内置默认配置已默认开启,接线是唯一剩下的事):
 
 ```bash
-npm i -g agents-gitflow-guard@0.0.22   # 提供 `gitflow-guard` 二进制
+npm i -g agents-gitflow-guard   # 提供 `gitflow-guard` 二进制
 gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
@@ -437,7 +437,7 @@ gitflow-guard wire --client antigravity --project --yes
 Pi 以进程内扩展装载(没有 stdin payload,也没有子进程 hook)。把随包发布的入口装进项目、包留在 devDependencies:
 
 ```bash
-npm i -D agents-gitflow-guard@0.0.22
+npm i -D agents-gitflow-guard
 mkdir -p .pi/extensions
 cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
 ```
@@ -542,18 +542,14 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 ## 路线图
 
-**已落地**:
+未来规划与正在探索的方向:
 
-- ✅ **i18n——拦截文案本地化**(0.0.3):默认英文,`"locale": "zh"` 切中文;0.0.12 起支持 `registerLocale` 自定义语言。
-- ✅ **零配置开箱**(0.0.20):内置 `develop` + `main` 默认配置、深度合并覆盖,无配置文件也默认开启守卫。
-- ✅ **一键接线**(0.0.20):`gitflow-guard wire` / `setup` 一条命令写入各 stdin-hook 客户端(Claude Code / Codex / OpenCode / Antigravity)的 hook 条目。
-- ✅ **六个平台**(0.0.2–0.0.17):DSH(进程内)、Claude Code、Codex、OpenCode、Antigravity、Pi(进程内)。
+- **更多 Agent 平台接入**: 调研并适配新兴 Coding Agent 工具(如 Cursor、Windsurf、新一代 CLI Agent)。
+- **审计汇总与导出**: 跨机器审计日志同步及团队级安全合规导出格式。
+- **场景化流程预设**: 针对常见 Git 分支模式(Trunk-based 单主干模式、多环境企业级 GitFlow)的现成配置预设。
+- **CI 门禁与 PR 校验**: 探索原生 CI 管道集成与 PR 检查联动机制, 同时保持本地执行零依赖。
 
-**v2 规划中**:
-
-- **审计同步**:跨机器同步用户级审计日志(现仍仅本地;0.0.14 起已存于仓库外)。
-- **更多预制模板**:在内置默认之上延伸,为常用流程(solo `develop`、多环境企业)提供社区贡献的现成配置预设。
-- **CI 硬门槛研究**:`pr checks` 能否在不伤平台无关核心的前提下变成真实门槛。
+已发布功能与历史版本记录详见 [CHANGELOG.md](CHANGELOG.md)。
 
 欢迎贡献——见[开发](#开发)。
 
@@ -574,7 +570,7 @@ npm install
 npm test          # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
 npm run typecheck     # tsc --noEmit, 0 Error
 npm run build         # tsdown → lib/(CLI 与插件共用)
-npm run check:pins    # 校验 package.json 版本与双语 README 锁版本示例及 CHANGELOG 标题一致
+npm run check:pins    # 校验 package.json 版本与 CHANGELOG 标题及版本示例一致
 npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claude Code / Codex / OpenCode / Antigravity hook 编码 + Pi 扩展
 ```
 

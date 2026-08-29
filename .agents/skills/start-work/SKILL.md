@@ -26,7 +26,7 @@ description: Run BEFORE touching any file in this repo. Fetches origin, verifies
 - 一切工作从**最新 `origin/develop`** 派生;本地 develop 零变更。
 - 禁止直接 commit/push develop;develop 只经 GitHub 的 PR 合并与用户推送演进。
 - **一分支一 PR,合并即弃**;禁止在已合并过的分支上追加提交(rebase 改写 SHA → 两份平行履历 → 大面积假冲突,v0.0.12 实证)。
-- bump(`npm version patch`)叠加在内容分支上;CHANGELOG 用版本号标题随同一 PR;README 双语锁版本示例同步为本次版本号。
+- bump(`npm version patch`)叠加在内容分支上;CHANGELOG 用版本号标题随同一 PR。
 - 用户确认合并后,从合并后的 `origin/develop` tip 打 annotated tag 并推送(tag 不打在内容分支上)。
 
 ## 为什么有这一步
