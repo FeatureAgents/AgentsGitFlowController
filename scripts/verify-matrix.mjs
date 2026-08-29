@@ -44,6 +44,17 @@ function tempRepo(config) {
   return dir
 }
 
+/** 真实 git 仓库但无 config 文件: 验证内置默认(integration=develop, archive=main)开箱即用 */
+function tempRepoNoConfig() {
+  const dir = mkdtempSync(join(tmpdir(), 'gf-matrix-noconfig-'))
+  execFileSync('git', ['init', '-q', '-b', 'develop'], { cwd: dir })
+  execFileSync('git', ['config', 'user.email', 'm@m'], { cwd: dir })
+  execFileSync('git', ['config', 'user.name', 'm'], { cwd: dir })
+  execFileSync('git', ['commit', '--allow-empty', '-qm', 'init'], { cwd: dir })
+  execFileSync('git', ['branch', 'main'], { cwd: dir })
+  return dir
+}
+
 /** 跑 bin 的 check: 返回 {code, stdout, stderr} */
 function runCheck(platform, payload, cwd) {
   try {
@@ -88,6 +99,16 @@ console.log('[A] DSH plugin logic (evaluateCommand)')
       ['develop', 'git filter-branch -- --all', 'deny'],
       ['develop', 'git branch -m develop x', 'deny'],
       ['develop', 'git branch --delete --force develop', 'deny'],
+      // Pi 真机空隙修复(G1/G2/G3/G5): sudo 剥壳 / symbolic-ref / cherry-pick / revert / checkout -B
+      ['feature/x', 'sudo git push origin develop', 'deny'],
+      ['develop', 'git symbolic-ref refs/heads/develop refs/heads/main', 'deny'],
+      ['develop', 'git cherry-pick a1b2c3d', 'deny'],
+      ['feature/x', 'git cherry-pick a1b2c3d', 'allow'],
+      ['develop', 'git revert HEAD', 'deny'],
+      ['feature/x', 'git cherry-pick -n a1b2c3d', 'allow'],
+      ['develop', 'git checkout -B main', 'deny'],
+      ['feature/x', 'git checkout -B feature/y', 'allow'],
+      ['feature/x', 'git checkout -B feature/y && git push origin feature/y', 'allow'],
     ]
     for (const [branch, cmd, want] of cases) {
       const r = await evaluateCommand(cmd, { repoRoot: repo, currentBranch: branch })
@@ -97,6 +118,25 @@ console.log('[A] DSH plugin logic (evaluateCommand)')
     check('默认 locale=en', d.locale === 'en', `locale=${d.locale}`)
     check('deny 文案为英文', /Protected branch/.test(d.reason?.why ?? ''), d.reason?.why)
     check('引导含 PR/MR', /PR\/MR/.test(d.reason?.next ?? ''), d.reason?.next)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+}
+
+console.log('[A0] 内置默认配置(无 config 文件, 开箱即用)')
+{
+  const repo = tempRepoNoConfig()
+  try {
+    const cases = [
+      ['develop', 'git push origin develop', 'deny'],
+      ['develop', 'git push origin main', 'deny'],
+      ['develop', 'git push origin feature/x', 'allow'],
+      ['feature/x', 'git push origin feature/x', 'allow'],
+    ]
+    for (const [branch, cmd, want] of cases) {
+      const r = await evaluateCommand(cmd, { repoRoot: repo, currentBranch: branch })
+      check(`[默认] [${branch}] ${cmd} → ${want}`, r.outcome === want, `got ${r.outcome}`)
+    }
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }
@@ -183,6 +223,10 @@ console.log('[G] Pi extension (tool_call block contract, real CLI)')
     const ctx = { cwd: repo }
     const deny = await handler(evt('git push origin develop'), ctx)
     check('拦截: {block:true, reason} 含 Protected branch', deny?.block === true && /Protected branch/.test(deny.reason ?? ''), JSON.stringify(deny))
+    const dirDeny = await handler(evt('git checkout -B main'), ctx)
+    check('拦截: checkout -B 强制重建受保护分支', dirDeny?.block === true && /Protected branch/.test(dirDeny.reason ?? ''), JSON.stringify(dirDeny))
+    const sudoDeny = await handler(evt('sudo git push origin develop'), ctx)
+    check('拦截: sudo 剥壳后受保护推送', sudoDeny?.block === true && /Protected branch/.test(sudoDeny.reason ?? ''), JSON.stringify(sudoDeny))
     const allow = await handler(evt('git checkout -b feature/y'), ctx)
     check('放行: 合法 git 命令(走真实 CLI)', allow === undefined, JSON.stringify(allow))
     const fast = await handler(evt('npm test'), ctx)

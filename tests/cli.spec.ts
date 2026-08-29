@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { main } from '../src/cli'
@@ -357,6 +357,172 @@ describe('cli: locale 一致性与扩展(P1-1 / P2-1 / P2-2 / P2-3)', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
       rmSync(await stateDir(dir), { recursive: true, force: true }) // 清理用户级全局状态目录
+    }
+  })
+})
+describe('cli: wire(客户端默认 hook 落位)', () => {
+  it('claude --project 首次写入, 二次幂等 already wired, unwire 移除', async () => {
+    const dir = tempRepo()
+    const path = join(dir, '.claude', 'settings.json')
+    try {
+      const first = await captureStdout(() => main(['wire', '--client', 'claude', '--project', '--yes', '--repo', dir]))
+      expect(first.code).toBe(0)
+      expect(first.text).toContain('hook written')
+      expect(first.text).toContain(path) // Windows 下分隔符为 \, 与 wire 输出同源
+      expect(existsSync(path)).toBe(true)
+
+      const second = await captureStdout(() => main(['wire', '--client', 'claude', '--project', '--yes', '--repo', dir]))
+      expect(second.code).toBe(0)
+      expect(second.text).toContain('already wired')
+
+      const removed = await captureStdout(() => main(['wire', '--client', 'claude', '--project', '--yes', '--unwire', '--repo', dir]))
+      expect(removed.code).toBe(0)
+      expect(removed.text).toContain('hook removed')
+      // hooks 清空后整键移除(settings.json 保留为合法空对象, 不残留任何 PreToolUse)
+      expect(JSON.parse(readFileSync(path, 'utf8')).hooks).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('--dry-run 只打印不写文件', async () => {
+    const dir = tempRepo()
+    const path = join(dir, '.codex', 'hooks.json')
+    try {
+      const { code, text } = await captureStdout(() => main(['wire', '--client', 'codex', '--project', '--dry-run', '--repo', dir]))
+      expect(code).toBe(0)
+      expect(text).toContain('[dry-run]')
+      expect(existsSync(path)).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('opencode --project 落位 yaml, 语义 id 判重', async () => {
+    const dir = tempRepo()
+    const path = join(dir, '.opencode', 'hook', 'hooks.yaml')
+    try {
+      const { code, text } = await captureStdout(() => main(['wire', '--client', 'opencode', '--project', '--yes', '--repo', dir]))
+      expect(code).toBe(0)
+      expect(text).toContain('hook written')
+      expect(readFileSync(path, 'utf8')).toMatch(/- id: gitflow-guard/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('antigravity 标注实验支持', async () => {
+    const dir = tempRepo()
+    try {
+      const { code, text } = await captureStdout(() => main(['wire', '--client', 'antigravity', '--project', '--yes', '--repo', dir]))
+      expect(code).toBe(0)
+      expect(text).toContain('experimental')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('dsh / pi 只打印引导, 不写任何文件', async () => {
+    const dir = tempRepo()
+    try {
+      const dsh = await captureStdout(() => main(['wire', '--client', 'dsh', '--project', '--yes', '--repo', dir]))
+      expect(dsh.code).toBe(0)
+      expect(dsh.text).toContain('dsh plugin')
+      const pi = await captureStdout(() => main(['wire', '--client', 'pi', '--project', '--yes', '--repo', dir]))
+      expect(pi.code).toBe(0)
+      expect(pi.text).toContain('pi/gitflow-guard.ts')
+      // .pi / 任何 hook 文件都不应产生
+      expect(existsSync(join(dir, '.pi'))).toBe(false)
+      expect(existsSync(join(dir, '.claude'))).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('未知客户端 → exit 1', async () => {
+    const dir = tempRepo()
+    try {
+      expect(await main(['wire', '--client', 'nope', '--project', '--repo', dir])).toBe(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('--global 非交互不确认 → 拒绝并 exit 1; --yes 才写入', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'gfguard-home-'))
+    const dir = tempRepo()
+    // os.homedir(): POSIX 读 HOME, Windows 读 USERPROFILE —— 双平台都要覆盖到临时目录
+    const beforeHome = process.env.HOME
+    const beforeProfile = process.env.USERPROFILE
+    try {
+      process.env.HOME = home
+      if (process.platform === 'win32') process.env.USERPROFILE = home
+      const refused = await captureConsoleError(() => main(['wire', '--client', 'claude', '--global', '--repo', dir]))
+      expect(refused.code).toBe(1)
+      expect(refused.text).toContain('Refusing')
+      expect(existsSync(join(home, '.claude', 'settings.json'))).toBe(false)
+
+      const ok = await captureStdout(() => main(['wire', '--client', 'claude', '--global', '--yes', '--repo', dir]))
+      expect(ok.code).toBe(0)
+      expect(existsSync(join(home, '.claude', 'settings.json'))).toBe(true)
+
+      const removed = await captureStdout(() => main(['wire', '--client', 'claude', '--global', '--yes', '--unwire', '--repo', dir]))
+      expect(removed.code).toBe(0)
+      expect(removed.text).toContain('hook removed')
+    } finally {
+      if (beforeHome === undefined) delete process.env.HOME
+      else process.env.HOME = beforeHome
+      if (beforeProfile === undefined) delete process.env.USERPROFILE
+      else process.env.USERPROFILE = beforeProfile
+      rmSync(dir, { recursive: true, force: true })
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('cli: setup(交互向导)非 TTY 环境', () => {
+  it('非交互终端 → exit 1 + 指路 wire', async () => {
+    const dir = tempRepo()
+    try {
+      const { code, text } = await captureConsoleError(() => main(['setup', '--repo', dir]))
+      expect(code).toBe(1)
+      expect(text).toContain('setup needs an interactive terminal')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('cli: status 内置默认与接线提示', () => {
+  it('无 config 仓库 → 显示内置默认 + main 保护提示 + 未接线客户端引导', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-status-defaults-'))
+    mkdirSync(join(dir, '.git'), { recursive: true })
+    try {
+      const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner: scriptedRunner() }))
+      expect(code).toBe(0)
+      expect(text).toContain('built-in defaults')
+      expect(text).toContain('main is protected by default')
+      expect(text).toContain('Wiring:')
+      expect(text).toContain('wire --client claude')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('已接线的仓库 → 不打印接线提示', async () => {
+    const dir = tempRepo()
+    mkdirSync(join(dir, '.claude'), { recursive: true })
+    writeFileSync(
+      join(dir, '.claude', 'settings.json'),
+      JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'node ${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform claude' }] }] } }),
+    )
+    try {
+      const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner: scriptedRunner() }))
+      expect(code).toBe(0)
+      // claude 已接线 → 不再提示 claude(其余未接线客户端仍会提示)
+      expect(text).not.toContain('wire --client claude')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })

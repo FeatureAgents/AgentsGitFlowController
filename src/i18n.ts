@@ -32,9 +32,11 @@ const en: Dict = {
   'denyDeleteOrForce.why': (v) => `Protected branch "${v.branch}" may not be deleted or force-pushed`,
   'denyDeleteOrForce.next': () =>
     'Delete/force-push on a feature branch outside the protected branches; protected branches are managed by you.',
-  'refUpdateProtected.why': (v) => `Protected branch "${v.branch}" forbids direct ref updates (update-ref)`,
+  'refUpdateProtected.why': (v) =>
+    `Protected branch "${v.branch}" forbids direct ref updates (update-ref / symbolic-ref / branch -m|-f / checkout -B)`,
   'refUpdateProtected.next': () => 'Update protected branches via PR/MR; they are managed by you.',
-  'refMoveProtected.why': () => 'Rewriting history on a protected branch (reset / rebase / commit --amend / filter-branch) is not allowed',
+  'refMoveProtected.why': () =>
+    'Rewriting history on a protected branch (reset / rebase / commit --amend / filter-branch / cherry-pick / revert) is not allowed',
   'refMoveProtected.next': () => 'Do history rewrites on a feature branch; protected branches advance via PR/MR and are managed by you.',
   'pushAll.why': () => '--all/--mirror push would include protected branches',
   'pushAll.next': () => 'Push branch by branch with an explicit refspec.',
@@ -92,6 +94,32 @@ const en: Dict = {
   'cli.auditEmpty': () => '  No audit entries yet',
   'cli.checkInternalError': (v) => `[gitflow-guard] check internal error, allowed through: ${v.msg}`,
   'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] guard disabled: invalid config: ${v.err}`,
+  // —— wire / setup / 默认配置引导 ——
+  'cli.wireUnknownClient': (v) => `unknown client: ${v.client} (expected dsh|claude|codex|opencode|antigravity|pi)`,
+  'cli.wireNeedRepo': () => 'project scope needs a git repository — run inside a repo or pass --repo <path>',
+  'cli.wireScopeAsk': () => 'Scope — project (this repo only) or global (all repos on this machine)? [project/global] ',
+  'cli.wireScopeInvalid': () => 'invalid scope (expected project or global)',
+  'cli.wireTarget': (v) => `${v.client}: wiring → ${v.path}`,
+  'cli.wireAlready': (v) => `${v.client}: hook already wired (${v.path})`,
+  'cli.wireCreated': (v) => `${v.client}: hook written → ${v.path}`,
+  'cli.wireRemoved': (v) => `${v.client}: hook removed → ${v.path}`,
+  'cli.wireNotWired': (v) => `${v.client}: no hook entry found (${v.path})`,
+  'cli.wireConfirmWrite': (v) => `Write ${v.path}? [y/N] `,
+  'cli.wireRefuseGlobal': () => 'Refusing to modify a global config without confirmation — pass --yes to allow',
+  'cli.wireDshGuide': () => 'DSH is an in-process plugin — no hook file to write. Mount it with: dsh plugin --profile web add agents-gitflow-guard',
+  'cli.wirePiGuide': () => 'Pi is an in-process extension — no hook file to write. Copy pi/gitflow-guard.ts into .pi/extensions/ and list it in .pi/settings.json (see README).',
+  'cli.wireExperimental': (v) => `${v.client}: experimental support — verify the hook on a real device before relying on it`,
+  'cli.wireDryRunAdd': (v) => `${v.client}: [dry-run] would add hook → ${v.path}`,
+  'cli.wireDryRunRemove': (v) => `${v.client}: [dry-run] would remove hook → ${v.path}`,
+  'cli.wireDryRunNoOp': (v) => `${v.client}: [dry-run] nothing to do (${v.path})`,
+  'cli.statusUsingDefaults': () => 'Config: built-in defaults (no gitflow-guard.config.json) — integration=develop, archive=main',
+  'cli.statusMainProtected': () => '  main is protected by default. Trunk / single-branch users: create gitflow-guard.config.json with "enabled": false, or map your own branches.',
+  'cli.statusWireHints': () => 'Wiring:',
+  'cli.statusWireHint': (v) => `  ${v.client}: not wired — run: gitflow-guard wire --client ${v.client}`,
+  'cli.setupIntro': () => 'gitflow-guard setup — wire one client for this project. (Ctrl+C to cancel)',
+  'cli.setupClientAsk': () => 'Which client? [dsh|claude|codex|opencode|antigravity|pi] ',
+  'cli.setupClientInvalid': () => 'invalid client (expected dsh|claude|codex|opencode|antigravity|pi)',
+  'cli.setupNoTty': () => 'setup needs an interactive terminal — use: gitflow-guard wire --client <name> --yes',
   'guardStrictConfigBroken.why': () => 'Guard config is invalid while strict mode is enabled',
   'guardStrictConfigBroken.next': () => 'Fix gitflow-guard.config.json (or remove "strict": true) before retrying.',
   'guardStrictInternalError.why': (v) => `Guard internal error while strict mode is enabled: ${v.msg}`,
@@ -102,13 +130,18 @@ Usage:
   gitflow-guard status [--repo <path>] [--locale <en|zh>]
   gitflow-guard audit [--lines <count>] [--repo <path>] [--locale <en|zh>]
   gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity>] [--command "<cmd>"] [--repo <path>] [--locale <en|zh>]
+  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <path>] [--locale <en|zh>]
+  gitflow-guard setup [--repo <path>] [--locale <en|zh>]
   gitflow-guard --help
 
 Notes:
   status/audit are read-only; the agent can self-inspect.
   --locale overrides the message language for this invocation (flag > project config > English).
   check reads the hook payload on stdin (platform-specific protocol: claude/opencode exit 2,
-  codex/antigravity JSON on stdout) and is meant for pre/post hooks of AI agents.`,
+  codex/antigravity JSON on stdout) and is meant for pre/post hooks of AI agents.
+  wire writes each client's hook config into the project (default) or global scope; dsh/pi are
+  in-process and only print guidance. No config file needed — built-in defaults (develop+main)
+  apply out of the box; create gitflow-guard.config.json to override, or set "enabled": false to turn off.`,
 }
 
 const zh: Dict = {
@@ -122,9 +155,11 @@ const zh: Dict = {
 
   'denyDeleteOrForce.why': (v) => `受保护分支「${v.branch}」禁止删除或强推`,
   'denyDeleteOrForce.next': () => '删除/强推请到受保护分支外的 feature 分支上操作; 受保护分支由用户亲手管理',
-  'refUpdateProtected.why': (v) => `受保护分支「${v.branch}」禁止直接改写 refs(update-ref)`,
+  'refUpdateProtected.why': (v) =>
+    `受保护分支「${v.branch}」禁止直接改写 refs(update-ref / symbolic-ref / branch -m|-f / checkout -B)`,
   'refUpdateProtected.next': () => '请通过 PR/MR 更新受保护分支; 受保护分支由用户亲手管理',
-  'refMoveProtected.why': () => '受保护分支禁止本地改写历史(reset / rebase / commit --amend / filter-branch)',
+  'refMoveProtected.why': () =>
+    '受保护分支禁止本地改写历史(reset / rebase / commit --amend / filter-branch / cherry-pick / revert)',
   'refMoveProtected.next': () => '历史改写请在 feature 分支上进行; 受保护分支仅经 PR/MR 推进, 由用户亲手管理',
   'pushAll.why': () => '--all/--mirror 推送会包含受保护分支',
   'pushAll.next': () => '请逐分支推送并显式指定 refspec',
@@ -176,6 +211,32 @@ const zh: Dict = {
   'cli.auditEmpty': () => '  暂无审计记录',
   'cli.checkInternalError': (v) => `[gitflow-guard] check 内部错误, 已放行: ${v.msg}`,
   'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] 守卫未启用: 配置无效: ${v.err}`,
+  // —— wire / setup / 默认配置引导 ——
+  'cli.wireUnknownClient': (v) => `未知客户端: ${v.client}(应为 dsh|claude|codex|opencode|antigravity|pi)`,
+  'cli.wireNeedRepo': () => '项目级作用域需要一个 git 仓库 — 请在仓库内运行, 或传 --repo <路径>',
+  'cli.wireScopeAsk': () => '作用域 — project(仅当前仓库) 还是 global(本机所有仓库)? [project/global] ',
+  'cli.wireScopeInvalid': () => '无效作用域(应为 project 或 global)',
+  'cli.wireTarget': (v) => `${v.client}: 接线 → ${v.path}`,
+  'cli.wireAlready': (v) => `${v.client}: hook 已接线(${v.path})`,
+  'cli.wireCreated': (v) => `${v.client}: hook 已写入 → ${v.path}`,
+  'cli.wireRemoved': (v) => `${v.client}: hook 已移除 → ${v.path}`,
+  'cli.wireNotWired': (v) => `${v.client}: 未找到 hook 条目(${v.path})`,
+  'cli.wireConfirmWrite': (v) => `写入 ${v.path}? [y/N] `,
+  'cli.wireRefuseGlobal': () => '拒绝在未确认时改动全局配置 — 传 --yes 允许',
+  'cli.wireDshGuide': () => 'DSH 是进程内插件, 无需写入 hook 文件。挂载: dsh plugin --profile web add agents-gitflow-guard',
+  'cli.wirePiGuide': () => 'Pi 是进程内扩展, 无需写入 hook 文件。把 pi/gitflow-guard.ts 拷到 .pi/extensions/ 并在 .pi/settings.json 登记(见 README)',
+  'cli.wireExperimental': (v) => `${v.client}: 实验支持 — 请在真机核验后再依赖它`,
+  'cli.wireDryRunAdd': (v) => `${v.client}: [dry-run] 将添加 hook → ${v.path}`,
+  'cli.wireDryRunRemove': (v) => `${v.client}: [dry-run] 将移除 hook → ${v.path}`,
+  'cli.wireDryRunNoOp': (v) => `${v.client}: [dry-run] 无需改动(${v.path})`,
+  'cli.statusUsingDefaults': () => '配置: 内置默认(无 gitflow-guard.config.json)— integration=develop, archive=main',
+  'cli.statusMainProtected': () => '  main 默认受保护。Trunk/单分支用户: 创建 gitflow-guard.config.json 写 "enabled": false, 或自行映射分支',
+  'cli.statusWireHints': () => '接线:',
+  'cli.statusWireHint': (v) => `  ${v.client}: 未接线 — 运行: gitflow-guard wire --client ${v.client}`,
+  'cli.setupIntro': () => 'gitflow-guard setup — 为本项目接线一个客户端。(Ctrl+C 取消)',
+  'cli.setupClientAsk': () => '选哪个客户端? [dsh|claude|codex|opencode|antigravity|pi] ',
+  'cli.setupClientInvalid': () => '无效客户端(应为 dsh|claude|codex|opencode|antigravity|pi)',
+  'cli.setupNoTty': () => 'setup 需要交互终端 — 请用: gitflow-guard wire --client <名字> --yes',
   'guardStrictConfigBroken.why': () => '守卫配置无效, 且已启用 strict 模式',
   'guardStrictConfigBroken.next': () => '请先修复 gitflow-guard.config.json(或移除 "strict": true)后重试',
   'guardStrictInternalError.why': (v) => `守卫内部错误, 且已启用 strict 模式: ${v.msg}`,
@@ -186,13 +247,17 @@ const zh: Dict = {
   gitflow-guard status [--repo <路径>] [--locale <en|zh>]
   gitflow-guard audit [--lines <数量>] [--repo <路径>] [--locale <en|zh>]
   gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity>] [--command "<cmd>"] [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard setup [--repo <路径>] [--locale <en|zh>]
   gitflow-guard --help
 
 说明:
   status/audit 只读, agent 可自查。
   --locale 可临时覆盖本次调用的文案语言(旗标 > 项目配置 > 英文)。
   check 读 stdin hook payload 做门禁(平台协议: claude/opencode exit 2, codex/antigravity stdout JSON),
-  供 Claude Code / Codex / OpenCode 等 agent 的 pre/post hook 调用。`,
+  供 Claude Code / Codex / OpenCode 等 agent 的 pre/post hook 调用。
+  wire 把各客户端默认 hook 写入工程(默认)或全局作用域; dsh/pi 为进程内接入, 仅打印引导。
+  无需配置文件 — 内置默认(develop+main)开箱即用; 建 gitflow-guard.config.json 可覆盖, 或写 "enabled": false 关闭。`,
 }
 
 /** 内置文案注册表: en 为兜底语言; 下游可经 registerLocale 追加 */

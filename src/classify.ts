@@ -112,10 +112,12 @@ function classifySegment(segment: string, ctx: ClassifyContext): Classified[] {
 
 /** 分派: 已知命令直接解析; 包装器剥壳后递归(token 只减不增, 必然终止) */
 function classifyTokens(tokens: string[], ctx: ClassifyContext): Classified[] {
+  if (tokens.length === 0) return [{ kind: 'other' }]
   const rawCmd = tokens[0]
   const cmd = rawCmd.includes('/') ? rawCmd.slice(rawCmd.lastIndexOf('/') + 1) : rawCmd
   if (SHELLS.has(cmd)) return classifyShellWrapped(tokens, ctx)
   if (cmd === 'env') return classifyTokens(stripEnvArgs(tokens.slice(1)), ctx)
+  if (cmd === 'sudo') return classifyTokens(stripSudoArgs(tokens.slice(1)), ctx)
   if (WRAPPERS.has(cmd)) return classifyTokens(stripWrapperArgs(tokens.slice(1)), ctx)
   if (/^[\w-][\w.-]*=/.test(rawCmd)) return classifyTokens(tokens.slice(1), ctx)
   if (cmd === 'git') return classifyGit(tokens.slice(1), ctx)
@@ -163,6 +165,29 @@ function stripWrapperArgs(args: string[]): string[] {
   return args.slice(i)
 }
 
+/**
+ * sudo 参数剥离: 旗标与 VAR=x 赋值逐个消费; -u/-g/-p(及长旗标)消费下一个参数;
+ * `--` 之后即命令本体。仅剥壳不出新语义, 递归分类必然终止。
+ */
+function stripSudoArgs(args: string[]): string[] {
+  const WITH_VALUE: ReadonlySet<string> = new Set(['-u', '--user', '-g', '--group', '-p', '--prompt'])
+  let i = 0
+  while (i < args.length) {
+    const a = args[i]
+    if (a === '--') return args.slice(i + 1)
+    if (WITH_VALUE.has(a)) {
+      i += args[i + 1] != null ? 2 : 1
+      continue
+    }
+    if (a.startsWith('-') || /^[\w-]+=/.test(a)) {
+      i++
+      continue
+    }
+    break
+  }
+  return args.slice(i)
+}
+
 /** 分词: 引号内的空格不拆分 */
 function tokenize(segment: string): string[] {
   return segment.match(/"[^"]*"|'[^']*'|\S+/g)?.map((t) => t.replace(/^['"]|['"]$/g, '')) ?? []
@@ -177,6 +202,8 @@ function classifyGit(args: string[], ctx: ClassifyContext): Classified[] {
   if (sub === 'checkout' || sub === 'switch') return parseCheckout(rest)
   if (sub === 'send-pack') return parseSendPack(rest)
   if (sub === 'update-ref') return parseUpdateRef(rest)
+  if (sub === 'symbolic-ref') return parseSymbolicRef(rest)
+  if (sub === 'cherry-pick' || sub === 'revert') return parseCherryPickLike(rest)
   if (sub === 'reset' || sub === 'filter-branch') return [{ kind: 'ref-move' }]
   if (sub === 'rebase') return parseRebase(rest)
   if (sub === 'commit') return parseCommit(rest)
@@ -194,6 +221,17 @@ function parseRebase(args: string[]): Classified[] {
 function parseCommit(args: string[]): Classified[] {
   if (args.some((a) => a === '--amend')) return [{ kind: 'ref-move' }]
   return [{ kind: 'other' }]
+}
+
+/**
+ * cherry-pick/revert 会在当前分支上新提交 → 改写当前 tip, 收编为 ref-move
+ * (受保护分支上拒绝, 与 reset/rebase 同型);
+ * -n/--no-commit 只改工作树与索引(不移动 tip)与恢复类旗标(abort/continue 等)放行。
+ */
+function parseCherryPickLike(args: string[]): Classified[] {
+  const RESUME: ReadonlySet<string> = new Set(['--abort', '--continue', '--skip', '--quit'])
+  if (args.some((a) => a === '-n' || a === '--no-commit' || RESUME.has(a))) return [{ kind: 'other' }]
+  return [{ kind: 'ref-move' }]
 }
 
 /** 剥离子命令前的全局选项(-C <path> / -c <k=v> / --git-dir 等), 否则 git -C . push 会被判 other */
@@ -216,18 +254,42 @@ function stripGlobalOptions(args: string[]): string[] {
   return args.slice(i)
 }
 
-/** 分支切换: 门禁放行, 分支状态由 evaluateCommand 按段模拟 */
+/**
+ * 分支切换: 普通切换/-b/-c(switch -c)新建 → checkout(放行, 分支状态由 evaluateCommand 模拟);
+ * -B/-C 强制重建会静默移动/重建既有 ref(可波及受保护分支), 目标名单独送 ref-update 门禁,
+ * 门禁放行后仍按 checkout 模拟切换(两段任一 deny 即整体拦截, 与 push 歧义双解释同机制)。
+ * 短旗标簇(-Bf/-bt 等)扫描 b/B/c/C 视同对应形态。
+ */
 function parseCheckout(args: string[]): Classified[] {
   const first = args[0]
   // 文件模式(git checkout -- <path>)不改变分支
   if (first === '--') return [{ kind: 'checkout', branch: null }]
+  const name = args[1]
+  const validName = name != null && !name.startsWith('-')
   if (first === '-b' || first === '-B' || first === '-c' || first === '-C') {
-    const name = args[1]
-    return [{ kind: 'checkout', branch: name && !name.startsWith('-') ? name : null }]
+    if (!validName) return [{ kind: 'checkout', branch: null }]
+    if (first === '-B' || first === '-C') return forceRecreateOut(name)
+    return [{ kind: 'checkout', branch: name }]
+  }
+  // 短旗标簇(如 -Bf / -bf / -bt): 含 B/C 视同强制重建, 仅含 b/c 视同新建
+  if (first != null && first.startsWith('-') && !first.startsWith('--') && first.length > 1) {
+    const clusterForce = first.includes('B') || first.includes('C')
+    if (clusterForce || first.includes('b') || first.includes('c')) {
+      if (!validName) return [{ kind: 'checkout', branch: null }]
+      return clusterForce ? forceRecreateOut(name) : [{ kind: 'checkout', branch: name }]
+    }
   }
   if (first && !first.startsWith('-')) return [{ kind: 'checkout', branch: first }]
   // 其余(- / --detach / 无参)分支未知, 不模拟
   return [{ kind: 'checkout', branch: null }]
+}
+
+/** -B/-C(及含 B/C 的旗标簇)的产出: 目标 ref 送 ref-update, 再按 checkout 模拟切换 */
+function forceRecreateOut(name: string): Classified[] {
+  return [
+    { kind: 'ref-update', branch: stripRefPrefix(name), delete: false },
+    { kind: 'checkout', branch: name },
+  ]
 }
 
 function parsePush(args: string[], ctx: ClassifyContext): Classified[] {
@@ -338,6 +400,33 @@ function parseUpdateRef(args: string[]): Classified[] {
     return [{ kind: 'ref-update', branch: stripRefPrefix(a), delete: isDelete }]
   }
   return [{ kind: 'other' }]
+}
+
+/**
+ * git symbolic-ref 直改 symbolic refs(plumbing 绕行面):
+ * - 查询形态(symbolic-ref <name> / --short 等单参)不改变任何 ref → other;
+ * - 双参重定向(symbolic-ref <name> <ref>)把 name 指向别处, 目标名送 ref-update;
+ * - -d/--delete 删除该 ref, 同样送 ref-update。
+ */
+function parseSymbolicRef(args: string[]): Classified[] {
+  let isDelete = false
+  const nonFlag: string[] = []
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (a === '-d' || a === '--delete') {
+      isDelete = true
+      continue
+    }
+    if (a === '-m' || a === '--message') {
+      i++ // 消费 -m 的值, 不能当作 ref
+      continue
+    }
+    if (a.startsWith('-')) continue
+    nonFlag.push(a)
+  }
+  if (!isDelete && nonFlag.length < 2) return [{ kind: 'other' }]
+  if (isDelete && nonFlag.length === 0) return [{ kind: 'other' }]
+  return [{ kind: 'ref-update', branch: stripRefPrefix(nonFlag[0]), delete: isDelete }]
 }
 
 function parseMerge(args: string[]): Classified[] {

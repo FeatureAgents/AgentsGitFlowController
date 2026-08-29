@@ -35,33 +35,51 @@
 
 ## 快速开始——30 秒用上
 
-**第 1 步——安装**,然后重启 DSH(插件在进程启动时加载):
+**第 1 步——安装**。六个客户端吃同一个 npm 包 `agents-gitflow-guard`,按你的 agent 选一条:
 
 ```bash
-# 安装最新版
-dsh plugin --profile web add agents-gitflow-guard
-# ...或锁定已知良好版本(推荐; 同时绕开 registry 陈旧缓存)
-dsh plugin --profile web add agents-gitflow-guard@0.0.18
+# DSH —— 进程内插件(装完重启 DSH; 插件在进程启动时加载)
+dsh plugin --profile web add agents-gitflow-guard@0.0.21
 ```
 
-> **版本坑**: 裸 `add` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。pnpm 打印的 peer 依赖 *警告* 属预期: DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`(插件正常工作)。
-
-用的是别的 agent? 同一个 npm 包也适用于 Claude Code / Codex / OpenCode / Antigravity / Pi——见[安装详解](#安装详解)的逐客户端安装表。
-
-**第 2 步——配置**,在**项目根目录**创建 `gitflow-guard.config.json`:
-
-```jsonc
-{
-  "enabled": true,
-  "featurePattern": "feature/[\\w-]+",
-  "branches": {
-    "integration": ["develop"],   // 集成分支: feature 经 PR 合入, 受保护
-    "archive": ["main"]           // 归档分支: 发布后由你亲手合入
-  }
-}
+```bash
+# Claude Code · Codex · OpenCode · Antigravity —— 独立 hook,不需要 DSH
+npm i -g agents-gitflow-guard@0.0.21
 ```
 
-这一个文件就是全部配置:其中的 **`integration` 是唯一必填**角色;`preview` / `production` / `archive` 都是可选,只有你配了才启用对应关卡。插件按项目 opt-in——文件不存在或 `enabled: false` 时什么都不做。
+```bash
+# Pi —— 进程内扩展
+npm i -D agents-gitflow-guard@0.0.21
+```
+
+> **版本坑**: 裸 `add` 或不带版本的 `npm i` 装的是安装时刻的 `latest`——在 npm/pnpm 注册表缓存或镜像陈旧的机器上可能拿到旧版本。看到版本不对就锁版本。(DSH 用户: pnpm 打印的 peer 依赖 *警告* 属预期——DSH 启动时经共享模块回退提供 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`,插件正常工作。)
+>
+> hook 客户端(Claude Code · Codex · OpenCode · Antigravity)装完还要各做一步接线——**每个客户端一条命令**(见下)。Pi 拷贝一个文件;DSH 装完即已接线。
+
+**第 2 步——接线(无需配置文件)。** 守卫内置**默认配置,开箱即用:默认保护 `develop`(integration)+ `main`(archive)**,零配置。你要做的只是让 AI 客户端去调用守卫——每个 stdin-hook 客户端一条命令(DSH 自动接线;Pi 拷文件,见下):
+
+```bash
+# Claude Code → 本仓库 .claude/settings.json
+gitflow-guard wire --client claude --project --yes
+```
+
+```bash
+# Codex / OpenCode / Antigravity(各写各的配置文件; --yes 跳过 y/N 确认)
+gitflow-guard wire --client codex --project --yes
+gitflow-guard wire --client opencode --project --yes
+gitflow-guard wire --client antigravity --project --yes     # 实验支持; 尚未真机验证
+```
+
+```bash
+# 只预览不写入 / 移除 / 交互向导:
+gitflow-guard wire --client claude --dry-run
+gitflow-guard wire --client claude --unwire
+gitflow-guard setup
+```
+
+`wire` 对已有配置**非破坏性合并**(已存在的 hook 不动),默认只写**当前工程目录**;`--global`(本机所有仓库)写入前必先确认或需 `--yes`。各客户端的文件与格式见[安装详解](#安装详解)。
+
+> ⚠️ **main 默认受保护。** trunk / 单分支工作流(所有人直推同一条分支)的用户,装完第一次直推 `main` 就会被拦——创建 `gitflow-guard.config.json` 写 `{ "enabled": false }`,或自行映射分支(见[配置参考](#配置参考))。`gitflow-guard status` 在默认配置生效时也会反复提示这一点。
 
 **第 3 步——验证**。让 agent 执行 `git push origin develop`,预期工具调用被拒绝:
 
@@ -70,9 +88,9 @@ Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
 Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-**文案默认是英文**(面向国际化)。要在你的项目里看中文,在 `gitflow-guard.config.json` 里加 `"locale": "zh"`;中文效果是:*已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……*
+**文案默认是英文**(面向国际化)。要在你的项目里看中文,创建配置并加 `"locale": "zh"`;中文效果是:*已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……*
 
-**完成。** 守卫对该仓库生效。继续往下看[配置参考](#配置参考)映射自己的分支,或看[门禁矩阵](#门禁矩阵拦什么放什么)的完整判定表。
+**完成。** 守卫已用内置默认配置生效。想要更多关卡(`preview` / `production`)或改分支名?写一个 `gitflow-guard.config.json`,只写你在意的字段,其余保持内置默认。完整判定表见[门禁矩阵](#门禁矩阵拦什么放什么)。
 
 ### 完整实战示例——一个 feature 的端到端旅程
 
@@ -97,7 +115,9 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 
 **这是软规则。** Agent 会跳过、重排、干脆"忘记"它——不是因为恶意,而是因为软指令对模型来说本来就是可选的。
 
-这个插件把软规则变成**硬机制**。agent 每次尝试的 git 操作都会对照*本地仓库的真实状态*检查;违规在命令执行前就被拦截,并给出原因和下一步。没人需要记得规则——规则被强制执行。
+这个插件把软规则变成**硬机制**。agent 每次尝试的 git 操作都会对照*本地仓库的真实状态*检查;违规在命令执行前就被拦截,并给出原因和下一步。
+
+没人需要记得规则——规则被强制执行。
 
 ---
 
@@ -128,7 +148,7 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 ## 它能做什么
 
 - **执行前拦截**:直推 / 强推 / 删除受保护角色分支(integration / preview / production / archive);agent 试图合入生产或归档。
-- **角色驱动、完全可配**:`integration` 是唯一必填;`preview` / `production` / `archive` 是可选数组(精确名或正则),每个角色独立 `update`(`pr` / `flexible`)与 `mergeBy`。
+- **角色驱动、完全可配**:`integration`(内置默认 `develop`)是核心角色;`preview` / `production` / `archive` 是可选数组(精确名或正则),每个角色独立 `update`(`pr` / `flexible`)与 `mergeBy`,自定义配置深度合并于默认之上。
 - **在关键处保留人的操作权**:生产与归档合并始终在你手上——插件阻止 agent 点击合并,于是你的动作*就是*确认。
 - **任何命名都行**:分支名全由配置映射,绝无硬编码(见[配置参考](#配置参考))。
 - **全程审计**:每次拦截都追加到用户级状态目录(macOS/Linux `~/.local/state/gitflow-guard/`,Windows `%LOCALAPPDATA%\gitflow-guard`)下的审计日志——在仓库外、绝不进版本库、位于 agent 可写沙箱之外,且同一仓库的所有 worktree 共享一份日志。
@@ -175,7 +195,7 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 
 #### 1. 配置是唯一事实来源
 
-分支名和规则没有任何硬编码。`integration` 是唯一必填角色;`preview` / `production` / `archive` 是可选数组(精确名或正则),每个都有自己的 `update` 与 `mergeBy`。同一个二进制从单条 `develop` 一直可扩到企业多环境流水线。
+分支名和规则没有任何硬编码。`integration` 以内置默认(`develop`)提供;`preview` / `production` / `archive` 是可选数组(精确名或正则),每个都有自己的 `update` 与 `mergeBy` — 在默认之上深度合并。同一个二进制从单条 `develop` 一直可扩到企业多环境流水线。
 
 #### 2. 拦截发生在执行前,不是执行后
 
@@ -189,9 +209,28 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 
 ## 配置参考
 
+### 内置默认配置 + 深度合并覆盖
+
+守卫**默认开启**——不需要 `gitflow-guard.config.json`。默认保护:
+
+| 默认值 | 角色 | 规则 |
+|---|---|---|
+| `develop` | **integration** | 禁直推;只经 PR/MR 合入(`update: "pr"`) |
+| `main` | **archive** | 禁直推 / 禁 agent 合并;归档合并留给你(`mergeBy: "user"`) |
+
+当你创建 `gitflow-guard.config.json` 时,它的字段会**深度合并覆盖默认**:写到的字段/角色替换默认,没写的保持默认。只写你想改的:
+
+```jsonc
+{
+  "branches": { "production": ["release-[\\w-]+"] }  // 默认的 develop+main 不变;新增 production
+}
+```
+
+**完全关闭**(trunk / 单分支流程):`{ "enabled": false }`。误拦时改一个文件即可恢复;`gitflow-guard status` 始终说明当前生效的是内置默认还是自定义配置。
+
 ### 分支角色——插件校验的模型
 
-只有 **`integration`** 是必填。其余全部可选——按你的流程配就好,每条目可以是精确分支名**或**正则。
+**角色**把分支名(或正则)映射到规则集。`integration` 由内置默认提供;其余角色全部可选。
 
 ```text
 feature 分支 ──(自由)──> integration(集成分支, PR/MR 合入)
@@ -205,10 +244,10 @@ archive(可选, 发布后你亲手归档)
 | 角色 | 配置键 | 必填? | 强制行为 |
 |---|---|---|---|
 | **feature** | `featurePattern` | — | 自由: commit / push / 同步 / rebase |
-| **integration** | `branches.integration` | 必填 | 禁直推(默认 `pr`);feature 只经 PR/MR 合入 |
+| **integration** | `branches.integration` | 默认(`develop`) | 禁直推(默认 `pr`);feature 只经 PR/MR 合入 |
 | **preview** | `branches.preview`(数组) | 可选 | 禁直推;只走 PR/MR(环境终点) |
 | **production** | `branches.production`(数组) | 可选 | 只走 PR/MR;合并仅限你(`mergeBy: "user"`) |
-| **archive** | `branches.archive`(数组) | 可选 | 允许 agent 创建指向它的 PR/MR; 合并仍限用户亲手 |
+| **archive** | `branches.archive`(数组) | 默认(`main`) | 允许 agent 创建指向它的 PR/MR; 合并仍限用户亲手 |
 
 ### 自定义分支名与规则——任何命名都可以
 
@@ -248,10 +287,10 @@ archive(可选, 发布后你亲手归档)
 
 ```jsonc
 {
-  "enabled": true,                     // opt-in: 文件存在且 enabled=true
+  "enabled": true,                     // 默认 true — 写 false 即关闭守卫
   "featurePattern": "feature/[\\w-]+", // 识别工作/feature 分支的 JS 正则
   "branches": {
-    "integration": { "branches": ["develop"], "update": "pr" },  // 必填
+    "integration": { "branches": ["develop"], "update": "pr" },  // 默认 ["develop"] — 省略即保持默认
     "preview":     { "branches": ["ita1"], "update": "pr" },     // 可选
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // 可选
     "archive":     ["main"]                                      // 可选
@@ -276,8 +315,8 @@ archive(可选, 发布后你亲手归档)
   registerLocale('fr', fr)
   ```
 - **未注册语言**:拦截路径对未注册的 `"locale"` 静默回退英文(设计如此——hook 不因文案缺失卡死),笔误因此容易被忽略;一行告警在 `gitflow-guard status` 中可见。
-- **校验**:`integration` 必填;角色条目重叠会被拒;非法正则会报错。**任何错误都会让该项目的插件禁用并上报**(而不是用半吊子配置)。
-- **strict 模式**:默认配置损坏时 stderr 告警一次后放行(fail-open,避免一个笔误卡死工具管道);`"strict": true` 把配置异常与内部错误翻转为**拦截**(fail-closed)——供高风险仓库选用。文件不存在或显式 `enabled: false` 两种模式下都保持静默。
+- **校验**:角色条目重叠会被拒;非法正则会报错。**任何配置错误都会让该项目的守卫回退为"未启用"并上报**(而不是用半吊子配置)。注意:你覆盖的角色若与默认角色同名(如把 `main` 映射为 integration 而默认 archive 仍是 `main`)会触发重叠报错——需一并覆盖或去掉另一角色。
+- **strict 模式**:默认配置损坏时 stderr 告警一次后放行(fail-open,避免一个笔误卡死工具管道);`"strict": true` 把配置异常与内部错误翻转为**拦截**(fail-closed)——供高风险仓库选用。显式 `enabled: false` 保持静默;而*文件不存在*不再是"未启用"——内置默认(develop+main)直接生效。
 
 ---
 
@@ -292,6 +331,12 @@ archive(可选, 发布后你亲手归档)
 | 指向 archive 的 PR/MR | ✅ 可创建;🚫 合并被拦(你在 UI 合并) |
 | 在 integration / preview 上 `git merge feature/x`(本地) | 🚫 拦(须 PR/MR);`update: flexible` 则放行 |
 | 串联命令(`checkout develop && merge feature/x`) | 🚫 拦——逐段模拟分支切换,无法绕序 |
+| 强制重建受保护分支(`git checkout -B/-C <分支>` / `git switch -C`) | 🚫 拦(直改 ref-update 门禁) |
+| 用 `git symbolic-ref` 重定向/删除受保护分支 | 🚫 拦(直改 ref-update 门禁) |
+| 在 integration / preview / production / archive 上 `git cherry-pick` / `git revert` | 🚫 拦(受保护分支上改写历史);`-n`/`--no-commit` 与 `--abort`/`--continue`/`--skip`/`--quit` 放行 |
+| `sudo` 包装的 git 命令(特权外壳) | 🚫 剥壳(含 `sudo -u …`)后按内层命令判定 |
+
+> 两处**刻意不拦**的边界,防止后来者「顺手堵上」造成语义回归:`git tag -f` 移动 tag(即使指向受保护分支)维持豁免——tag 不在分支角色守卫范围,与 `push --tags` 同型;受保护分支上的普通 `git commit` 维持放行——守卫只管分支角色与合入路径、不管内容,后续 `git push` 仍被拦(远端零污染)。
 
 PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有平台 CLI 时插件走保守路径。
 
@@ -309,14 +354,14 @@ PR/MR 目标通过 `gh pr view`(GitHub)或 `glab mr view`(GitLab)解析;没有�
 
 | 客户端 | 安装命令 | 装完再做什么 |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.18` | 重启 DSH——插件自动挂为 profile 层 |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.18` | 在各自 hook 配置里指向 `gitflow-guard` 二进制(见下) |
-| Pi | `npm i -D agents-gitflow-guard@0.0.18` | 把 `pi/gitflow-guard.ts` 拷进 `.pi/extensions/`(见下) |
+| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.21` | 重启 DSH——插件自动挂为 profile 层 |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.21` | `gitflow-guard wire --client <名>`——每个客户端一条命令(见下) |
+| Pi | `npm i -D agents-gitflow-guard@0.0.21` | 把 `pi/gitflow-guard.ts` 拷进 `.pi/extensions/`(见下) |
 
 **DSH —— 进程内插件**(标准路径,已在[快速开始](#快速开始30-秒用上)覆盖):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.18    # 建议锁版本, 见上文提示
+dsh plugin --profile web add agents-gitflow-guard@0.0.21    # 建议锁版本, 见上文提示
 ```
 
 然后重启 DSH。升级用同一命令,再重启一次。
@@ -330,13 +375,17 @@ dsh plugin --profile web add file:/path/to/agents-gitflow-guard
 
 包自带 `dsh.bundle.patch` 声明,`dsh plugin add` 自动把它挂为 profile 层,无需手工编辑 profile。
 
-**各 agent 独立 hook**——Claude Code / Codex / OpenCode / Antigravity,不依赖 DSH。全局装一次 CLI,然后引用 `gitflow-guard` 二进制:
+**各 agent 独立 hook**——Claude Code / Codex / OpenCode / Antigravity,不依赖 DSH。全局装一次 CLI,然后**每客户端一条命令接线**(守卫凭内置默认配置已默认开启,接线是唯一剩下的事):
 
 ```bash
-npm i -g agents-gitflow-guard@0.0.18   # 提供 `gitflow-guard` 二进制
+npm i -g agents-gitflow-guard@0.0.21   # 提供 `gitflow-guard` 二进制
+gitflow-guard wire --client claude --project --yes
+gitflow-guard wire --client codex --project --yes
+gitflow-guard wire --client opencode --project --yes
+gitflow-guard wire --client antigravity --project --yes   # 实验支持
 ```
 
-本仓库已自带 `.claude/settings.json`(Claude Code)、`.codex/hooks.json`(Codex)、`.opencode/hook/hooks.yaml`(OpenCode)和 `.agents/hooks.json`(Antigravity / Google);其他仓库加自己的 hooks:
+`wire` 读取已有配置文件(如有)并把 hook 条目合入——不碰其他内容、幂等(已接则跳过)、支持 `--dry-run` 预览与 `--unwire` 移除、写 `--global` 前必先询问。它写入的准确文件(供参考,也可代替 `wire` 手写)是:
 
 ```jsonc
 // Claude Code — .claude/settings.json
@@ -389,7 +438,7 @@ hooks:
 Pi 以进程内扩展装载(没有 stdin payload,也没有子进程 hook)。把随包发布的入口装进项目、包留在 devDependencies:
 
 ```bash
-npm i -D agents-gitflow-guard@0.0.18
+npm i -D agents-gitflow-guard@0.0.21
 mkdir -p .pi/extensions
 cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
 ```
@@ -403,7 +452,8 @@ cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-
 - hook 读 stdin payload,按**各平台协议**作答:Claude Code / OpenCode → `exit 2`(stderr 展示原因 + "下一步"提示);Codex → stdout 输出 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`;Antigravity → stdout 输出 `{"decision":"deny","reason":...}` 且 **exit 0**(Antigravity 要求 exit 0,拒绝 hookSpecificOutput/非 allow 值)。Pi 没有 stdin 协议:进程内扩展监听官方 `tool_call` 事件,经返回值 `{ block: true, reason }` 拒绝(守卫 CLI 子进程只承载内部 exit-2 契约)。
 - 只需要**执行前事件**:守卫在命令执行*之前*拦截;没有特许可事后消费,因此无需执行后钩子。
 - 上面示例调的是全局安装的 `gitflow-guard`(`npm i -g`)。若 hook 子进程在它的 `PATH` 里找不到,就指向 `npm bin -g` 给出的完整二进制路径——hook 子进程不一定继承你交互 shell 的 PATH。本仓库自带配置里的 `bin/gitflow-guard.mjs` 路径只对 checkout 贡献者有效。
-- 完全 opt-in:仓库没有 `gitflow-guard.config.json`(或 `enabled` 非 true)时 hook 什么都不做。
+- **默认开启**:内置默认配置(integration=`develop`, archive=`main`)无需任何文件即生效。trunk / 单分支仓库:建 `gitflow-guard.config.json` 写 `{ "enabled": false }`,或自行映射分支。自定义配置在默认之上**深度合并**——只写你想改的字段。
+- `wire` 从不删除或重写你已有的 hook 条目——只添加自己的命令(去重);`--unwire` 精确移除同一条命令。
 
 ---
 
@@ -411,7 +461,7 @@ cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-
 
 ### 我的分支不叫默认名字,能用吗?
 
-能用——分支名没有任何写死。`integration` 是唯一必填;它的条目(以及 `preview`/`production`/`archive` 的)可以是任意精确分支名或正则。`featurePattern` 告诉插件怎么认你的工作分支。
+能用——分支名没有任何写死。`integration` 由内置默认提供(`develop`),自定义配置在默认之上深度合并;它的条目(以及 `preview`/`production`/`archive` 的)可以是任意精确分支名或正则。`featurePattern` 告诉插件怎么认你的工作分支。
 
 把集成分支叫 `master`、加一个 `beta` 预览、feature 前缀用 `fix/`——写进配置即可;拦截、报告、审计都跟着你的命名走。没有任何你必须遵守的约定,只有你声明的映射。见[自定义分支名与规则](#自定义分支名与规则任何命名都可以)。
 
@@ -427,7 +477,7 @@ cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-
 
 不是,请注意别把它当安全工具。它是工作流守卫:把既定流程变成可机制执行的东西。基于文本的命令识别天然是尽力而为——铁心混淆命令的 agent 可以绕过解析器。
 
-在其支持的命令形态内,角色边界在本地强制生效:合入受保护角色分支(integration / preview / production / archive)必须走配置好的路径(PR/MR,或生产/归档的人工合并)。常见混淆包装已纳入分类与拦截——shell 包装(`sh -c` / `bash -lc`)、子 shell 与反引号/`$()` 内嵌、`env`/`command`/`nohup`/`xargs` 前缀与 `VAR=x` 赋值、绝对路径、管道与 `||` 后半段、git 全局选项(`-C .`、`--git-dir=…`)、通配 refspec(`refs/heads/*:refs/heads/*`)、当 fetch+merge 用的 `git pull`,以及 `send-pack`/`update-ref` 等 plumbing。可执行对抗语料见 `tests/accuracy-audit.spec.ts`。
+在其支持的命令形态内,角色边界在本地强制生效:合入受保护角色分支(integration / preview / production / archive)必须走配置好的路径(PR/MR,或生产/归档的人工合并)。常见混淆包装已纳入分类与拦截——shell 包装(`sh -c` / `bash -lc`)、子 shell 与反引号/`$()` 内嵌、`env`/`command`/`nohup`/`xargs`/`sudo` 前缀与 `VAR=x` 赋值、绝对路径、管道与 `||` 后半段、git 全局选项(`-C .`、`--git-dir=…`)、通配 refspec(`refs/heads/*:refs/heads/*`)、当 fetch+merge 用的 `git pull`,以及 `send-pack`/`update-ref`/`symbolic-ref` 等 plumbing;强制重建受保护分支(`checkout -B`/`switch -C`)与受保护分支上的 cherry-pick/revert 由 ref-update / ref-move 门禁拦截。可执行对抗语料见 `tests/accuracy-audit.spec.ts`。
 
 已知**本地不可防**的通道:直连 forge API(`gh api repos/…/pulls/N/merge`、`curl`)与解释器子进程内嵌(`node -e "child_process.exec('git push …')"`);任意深度的引号/编码变换天然只能尽力而为。真正不可绕过的边界在你托管服务的分支保护设置。两边都用——把本守卫当作即时反馈与审计留痕,而不是安全边界。
 
@@ -457,7 +507,7 @@ cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-
 
 半吊子配置绝不会意外生效:任何校验错误都会让该项目的守卫禁用并上报错误。
 
-常见错误:`integration` 缺失(必填)、同一个分支被配到两个角色里(显式拒绝)、`featurePattern` 写不成合法正则(报错)。失败提示很明确,文件又是一个 JSON 对象,通常三十秒改好。
+常见错误:覆盖的角色与默认角色同名(如把 `main` 设为 integration 而默认 archive 仍是 `main`——显式重叠报错,需一并覆盖或去掉另一角色)、同一个分支被配到两个角色里(显式拒绝)、`featurePattern` 写不成合法正则(报错)。失败提示很明确,文件又是一个 JSON 对象,通常三十秒改好。
 
 ---
 
@@ -480,7 +530,7 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 | 术语 | 含义 |
 |---|---|
-| **integration** | 集成分支,唯一必填角色(`branches.integration`);feature 经 PR/MR 合入;受保护 |
+| **integration** | 集成分支,核心角色(内置默认 `develop`);feature 经 PR/MR 合入;受保护 |
 | **preview** | 可选环境终点分支(`branches.preview`,数组);只走 PR/MR 更新 |
 | **production** | 可选生产分支(`branches.production`,数组);PR/MR + 合并仅限用户 |
 | **archive** | 可选的发布后归档分支(`branches.archive`,数组);允许 agent 创建指向它的 PR/MR,合并仍限用户亲手 |
@@ -493,10 +543,18 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 ## 路线图
 
-- **i18n——拦截文案本地化** ✅(0.0.3):默认英文,`"locale": "zh"` 切中文。
-- **v2——审计同步**:跨机器同步用户级审计日志(现仅本地)。
-- **v2——更多预制模板**:常用流程(solo `develop`、多环境企业)的现成配置模板,由社区贡献。
-- **v2——CI 硬门槛研究**:`pr checks` 能否在不伤平台无关核心的前提下变成真实门槛。
+**已落地**:
+
+- ✅ **i18n——拦截文案本地化**(0.0.3):默认英文,`"locale": "zh"` 切中文;0.0.12 起支持 `registerLocale` 自定义语言。
+- ✅ **零配置开箱**(0.0.20):内置 `develop` + `main` 默认配置、深度合并覆盖,无配置文件也默认开启守卫。
+- ✅ **一键接线**(0.0.20):`gitflow-guard wire` / `setup` 一条命令写入各 stdin-hook 客户端(Claude Code / Codex / OpenCode / Antigravity)的 hook 条目。
+- ✅ **六个平台**(0.0.2–0.0.17):DSH(进程内)、Claude Code、Codex、OpenCode、Antigravity、Pi(进程内)。
+
+**v2 规划中**:
+
+- **审计同步**:跨机器同步用户级审计日志(现仍仅本地;0.0.14 起已存于仓库外)。
+- **更多预制模板**:在内置默认之上延伸,为常用流程(solo `develop`、多环境企业)提供社区贡献的现成配置预设。
+- **CI 硬门槛研究**:`pr checks` 能否在不伤平台无关核心的前提下变成真实门槛。
 
 欢迎贡献——见[开发](#开发)。
 
@@ -514,9 +572,10 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 ```bash
 npm install
-npm test          # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit
+npm test          # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
 npm run typecheck     # tsc --noEmit, 0 Error
 npm run build         # tsdown → lib/(CLI 与插件共用)
+npm run check:pins    # 校验 package.json 版本与双语 README 锁版本示例及 CHANGELOG 标题一致
 npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claude Code / Codex / OpenCode / Antigravity hook 编码 + Pi 扩展
 ```
 
