@@ -28,8 +28,8 @@ You define your own branches —
 - [FAQ](#faq)
 - [Glossary](#glossary)
 - [Roadmap](#roadmap)
-- [Support](#support)
 - [Development](#development)
+- [Support](#support)
 - [License](#license)
 
 ---
@@ -345,6 +345,7 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 ---
 
 ## Where the human stays in control
+
 - **Production merge** and **archive** are user-only by default: an agent may help prepare the PR/MR, but **you click the merge button** — that click *is* the confirmation. There is no separate permit store to outsource that decision.
 - Every deny is appended to the user-level audit log for review (`gitflow-guard audit`).
 
@@ -467,11 +468,17 @@ npm link
 - [Adding custom rules for the Copilot coding agent (GitHub Docs)](https://docs.github.com/en/copilot/customizing-copilot/adding-custom-rules-for-the-copilot-coding-agent)
 - Optional: Copilot also has a [hooks system](https://docs.github.com/en/copilot/reference/hooks-reference) (`preToolUse` → `permissionDecision:"deny"`) if you want command-level interception.
 
-- The hook reads the payload on stdin and answers with that platform's protocol: Claude Code / OpenCode → `exit 2` (stderr is the reason + "next step" hint); Codex → JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` on stdout; Antigravity → JSON `{"decision":"deny","reason":...}` on stdout with `exit 0` (Antigravity requires exit 0 and rejects `hookSpecificOutput` / non-allow values). Pi has no stdin protocol: the in-process extension listens to the official `tool_call` event and denies via its return value `{ block: true, reason }` (the CLI subprocess only speaks the internal exit-2 contract).
-- Only the pre-tool event is needed: the guard blocks *before* the command runs. There is no permit to consume afterwards, so no post-tool hooks are required.
-- The examples above invoke the globally-installed binary `gitflow-guard` (`npm i -g`). If your agent's hook runner does not inherit your interactive `PATH`, supply the full absolute path from `npm bin -g`. The `bin/gitflow-guard.mjs` path in this repo's self-contained configs is only for repository checkout contributors.
-- **Enabled by default**: Built-in defaults (integration=`develop`, archive=`main`) take effect without any file. For trunk / single-branch repos, write a `gitflow-guard.config.json` containing `{ "enabled": false }` or map your branches. Custom configurations **deep-merge** on top of the defaults — configure only the keys you want to change.
-- `wire` never deletes or rewrites your existing hook entries — it only adds its own command (deduplicated); `--unwire` precisely removes that same command.
+### 5. Hook Mechanism & Technical Notes
+
+- **Platform protocol**: The hook reads the payload on stdin and answers with that platform's protocol:
+  - **Claude Code / OpenCode**: `exit 2` (stderr contains the reason and actionable next steps).
+  - **Codex**: stdout JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`.
+  - **Antigravity**: stdout JSON `{"decision":"deny","reason":...}` with `exit 0` (Antigravity requires exit 0).
+  - **Pi**: In-process extension listening to `tool_call` event and denying via `{ block: true, reason }`.
+- **Pre-tool execution**: Only the pre-tool event is intercepted; the guard blocks *before* commands execute, so no post-tool hooks or permit-cleanup steps are needed.
+- **Binary PATH resolution**: Global installation (`npm i -g`) provides the `gitflow-guard` binary. If your agent runner does not inherit your interactive `PATH`, use the full path from `npm bin -g`.
+- **Enabled by default**: Built-in defaults (`integration: ["develop"]`, `archive: ["main"]`) take effect without any config file. Custom configurations in `gitflow-guard.config.json` deep-merge on top of defaults.
+- **Non-destructive wiring**: `gitflow-guard wire` merges hook configurations idempotently without modifying existing hooks, and `wire --unwire` removes only the guard entry.
 
 ---
 
@@ -544,6 +551,7 @@ MIT, free, no strings. Use it, modify it, ship it — the only obligation is kee
 If it saves your team from a shortcut gone wrong, the coffee button at the top of this page is appreciated but never required. See [License](#license).
 
 ---
+ 
 ## Glossary
 
 | term | meaning |
@@ -570,7 +578,21 @@ Future capabilities and areas under active exploration:
 
 For shipped features and release history, see [CHANGELOG.md](CHANGELOG.md).
 
-Contributions welcome — see [Development](#development).
+---
+
+## Development
+
+```bash
+npm install
+npm test              # unit tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
+npm run typecheck     # tsc --noEmit, 0 errors
+npm run build         # tsdown → lib/ (CLI and plugin share the build)
+npm run check:pins    # assert package.json version matches CHANGELOG heading and any README version pins
+npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale + multi-client hooks + Pi extension
+```
+
+- **Quality Rule**: Every logic change requires a 0-error typecheck, all tests green, and a passing `verify:matrix`.
+- **Client Additions**: When adding support for a new agent platform, follow the synchronization checklist in [AGENTS.md](AGENTS.md) §8.
 
 ---
 
@@ -579,23 +601,6 @@ Contributions welcome — see [Development](#development).
 The plugin is free and open source (MIT). If it saves you and your team from a shortcut gone wrong, a coffee is appreciated:
 
 [![Support on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/keanz21)
-
----
-
-## Development
-
-```bash
-npm install
-npm test          # unit tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
-npm run typecheck     # tsc --noEmit, 0 errors
-npm run build         # tsdown → lib/ (CLI and plugin share the build)
-npm run check:pins    # assert package.json version matches CHANGELOG heading and any README version pins
-npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale regression + Claude Code / Codex / OpenCode / Antigravity hook wiring + Pi extension
-```
-
-**Rule**: any logic change must pass a 0-error build + all green tests + a green `verify:matrix` before done.
-
-**Adding a new agent client** (e.g. Cursor / Windsurf): all of these must change in one commit — `src/platform.ts` (+tests, `HookPlatform` union), a repo hook config beside `.claude/settings.json` / `.codex/hooks.json`, `.agents/hooks/references/<tool>.md`, `scripts/verify-matrix.mjs`, the README hook section and the top tagline, `package.json` description/keywords, and `CHANGELOG`. Done only when `npm run verify:matrix` is green. (Same checklist in [AGENTS.md](AGENTS.md) §8; DSH and Pi are in-process clients covered by the exceptions noted there.)
 
 ---
 
