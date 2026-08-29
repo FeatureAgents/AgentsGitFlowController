@@ -195,6 +195,10 @@ console.log('[E] antigravity encoding (真机 payload 形状: cwd 嵌套在 tool
     check('拦截: stdout decision=deny', /"decision":"deny"/.test(deny.stdout), deny.stdout)
     const ok = runCheck('antigravity', payload('ls -la'), repo)
     check('放行: exit 0 且无输出(快路径)', ok.code === 0 && ok.stdout === '', `code=${ok.code} out=${ok.stdout}`)
+    // AGY-D3 回归差异用例: hook 进程 cwd 在仓库外(如全局 hook), 仓库定位只能靠 payload 的
+    // toolCall.args.Cwd —— 旧实现取顶层 j.cwd(不存在)会 findRepoRoot 失败而静默放行, 本断言防回归
+    const detached = runCheck('antigravity', payload('git push origin develop'), tmpdir())
+    check('拦截(仓库外 cwd + payload.Cwd 定位, AGY-D3): exit 0 + decision=deny', detached.code === 0 && /"decision":"deny"/.test(detached.stdout), `code=${detached.code} out=${detached.stdout}`)
     // wire 装配: 命令必须绝对路径(agy hook 进程 cwd=配置目录, 相对 bin 会 MODULE_NOT_FOUND)
     execFileSync('node', [BIN, 'wire', '--client', 'antigravity', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
     const ag = JSON.parse(readFileSync(join(repo, '.agents', 'hooks.json'), 'utf8'))
