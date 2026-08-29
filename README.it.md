@@ -5,7 +5,7 @@
 Un guardiano configurabile per i ruoli dei branch Git, progettato per gli agenti di sviluppo IA — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, OpenCode, Antigravity e Pi.  
 Definisci i tuoi branch — **integration** (le funzionalità vengono integrate tramite PR/MR), **preview** (ambienti di test), **production** (produzione), **archive** (archivio) — ciascuno con le proprie regole di aggiornamento. Gli agenti non possono saltare il flusso e i merge critici rimangono sotto il tuo controllo.
 
-[English](README.md) · [简体中文](README.zh.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Licenza](LICENSE)
+[English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Licenza](LICENSE)
 
 [![ko-fi](https://img.shields.io/badge/ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 

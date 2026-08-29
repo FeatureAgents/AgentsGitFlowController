@@ -5,7 +5,7 @@
 Ein konfigurierbarer Branch-Rollen-Guard für KI-Coding-Agenten — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, OpenCode, Antigravity und Pi.  
 Sie definieren Ihre eigenen Branches — **integration** (Features werden über PR/MR zusammengeführt), **preview** (Umgebungs-Endpunkte), **production** (Produktion), **archive** (Archiv) — jeweils mit eigenen Aktualisierungsregeln. Agenten können den Flow nicht überspringen, und sensible Merges bleiben in Ihrer Hand.
 
-[English](README.md) · [简体中文](README.zh.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Lizenz](LICENSE)
+[English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Lizenz](LICENSE)
 
 [![ko-fi](https://img.shields.io/badge/ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 

@@ -5,7 +5,7 @@
 Un guardián configurable para roles de ramas Git, diseñado para agentes de programación de IA — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), Claude Code, Codex, OpenCode, Antigravity y Pi.  
 Define tus propias ramas — **integration** (las funcionalidades se integran mediante PR/MR), **preview** (entornos de prueba), **production** (producción), **archive** (archivo) — cada una con sus propias reglas de actualización. Los agentes no pueden eludir el flujo y los merges críticos permanecen bajo tu control humano.
 
-[English](README.md) · [简体中文](README.zh.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Licencia](LICENSE)
+[English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Licencia](LICENSE)
 
 [![ko-fi](https://img.shields.io/badge/ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 
