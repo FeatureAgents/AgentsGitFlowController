@@ -21,7 +21,8 @@
     "pi",
     "opencode",
     "README.md",
-    "README.zh.md"
+    "README.zh.md",
+    "README.ja.md"
   ],
   "bin": {
     "gitflow-guard": "bin/gitflow-guard.mjs"

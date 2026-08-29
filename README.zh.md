@@ -5,7 +5,7 @@
 一个可自由配置分支角色的流程守卫,为 AI 编码 agent 而生——[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)(DSH)、Claude Code、Codex、OpenCode、Antigravity、Pi。  
 你自己定义分支——**集成分支**(feature 经 PR/MR 合入)、**预览分支**(环境终点)、**生产分支**、**归档分支**——每个角色各自配规则。agent 无法跳过流程,敏感合并始终留在你手上。
 
-[English](README.md) · [许可证](LICENSE)
+[English](README.md) · [简体中文](README.zh.md) · [日本語](README.ja.md) · [许可证](LICENSE)
 
 [![ko-fi](https://img.shields.io/badge/ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 

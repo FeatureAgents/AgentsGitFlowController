@@ -6,7 +6,7 @@ A configurable branch-role guard for AI coding agents — [DeepSeek Harness](htt
 You define your own branches —
 **integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Agents can't skip the flow, and sensitive merges stay in your hands.
 
-[中文文档](README.zh.md) · [License](LICENSE)
+[English](README.md) · [中文文档](README.zh.md) · [日本語](README.ja.md) · [License](LICENSE)
 
 [![ko-fi](https://img.shields.io/badge/ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 
