@@ -6,12 +6,19 @@ Thank you for your interest in contributing to `agents-gitflow-guard`!
 
 ## Language Policy
 
-We welcome contributions and discussions from the global community. Pull requests, issues, and discussions are accepted in:
+We welcome contributions, issues, and discussions from the global developer community in **any of the languages supported by our documentation suite** (or any native language via AI-assisted translation):
 - **English**
+- **Simplified Chinese (简体中文)** / **Traditional Chinese (繁體中文)**
 - **Japanese (日本語)**
-- **Chinese (中文)**
+- **Korean (한국어)**
+- **German (Deutsch)**
+- **French (Français)**
+- **Italian (Italiano)**
+- **Portuguese (Português)**
+- **Spanish (Español)**
+- **Russian (Русский)**
 
-Code comments in the repository are primarily written in Chinese, but PR descriptions and discussions in any of the above three languages are completely fine.
+Code comments in the repository are primarily written in Chinese, but feel free to open Pull Requests, Issues, and Discussions in your preferred language. Maintainers review with AI translation support.
 
 ---
 
