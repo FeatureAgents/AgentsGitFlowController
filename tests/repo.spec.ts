@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { currentBranch, findRepoRoot, getUpstreamDivergence, getWorktreeStatus, ghPrChecks, ghPrInfo, glabMrInfo, gitRunner, isAncestor, resolvePrTarget } from '../src/repo'
+import { currentBranch, findRepoRoot, getUpstreamDivergence, getWorktreeStatus, ghPrChecks, ghPrInfo, glabMrInfo, gitRunner, resolvePrTarget } from '../src/repo'
 import type { RunResult, Runner } from '../src/repo'
 import type { GuardConfig } from '../src/types'
 
@@ -33,9 +33,7 @@ describe('repo: 只读查询(fake runner)', () => {
     expect(await currentBranch(r2, cwd)).toBeNull()
   })
 
-  it('isAncestor / findRepoRoot', async () => {
-    const a = fakeRunner([{ code: 0 }])
-    expect(await isAncestor(a.runner, cwd, 'feature/x', 'ita1')).toBe(true)
+  it('findRepoRoot', async () => {
     const r = fakeRunner([{ stdout: '/repo' }])
     expect(await findRepoRoot(r.runner, cwd)).toBe('/repo')
   })
@@ -145,11 +143,9 @@ describe('repo: 真实 git 集成', () => {
     rmSync(repo, { recursive: true, force: true })
   })
 
-  it('currentBranch / findRepoRoot / isAncestor 真实返回', async () => {
+  it('currentBranch / findRepoRoot 真实返回', async () => {
     expect(await currentBranch(gitRunner, repo)).toBe('feature/dev-x-01')
     expect(await findRepoRoot(gitRunner, join(repo, 'sub', 'dir'))).toBe(repo)
-    expect(await isAncestor(gitRunner, repo, 'feature/dev-x-01', 'ita1')).toBe(false)
-    expect(await isAncestor(gitRunner, repo, 'develop', 'ita1')).toBe(true)
 
     // 初始干净工作区
     const status1 = await getWorktreeStatus(gitRunner, repo)

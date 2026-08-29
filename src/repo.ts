@@ -52,12 +52,6 @@ export async function currentBranch(runner: Runner, cwd: string): Promise<string
   return r.code === 0 ? r.stdout.trim() || null : null
 }
 
-/** feature 是否已合入 descendant(merge-base --is-ancestor, 退出码 0 = 是) */
-export async function isAncestor(runner: Runner, cwd: string, ancestor: string, descendant: string): Promise<boolean> {
-  const r = await runner.run(['merge-base', '--is-ancestor', ancestor, descendant], cwd)
-  return r.code === 0
-}
-
 /** gh pr view: 返回 base/head 分支名; PR 不存在或 gh 不可用 → null */
 export async function ghPrInfo(runner: Runner, cwd: string, pr: string | null): Promise<{ base: string; head: string } | null> {
   const args = pr ? ['pr', 'view', pr, '--json', 'baseRefName,headRefName'] : ['pr', 'view', '--json', 'baseRefName,headRefName']
