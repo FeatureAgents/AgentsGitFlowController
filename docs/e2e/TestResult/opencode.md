@@ -59,8 +59,9 @@
 
 | 场景 | 结果 | 证据/说明 |
 |---|---|---|
-| 从仓库子目录启动会话 | **客户端语义确认(非缺陷)** | `sub/deep` 目录启动 opencode:**项目级插件不被加载**(OpenCode 按启动目录解析 `.opencode/plugins`,不向上探测),守卫零介入,受保护推送直接执行("Everything up-to-date")。多目录/子目录场景应使用全局插件 + 全局安装的守卫;已写入 docs/e2e/opencode.md 前置条件 |
-| 全局插件形态真机 | NOT RUN(环境受限) | 本机受限 shell 对 `~` 全域只读(`test -w ~` = false,`npm i -g` 亦被拒),无法落位 `~/.config/opencode/plugins/`;守卫定位链第 2/3 分支(OPENCODE_PROJECT_DIR / GITFLOW_GUARD_BIN)已有单测覆盖,第 1 分支(项目级)真机 PASS |
-| 守卫不可用 fail-open 真机(删除 bin 后会话) | 未执行 | 受控仓库 bin 删除会同时影响后续用例;fail-open 三路径(exit 非 0 / spawn 失败 / 定位缺失)已有单测锁定;且已确认守卫缺失场景下监控告警输出 |
+| 从仓库子目录启动会话 | **PASS(修正前次误报)** | 前次记录「子目录不加载项目插件」系**实验布置错误**(setup commit 打在 fix 分支后 checkout master,会话在无 config 的空工作树跑,内置默认不保护 master 故放行)。干净对照(reflog 自洽、config 保护 master):根目录与 sub/proj 子目录启动**均拦截** `git push origin master`(会话输出 blocked 文案,远端 ref 未动) |
+| 全局插件形态 | **加载确认,拦截依赖全局守卫** | XDG 全局插件 `/tmp/oc-data/opencode/plugins/gitflow-guard.ts` 被加载(每次命令输出其 fail-open 告警为证);**纯全局(无项目插件)+ 无 GITFLOW_GUARD_BIN/PATH 守卫 → fail-open 放行,受保护 push 真实推送成功**(远端 23c8228→c2a1cab,随后回滚)——全局形态必须配全局安装的 `gitflow-guard` 或 `GITFLOW_GUARD_BIN` |
+| 项目+全局双接线 | **双加载会留噪音日志** | 两者同加载:每次命令先一条全局插件的 fail-open 告警,再由项目插件拦截;文档已注明避免双接 |
+| 守卫不可用 fail-open 真机 | 覆盖 | 上述纯全局无守卫场景即真实 fail-open 链路:push 放行 + 告警输出,与单测语义一致 |
 
 > 沙箱注记:本机受限 shell 下 `~/.npm`、`~/.gemini` 等主目录写操作被拒,影响全局安装与 agy 会话缓存;项目级形态(受控仓库在 /tmp)不受影响。
