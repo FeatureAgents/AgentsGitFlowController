@@ -89,7 +89,7 @@ Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
 Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-Messages are English by default; create a config with `"locale": "zh"` to switch to Chinese (see [Configuration Reference](#configuration-reference)).
+Messages are English by default; create a config with `"locale": "zh"` to switch to Chinese — messages then read like: *已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……* (see [Configuration Reference](#configuration-reference)).
 
 **Done.** The guard is live for this repo with the built-in defaults. Want more stages (`preview` / `production`) or different branch names? Write a `gitflow-guard.config.json` and only the fields you care about — everything else keeps the built-in defaults. For the full decision table, see the [Gate Matrix](#gate-matrix--what-gets-blocked-what-passes).
 
@@ -535,7 +535,7 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 | **integration** | the core role (built-in default: `develop`); features merge in via PR/MR; protected |
 | **preview** | optional env-endpoint branches (`branches.preview`, array); updates via PR/MR only |
 | **production** | optional production branches (`branches.production`, array); PR/MR + merge by user only |
-| **archive** | optional post-release archive branch (`branches.archive`); user-hand only |
+| **archive** | optional post-release archive branch (`branches.archive`, array); agents may create PR/MRs into it, but the merge stays user-hand only |
 | **feature branch** | your working branch, matched by `featurePattern`; free zone |
 | **gate matrix** | the decision table mapping each classified command to allow/deny |
 | **pre-execute** | the tool-pipeline hook where denial happens — before the command runs |
