@@ -310,6 +310,7 @@ archive (可選，發布後由你親手歸檔)
 - 每個角色既可使用**陣列**（簡寫），也可使用**物件** `{ branches, update?, mergeBy? }`。
 - `update`：`pr`（預設）= 只能透過 PR/MR 合入；`flexible` = 允許直推/本地合入（適用於小團隊）。
 - `mergeBy`（production）：`user`（預設）= 只能由你親手點擊合併；`anyone` = 允許放行 PR 合併。
+- **工作區與上游基準線門禁 (`worktree`)**：可選的狀態與偏離度守衛 —— `requireCleanOnPr: true` 在存在未提交變更（暫存或未暫存）時阻斷 PR 發起；`requireCleanOnMerge: true` 在工作區為髒狀態時阻斷本地與 PR 合併；`allowUntracked`（預設 `true`）零摩擦放行未追蹤檔案（`??`），在人機協作嚴格場景可設為 `false` 嚴格阻斷；`requireUpstreamSynced: true` 在目前分支落後上游基準線時阻斷 PR 建立。支援多段複合指令（例如 `git add . && git commit && gh pr create`）對後續指令段的乾淨狀態動態模擬。
 - 每個分支項目為精確名稱或正則表達式（自動識別）。**正則安全**：分支正則由專案作者提供並按原樣編譯 —— `featurePattern` 與分支項目請避免災難性回溯寫法（例如 `(\w+)+` 這類巢狀量詞）。
 - **訊息語言**：預設為英文；加入 `"locale": "zh"` 切換為中文，或傳遞 `--locale <en|zh>` 給任意 `gitflow-guard` 子指令（優先順序：CLI 旗標 > 專案配置 > 英文）。所有使用者可見文案均遵循 locale —— 包含 `--help`、未知指令提示、稽核記錄為空的提示等 CLI 框架文字。
 - **自訂語言**：下游套件可在執行階段擴充語言 —— `import { registerLocale } from 'agents-gitflow-guard'`，呼叫 `registerLocale('fr', frDict)` 註冊一份與內建英文字典完全一致的鍵值字典（註冊時自動校驗），再於專案配置中設定 `"locale": "fr"` 即可生效。
