@@ -11,7 +11,7 @@
 | Claude Code | `claude-code.md` | ✅ 已实测(2026-08-29) |
 | Codex | `codex.md` | ⛔ 未安装/未测 |
 | OpenCode | `opencode.md` | ❌ 已实测,发现缺陷(hook 在 1.18 不生效) |
-| Antigravity | `antigravity.md` | ⚠️ 协议层已闭合(2026-08-29),真机会话未完成(环境受限) |
+| Antigravity | `antigravity.md` | ✅ 已实测(agy 1.1.22,2026-08-29);拦截/放行全通,2 处协议差异待修复 |
 | Pi | `pi.md` | ✅ 已实测(2026-08-29 重跑) |
 
 ## 证据规范(每个客户端文件必含)
