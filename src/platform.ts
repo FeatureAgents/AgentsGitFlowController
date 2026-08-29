@@ -32,7 +32,8 @@ interface RawPayload {
   cwd?: unknown
   tool_use_id?: unknown
   turn_id?: unknown
-  toolCall?: { args?: { CommandLine?: unknown } }
+  // agy 1.1.22 实机 payload 核验(TestResult/antigravity.md AGY-D3): cwd 在 toolCall.args.Cwd(嵌套大写 C), 不在顶层
+  toolCall?: { args?: { CommandLine?: unknown; Cwd?: unknown } }
 }
 
 function str(v: unknown): string {
@@ -73,9 +74,9 @@ export function extractHookPayload(raw: string, platform: HookPlatform | 'auto' 
     command = str(j.tool_args?.command) || str(j.tool_args?.cmd)
     cwd = str(j.cwd)
   } else if (plat === 'antigravity') {
-    // agy 嵌套 envelope: toolCall.args.CommandLine
+    // agy 嵌套 envelope: toolCall.args.CommandLine; cwd 同为嵌套大写 C(顶层无 cwd 字段)
     command = str(j.toolCall?.args?.CommandLine)
-    cwd = str(j.cwd)
+    cwd = str(j.toolCall?.args?.Cwd)
   }
   if (!command) return null
   return { command, cwd: cwd || undefined, toolUseId: str(j.tool_use_id) || undefined, event: eventFrom(j.hook_event_name) }

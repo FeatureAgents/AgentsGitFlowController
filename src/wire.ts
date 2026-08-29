@@ -3,9 +3,10 @@
 // 文件位置与命令形态以 .agents/hooks/references/*.md 为准(与官方协议对齐, 已核实)。
 // 日志/异常信息按项目规范用英文; 用户可见文案走 i18n(cli 层)。
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { ClientId } from './types'
 
 export type WireScope = 'project' | 'global'
@@ -26,36 +27,36 @@ export function isWireClient(v: string): v is ClientId {
   return (CLIENTS as string[]).includes(v)
 }
 
-/** 各客户端的 hook 落位规格(dsh/pi 无 hook 文件, 仅输出接入引导) */
+/** 各客户端的 hook 落位规格(dsh/pi 无 hook 文件, 仅输出接入引导)
+ *  opencode: OpenCode 1.18+ 已废弃 hooks.yaml(实机零调用, 见 docs/e2e/TestResult/opencode.md),
+ *  官方扩展点为 plugins 目录 —— wire 把随包插件 opencode/gitflow-guard.ts 复制到插件目录。 */
 export const WIRE_CLIENTS: ReadonlyArray<WireClientSpec> = [
   { client: 'claude', projectPath: '.claude/settings.json', globalPath: () => join(homedir(), '.claude', 'settings.json') },
   { client: 'codex', projectPath: '.codex/hooks.json', globalPath: () => join(homedir(), '.codex', 'hooks.json') },
-  { client: 'opencode', projectPath: '.opencode/hook/hooks.yaml', globalPath: () => join(homedir(), '.config', 'opencode', 'hook', 'hooks.yaml') },
-  { client: 'antigravity', projectPath: '.agents/hooks.json', globalPath: () => join(homedir(), '.gemini', 'config', 'hooks.json'), experimental: true },
+  { client: 'opencode', projectPath: '.opencode/plugins/gitflow-guard.ts', globalPath: () => join(homedir(), '.config', 'opencode', 'plugins', 'gitflow-guard.ts') },
+  { client: 'antigravity', projectPath: '.agents/hooks.json', globalPath: () => join(homedir(), '.gemini', 'config', 'hooks.json') },
   { client: 'dsh', projectPath: '', globalPath: () => '' },
   { client: 'pi', projectPath: '', globalPath: () => '' },
 ]
 
-/** 各 stdin-hook 客户端的 hook 命令(与 references/*.md 逐一对应; codex/antigravity 用相对 bin/...) */
-const COMMANDS: Record<'claude' | 'codex' | 'opencode' | 'antigravity', string> = {
-  claude: 'node ${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform claude',
-  codex: 'node bin/gitflow-guard.mjs check --platform codex',
-  opencode: 'node "$OPENCODE_PROJECT_DIR/bin/gitflow-guard.mjs" check --platform opencode',
-  antigravity: 'node bin/gitflow-guard.mjs check --platform antigravity',
+/** 随包发布的 OpenCode 插件源文件(wire --client opencode 复制到插件目录; dev 下即仓库 opencode/) */
+const OPENCODE_PLUGIN_SOURCE = fileURLToPath(new URL('../opencode/gitflow-guard.ts', import.meta.url))
+
+/** 各 JSON 客户端的 hook 命令(与 references/*.md 逐一对应)。
+ *  antigravity 必须绝对路径: agy hook 进程 cwd = hook 配置文件所在目录(TestResult/antigravity.md AGY-D2),
+ *  相对 bin/... 会解析为 .agents/bin/... → MODULE_NOT_FOUND; 全局落位无仓库根, 用 PATH 上的 gitflow-guard。 */
+function commandFor(client: 'claude' | 'codex' | 'antigravity', repoRoot: string | null): string {
+  switch (client) {
+    case 'claude':
+      return 'node ${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform claude'
+    case 'codex':
+      return 'node bin/gitflow-guard.mjs check --platform codex'
+    case 'antigravity':
+      return repoRoot
+        ? `node ${join(repoRoot, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`
+        : 'gitflow-guard check --platform antigravity'
+  }
 }
-
-/** OpenCode YAML 模板(顶层 hooks: + 语义 id gitflow-guard) */
-const OPENCODE_TEMPLATE = [
-  'hooks:',
-  '  - id: gitflow-guard',
-  '    event: tool.before.bash',
-  '    actions:',
-  '      - bash: |',
-  `          ${COMMANDS.opencode}`,
-].join('\n')
-
-const YAML_ID_GUARD = /^\s*- id: gitflow-guard\s*$/m
-const YAML_ID_ANY = /^\s*- id:/m
 
 export type WireResult = 'added' | 'exists' | 'removed' | 'absent'
 
@@ -96,8 +97,8 @@ async function writeJson(path: string, obj: Record<string, unknown>): Promise<vo
 }
 
 /** JSON 客户端(claude/codex/antigravity)新增 hook 条目; 非破坏性合并, 同命令已存在则跳过 */
-async function addJsonEntry(path: string, client: 'claude' | 'codex' | 'antigravity', dryRun: boolean): Promise<WireResult> {
-  const cmd = COMMANDS[client]
+async function addJsonEntry(path: string, client: 'claude' | 'codex' | 'antigravity', dryRun: boolean, repoRoot: string | null): Promise<WireResult> {
+  const cmd = commandFor(client, repoRoot)
   const raw = await readText(path)
   const obj = raw === null ? {} : parseJsonOrThrow(path, raw)
   if (jsonContains(obj, cmd)) return 'exists'
@@ -120,8 +121,8 @@ async function addJsonEntry(path: string, client: 'claude' | 'codex' | 'antigrav
 }
 
 /** JSON 客户端移除本插件条目; 不动其他内容 */
-async function removeJsonEntry(path: string, client: 'claude' | 'codex' | 'antigravity', dryRun: boolean): Promise<WireResult> {
-  const cmd = COMMANDS[client]
+async function removeJsonEntry(path: string, client: 'claude' | 'codex' | 'antigravity', dryRun: boolean, repoRoot: string | null): Promise<WireResult> {
+  const cmd = commandFor(client, repoRoot)
   const raw = await readText(path)
   if (raw === null) return 'absent'
   const obj = parseJsonOrThrow(path, raw)
@@ -142,63 +143,44 @@ async function removeJsonEntry(path: string, client: 'claude' | 'codex' | 'antig
   return 'removed'
 }
 
-/** OpenCode YAML: hooks: 列表按语义 id gitflow-guard 判重/落位 */
-async function addYamlEntry(path: string, dryRun: boolean): Promise<WireResult> {
-  const raw = await readText(path)
-  if (raw !== null) {
-    if (YAML_ID_GUARD.test(raw)) return 'exists'
-    const lines = raw.split('\n')
-    const hooksIdx = lines.findIndex((l) => /^hooks:\s*$/.test(l))
-    const block = OPENCODE_TEMPLATE.split('\n').slice(1) // 去掉顶层 hooks: 行, 追加到已有列表
-    if (hooksIdx === -1) {
-      const joined = [...lines, '', ...block].join('\n')
-      if (!dryRun) await writeText(path, joined)
-      return 'added'
-    }
-    lines.splice(hooksIdx + 1, 0, ...block)
-    if (!dryRun) await writeText(path, lines.join('\n'))
-    return 'added'
+/** OpenCode 插件: 复制随包插件文件; 已存在同文件视为已接线(幂等) */
+async function addPluginFile(path: string, dryRun: boolean): Promise<WireResult> {
+  if ((await readText(path)) !== null) return 'exists'
+  let source: string
+  try {
+    source = await readFile(OPENCODE_PLUGIN_SOURCE, 'utf8')
+  } catch {
+    // 复制挂载形态(bin+lib 拷进项目)下包内 opencode/ 不在现场: 明确指路, 不静默
+    throw new Error(
+      `cannot read bundled opencode plugin source at ${OPENCODE_PLUGIN_SOURCE} — install the package (npm i -g agents-gitflow-guard) or copy opencode/gitflow-guard.ts into the project's .opencode/plugins/ manually`,
+    )
   }
-  if (!dryRun) await writeText(path, OPENCODE_TEMPLATE)
+  if (!dryRun) await writeText(path, source)
   return 'added'
 }
 
-/** OpenCode YAML: 移除 gitflow-guard 块; 若列表清空则连顶层 hooks: 一并清理 */
-async function removeYamlEntry(path: string, dryRun: boolean): Promise<WireResult> {
-  const raw = await readText(path)
-  if (raw === null) return 'absent'
-  if (!YAML_ID_GUARD.test(raw)) return 'absent'
-  const lines = raw.split('\n')
-  const start = lines.findIndex((l) => YAML_ID_GUARD.test(l))
-  let end = lines.length
-  for (let i = start + 1; i < lines.length; i++) {
-    if (YAML_ID_ANY.test(lines[i])) {
-      end = i
-      break
-    }
-  }
-  let rest = [...lines.slice(0, start), ...lines.slice(end)]
-  if (!rest.some((l) => YAML_ID_ANY.test(l))) {
-    rest = rest.filter((l) => !/^hooks:\s*$/.test(l))
-  }
-  const text = rest.join('\n')
-  if (!dryRun) await writeText(path, text)
+/** OpenCode 插件: 删除插件文件; 不动其他插件 */
+async function removePluginFile(path: string, dryRun: boolean): Promise<WireResult> {
+  if ((await readText(path)) === null) return 'absent'
+  if (!dryRun) await unlink(path)
   return 'removed'
 }
 
 /** 执行一次 wire 落位/移除/预览; dsh/pi 由上层直接短路, 不进这里 */
-export async function applyWire(client: ClientId, path: string, unwire: boolean, dryRun: boolean): Promise<WireResult> {
-  if (client === 'opencode') return unwire ? removeYamlEntry(path, dryRun) : addYamlEntry(path, dryRun)
-  return unwire ? removeJsonEntry(path, client as 'claude' | 'codex' | 'antigravity', dryRun) : addJsonEntry(path, client as 'claude' | 'codex' | 'antigravity', dryRun)
+export async function applyWire(client: ClientId, path: string, unwire: boolean, dryRun: boolean, repoRoot: string | null = null): Promise<WireResult> {
+  if (client === 'opencode') return unwire ? removePluginFile(path, dryRun) : addPluginFile(path, dryRun)
+  return unwire
+    ? removeJsonEntry(path, client as 'claude' | 'codex' | 'antigravity', dryRun, repoRoot)
+    : addJsonEntry(path, client as 'claude' | 'codex' | 'antigravity', dryRun, repoRoot)
 }
 
-/** 只读探测: 该配置文件是否已含本插件 hook(status 的接线提示用) */
-export async function isWired(client: ClientId, path: string): Promise<boolean> {
+/** 只读探测: 该客户端是否已接线(opencode 判插件文件存在; JSON 客户端按命令精确匹配) */
+export async function isWired(client: ClientId, path: string, repoRoot: string | null = null): Promise<boolean> {
   const raw = await readText(path)
   if (raw === null) return false
-  if (client === 'opencode') return YAML_ID_GUARD.test(raw)
+  if (client === 'opencode') return true
   try {
-    return jsonContains(JSON.parse(raw), COMMANDS[client as 'claude' | 'codex' | 'antigravity'])
+    return jsonContains(JSON.parse(raw), commandFor(client as 'claude' | 'codex' | 'antigravity', repoRoot))
   } catch {
     return false
   }

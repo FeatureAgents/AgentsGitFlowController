@@ -68,7 +68,7 @@ gitflow-guard wire --client claude --project --yes
 # Codex / OpenCode / Antigravity (each its own config file; --yes skips the y/N prompt)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
-gitflow-guard wire --client antigravity --project --yes     # experimental — not yet verified on a real device
+gitflow-guard wire --client antigravity --project --yes
 ```
 
 ```bash
@@ -384,7 +384,7 @@ npm i -g agents-gitflow-guard@0.0.21   # provides the `gitflow-guard` binary
 gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
-gitflow-guard wire --client antigravity --project --yes   # experimental
+gitflow-guard wire --client antigravity --project --yes
 ```
 
 `wire` reads the existing config file (if any), merges the hook entry in without touching anything else, is idempotent (already wired → skipped), supports `--dry-run` to preview and `--unwire` to remove, and asks before touching `--global` files. The exact files it writes (for reference, and for hand-writing instead of `wire`) are:
@@ -411,18 +411,18 @@ gitflow-guard wire --client antigravity --project --yes   # experimental
 }
 ```
 
-```yaml
-# OpenCode — .opencode/hook/hooks.yaml
-hooks:
-  - id: gitflow-guard
-    event: tool.before.bash
-    actions:
-      - bash: |
-          gitflow-guard check --platform opencode
+```ts
+// OpenCode — `.opencode/plugins/gitflow-guard.ts` (copy of the shipped `opencode/gitflow-guard.ts`;
+// OpenCode 1.18+ dropped hooks.yaml, the extension point is now plugins — `tool.execute.before`,
+// deny = throwing; `wire --client opencode` copies the file for you)
 ```
+`gitflow-guard wire --client opencode` writes this file from the package; hand-write only if you know what you are doing.
 
 ```json
 // Antigravity (Google) — .agents/hooks.json
+// (Antigravity hook processes run with cwd = the config file's directory, so a relative
+// bin/… path breaks; `wire` writes an absolute path for project scope, `gitflow-guard`
+// from PATH for global scope. Shown here: globally-installed form.)
 {
   "gitflow-guard": {
     "PreToolUse": [

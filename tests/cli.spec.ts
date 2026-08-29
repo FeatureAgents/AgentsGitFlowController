@@ -398,25 +398,28 @@ describe('cli: wire(客户端默认 hook 落位)', () => {
     }
   })
 
-  it('opencode --project 落位 yaml, 语义 id 判重', async () => {
+  it('opencode --project 复制插件到 .opencode/plugins(OpenCode 1.18+ plugins 机制)', async () => {
     const dir = tempRepo()
-    const path = join(dir, '.opencode', 'hook', 'hooks.yaml')
+    const path = join(dir, '.opencode', 'plugins', 'gitflow-guard.ts')
     try {
       const { code, text } = await captureStdout(() => main(['wire', '--client', 'opencode', '--project', '--yes', '--repo', dir]))
       expect(code).toBe(0)
       expect(text).toContain('hook written')
-      expect(readFileSync(path, 'utf8')).toMatch(/- id: gitflow-guard/)
+      expect(readFileSync(path, 'utf8')).toContain('tool.execute.before')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   })
 
-  it('antigravity 标注实验支持', async () => {
+  it('antigravity --project 落位绝对路径命令(AGY-D2: agy hook 进程 cwd=配置目录)', async () => {
     const dir = tempRepo()
+    const path = join(dir, '.agents', 'hooks.json')
     try {
       const { code, text } = await captureStdout(() => main(['wire', '--client', 'antigravity', '--project', '--yes', '--repo', dir]))
       expect(code).toBe(0)
-      expect(text).toContain('experimental')
+      expect(text).toContain('hook written')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj['gitflow-guard'].PreToolUse[0].hooks[0].command).toBe(`node ${join(dir, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

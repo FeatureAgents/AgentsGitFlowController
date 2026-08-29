@@ -139,9 +139,10 @@ Notes:
   --locale overrides the message language for this invocation (flag > project config > English).
   check reads the hook payload on stdin (platform-specific protocol: claude/opencode exit 2,
   codex/antigravity JSON on stdout) and is meant for pre/post hooks of AI agents.
-  wire writes each client's hook config into the project (default) or global scope; dsh/pi are
-  in-process and only print guidance. No config file needed — built-in defaults (develop+main)
-  apply out of the box; create gitflow-guard.config.json to override, or set "enabled": false to turn off.`,
+  wire writes each client's hook config (or the OpenCode plugin file) into the project
+  (default) or global scope; dsh/pi are in-process and only print guidance. No config file
+  needed — built-in defaults (develop+main) apply out of the box; create
+  gitflow-guard.config.json to override, or set "enabled": false to turn off.`,
 }
 
 const zh: Dict = {
@@ -256,7 +257,7 @@ const zh: Dict = {
   --locale 可临时覆盖本次调用的文案语言(旗标 > 项目配置 > 英文)。
   check 读 stdin hook payload 做门禁(平台协议: claude/opencode exit 2, codex/antigravity stdout JSON),
   供 Claude Code / Codex / OpenCode 等 agent 的 pre/post hook 调用。
-  wire 把各客户端默认 hook 写入工程(默认)或全局作用域; dsh/pi 为进程内接入, 仅打印引导。
+  wire 把各客户端默认 hook 写入工程(默认)或全局作用域(opencode 为复制插件文件); dsh/pi 为进程内接入, 仅打印引导。
   无需配置文件 — 内置默认(develop+main)开箱即用; 建 gitflow-guard.config.json 可覆盖, 或写 "enabled": false 关闭。`,
 }
 
