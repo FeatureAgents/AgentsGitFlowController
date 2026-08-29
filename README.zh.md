@@ -583,5 +583,3 @@ npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + Claud
 ## 许可证
 
 [MIT](LICENSE) © FeatureAgents
-
-v0 历史设计决策(中文;已被 0.0.2 角色驱动模型取代——现行行为以本 README 为准):[docs/design.md](docs/design.md)。
