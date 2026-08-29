@@ -52,7 +52,7 @@ dsh plugin --profile web add agents-gitflow-guard
 npm i -D agents-gitflow-guard
 ```
 
-> **참고**: 단순한 `add` 또는 `npm i`는 npm 레지스트리에서 최신 버전을 설치합니다. 미러의 캐시 지연이 있거나 특정 버전을 고정해야 하는 경우 뒤에 `@<버전>`을 추가하세요 (예: `npm i -g agents-gitflow-guard@<버전>`). (DSH 사용 시: pnpm의 peer-dependency *경고*는 정상적인 동작입니다 — DSH는 런타임에 공유 프로필 모듈 폴백을 통해 `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`를 제공하므로 플러그인이 정상 작동합니다.)
+> **참고**: 단순한 `add` 또는 `npm i`는 npm 레지스트리에서 최신 버전을 설치합니다. 미러의 캐시 지연이 있거나 특정 버전을 고정해야 하는 경우 뒤에 `@<버전>`을 추가하세요 (예: `npm i -g agents-gitflow-guard@<버전>`). DSH 전용 peer 의존성(`@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`)은 **optional**로 선언되어 있습니다 —— DSH 프로세스 내 플러그인만 필요하며, DSH가 런타임에 공유 프로필 모듈 폴백을 통해 제공합니다. CLI / Pi / OpenCode 사용자는 강제 설치되지 않습니다.
 >
 > CLI Hook 클라이언트는 설치 후 배선(wire) 명령을 1회 실행합니다 (2단계 참조). Pi는 확장 파일을 복사합니다. DSH는 플러그인 추가 시 자동으로 마운트됩니다.
 

@@ -52,7 +52,7 @@ dsh plugin --profile web add agents-gitflow-guard
 npm i -D agents-gitflow-guard
 ```
 
-> **注意**: 単純な `add` または `npm i` は npm レジストリから最新版をインストールします。ミラーのキャッシュ遅延がある場合やバージョンを固定したい場合は、末尾に `@<version>` を指定してください（例: `npm i -g agents-gitflow-guard@<version>`）。（DSH ユーザーへ: pnpm の peer-dependency に関する *warning* は想定内です — DSH は実行時に共有プロファイルモジュールのフォールバックを通じて `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` を自動解決するため、プラグインは正常に動作します。）
+> **注意**: 単純な `add` または `npm i` は npm レジストリから最新版をインストールします。ミラーのキャッシュ遅延がある場合やバージョンを固定したい場合は、末尾に `@<version>` を指定してください（例: `npm i -g agents-gitflow-guard@<version>`）。DSH 専用の peer 依存（`@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`）は **optional** として宣言されています —— DSH プロセス内プラグインのみが必要とし、DSH が実行時に共有プロファイルモジュールのフォールバックを通じて提供します。CLI / Pi / OpenCode ユーザーには強制インストールされません。
 >
 > CLI フック系クライアントはインストール後に配線（wire）コマンドを 1 回実行します（ステップ 2 参照）。Pi は拡張ファイルをコピーします。DSH はプラグイン追加時に自動マウントされます。
 
