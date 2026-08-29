@@ -5,7 +5,7 @@
 AI コーディングエージェントのための、柔軟にカスタマイズ可能なブランチ役割ガードプラグイン — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、Claude Code、Codex、OpenCode、Antigravity、Pi をサポート。  
 ブランチの役割は自由に定義可能 — **integration**（PR/MR 経由で feature をマージ）、**preview**（検証環境用エンドポイント）、**production**（本番）、**archive**（アーカイブ）— それぞれに独自の更新ルールを設定できます。エージェントによるプロセスのスキップを物理的に防ぎ、重要なマージ権限を確実に人間の手に残します。
 
-[English](README.md) · [简体中文](README.zh.md) · [日本語](README.ja.md) · [ライセンス](LICENSE)
+[English](README.md) · [简体中文](README.zh.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [ライセンス](LICENSE)
 
 [![ko-fi](https://img.shields.io/badge/ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 

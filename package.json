@@ -22,7 +22,12 @@
     "opencode",
     "README.md",
     "README.zh.md",
-    "README.ja.md"
+    "README.ja.md",
+    "README.de.md",
+    "README.fr.md",
+    "README.it.md",
+    "README.pt.md",
+    "README.es.md"
   ],
   "bin": {
     "gitflow-guard": "bin/gitflow-guard.mjs"
