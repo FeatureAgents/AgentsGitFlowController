@@ -67,7 +67,7 @@ gitflow-guard wire --client claude --project --yes
 # Codex / OpenCode / Antigravity(各写各的配置文件; --yes 跳过 y/N 确认)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
-gitflow-guard wire --client antigravity --project --yes     # 实验支持
+gitflow-guard wire --client antigravity --project --yes     # 实验支持; 尚未真机验证
 ```
 
 ```bash

@@ -12,7 +12,7 @@
 | Claude Code | stdin hook (exit 2) | `claude-code.md` | ✅ 已安装 2.1.224 |
 | Codex | stdin hook (exit 0+JSON) | `codex.md` | ⛔ 未安装(待用户准备) |
 | OpenCode | stdin hook (exit 2) | `opencode.md` | ✅ 已安装 1.18.15 |
-| Antigravity | stdin hook (exit 0+{decision}) | `antigravity.md` | ⛔ 未安装(待用户准备) |
+| Antigravity | stdin hook (exit 0+{decision}) | `antigravity.md` | ⚠️ 已安装(agy 1.1.22);协议层已闭合,真机会话未完成(环境受限) |
 | Pi | 进程内扩展 | `pi.md` | ✅ 已安装 0.84.3 |
 
 ## 统一前置条件(所有客户端)
