@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.27
+
+- docs(i18n): launch 11-language documentation suite & relax global contribution policy — added complete localized documentation for Japanese (`README.ja.md`), Traditional Chinese (`README.zh-tw.md`), Korean (`README.ko.md`), German (`README.de.md`), French (`README.fr.md`), Italian (`README.it.md`), Portuguese (`README.pt.md`), Spanish (`README.es.md`), and Russian (`README.ru.md`) alongside English (`README.md`) and Simplified Chinese (`README.zh.md`); standardized synchronized 11-language navigation headers across all READMEs; updated `CONTRIBUTING.md` to welcome issues, PRs, and discussions in any supported language with AI-assisted review support; wired all 11 READMEs into `package.json` package distribution files and automated consistency checks in `scripts/check-version-pins.mjs` —— 推出全球 11 大主流语种全量文档矩阵与放宽贡献语言政策: 新增日文(`README.ja.md`)、繁体中文(`README.zh-tw.md`)、韩文(`README.ko.md`)、德文(`README.de.md`)、法文(`README.fr.md`)、意大利文(`README.it.md`)、葡萄牙文(`README.pt.md`)、西班牙文(`README.es.md`)与俄文(`README.ru.md`), 与英文(`README.md`)和简体中文(`README.zh.md`)组成 11 语文档矩阵; 全量对齐 11 语顶部导航栏; 更新 `CONTRIBUTING.md` 全面放宽 PR/Issue 语言限制, 依托 AI 翻译辅助支持全球开发者无障碍协作; 11 份 README 全量纳入 `package.json` 发布白名单与 `scripts/check-version-pins.mjs` 自动化版本一致性守护。
+
 ## 0.0.26
 
 - test(codex): complete real-device e2e verification — executed all 16 live test cases against `codex-cli 0.150.1` (PreToolUse hook blocking, JSON wire protocol with `exit 0` + `permissionDecision: deny`, physical Git ref isolation on bare remotes, and payload captures) with 100% pass rate; captured live payloads and recorded evidence in `docs/e2e/TestResult/codex.md` —— 完成 Codex 全量实机测试与证据闭环: 针对 `codex-cli 0.150.1` 执行全部 16 项用例(PreToolUse 钩子拦截、`exit 0` + `permissionDecision: deny` 协议编码、裸远端物理 SHA 零污染对比与真实 Payload 抓取), 16/16 用例全绿通过; 证据与 Payload 记录入 `docs/e2e/TestResult/codex.md`。
