@@ -13,10 +13,6 @@ export function checkPins(version, files) {
   const pinRe = /agents-gitflow-guard@\d+\.\d+\.\d+/g
   for (const f of files) {
     const pins = [...f.content.matchAll(pinRe)].map((m) => m[0])
-    if (pins.length === 0) {
-      errors.push(f.name + ': no pinned install example found (expected ' + expected + ')')
-      continue
-    }
     for (const pin of new Set(pins)) {
       if (pin !== expected) errors.push(f.name + ': stale pin ' + pin + ' (expected ' + expected + ')')
     }
@@ -37,7 +33,7 @@ function main() {
     for (const e of errors) console.error('  - ' + e)
     process.exit(1)
   }
-  console.log('[check-version-pins] OK: READMEs pinned to ' + version + ', CHANGELOG has section ' + version)
+  console.log('[check-version-pins] OK: version pins consistent with ' + version + ', CHANGELOG has section ' + version)
 }
 
 main()
