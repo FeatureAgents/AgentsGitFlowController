@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+// @ts-expect-error scripts/extract-changelog.mjs lacks type declarations
 import { extractChangelogSection } from '../scripts/extract-changelog.mjs'
 
 const sampleChangelog = `# Changelog
@@ -21,27 +22,27 @@ Intro description here.
 
 describe('extract-changelog: extractChangelogSection', () => {
   it('提取中间版本章节内容', () => {
-    const result = extractChangelogSection(sampleChangelog, '0.0.2')
+    const result: string = extractChangelogSection(sampleChangelog, '0.0.2')
     expect(result).toBe('- feat: second feature notes')
   })
 
   it('提取最新版本章节内容', () => {
-    const result = extractChangelogSection(sampleChangelog, '0.0.3')
+    const result: string = extractChangelogSection(sampleChangelog, '0.0.3')
     expect(result).toBe('- feat: third feature notes\n- fix: bugfix in 0.0.3')
   })
 
   it('提取末尾版本章节内容', () => {
-    const result = extractChangelogSection(sampleChangelog, '0.0.1')
+    const result: string = extractChangelogSection(sampleChangelog, '0.0.1')
     expect(result).toBe('- chore: initial release')
   })
 
   it('支持带有 v 前缀的目标版本查询', () => {
-    const result = extractChangelogSection(sampleChangelog, 'v0.0.2')
+    const result: string = extractChangelogSection(sampleChangelog, 'v0.0.2')
     expect(result).toBe('- feat: second feature notes')
   })
 
   it('查询不存在的版本返回空字符串', () => {
-    const result = extractChangelogSection(sampleChangelog, '0.0.99')
+    const result: string = extractChangelogSection(sampleChangelog, '0.0.99')
     expect(result).toBe('')
   })
 

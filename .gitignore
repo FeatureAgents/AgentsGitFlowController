@@ -19,7 +19,10 @@ lib/
 # 交接记录(非提交)
 handoff.md
 
-# 临时功能设计稿（非提交）
+# 审查/整改问题清单(工作底稿, 非提交)
+docs/issues.md
+
+# 本地客户端设计底稿（私有工作文档, 非公开提交）
 docs/design/antigravity.md
 docs/design/claude-code.md
 docs/design/codex.md
@@ -27,5 +30,3 @@ docs/design/dsh.md
 docs/design/opencode.md
 docs/design/pi.md
 
-# 审查/整改问题清单(工作底稿, 非提交)
-docs/issues.md
