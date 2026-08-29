@@ -143,7 +143,7 @@ locale: 内置 `en`/`zh`; `registerLocale(name, dict)` 运行时扩展(键一致
 | DSH | 进程内插件(patch.yml + dsh.bundle.patch) | ToolExecution.arguments.command | 返回值 {kind:'deny', reason}, 不经 stdin/exit 协议 |
 | Claude Code | PreToolUse hook | tool_input.command + cwd | exit 2, stderr 即原因 |
 | Codex | PreToolUse hook | 同 Claude 形 + turn_id(判别字段) | exit 0 + stdout hookSpecificOutput.permissionDecision:"deny" JSON |
-| OpenCode | tool.before.bash(hooks.yaml) | tool_args.command(或 cmd) | bash action exit 2 |
+| OpenCode | 插件(tool.execute.before, 1.18+ 无 hooks.yaml) | output.args.command | handler 抛错(经守卫 check exit 2 判定) |
 | Antigravity | PreToolUse(run_command) | toolCall.args.CommandLine | exit 0 + stdout {"decision":"deny","reason":...}(无 block 值, 不可包 hookSpecificOutput) |
 | Pi | 进程内扩展(tool_call 事件) | event.input.command | 返回值 {block:true, reason}, 不经 stdin/exit 协议 |
 

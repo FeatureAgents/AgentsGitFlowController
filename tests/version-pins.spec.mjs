@@ -21,9 +21,8 @@ describe('check-version-pins: checkPins 行为', () => {
     expect(errors[0]).toContain('agents-gitflow-guard@0.0.15')
   })
 
-  it('完全缺少锁定示例 → 报错', () => {
-    const errors = checkPins('0.0.15', [{ name: 'README.zh.md', content: 'no pins here' }])
-    expect(errors).toHaveLength(1)
-    expect(errors[0]).toContain('no pinned install example')
+  it('完全未锁定版本 → 无错误', () => {
+    const errors = checkPins('0.0.15', [{ name: 'README.zh.md', content: 'npm i -g agents-gitflow-guard' }])
+    expect(errors).toEqual([])
   })
 })

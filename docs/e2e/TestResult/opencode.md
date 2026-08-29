@@ -35,3 +35,33 @@
    - **A. 迁移到 plugins 机制**:新增 `.opencode/plugins/gitflow-guard.ts`(随包发布 + wire 落位改为 plugins 路径),在 `tool.execute.before` 事件中调用守卫 CLI,deny 时通过抛错/输出阻断工具——**插件错误语义与阻断强度需先做最小实验验证**;
    - B. 在真实 opencode 版本上确认是否存在可用的旧版 hooks 通道(如配置开关),再决定去留;
    - C. 若短期无法修复:文档与 status 明确标注 OpenCode 支持状态,避免误导用户依赖。
+
+## 修复(2026-08-29,feature/antigravity-opencode-fix)
+
+- **决议:方案 A(迁移到 plugins 机制)** —— hooks.yaml 在 OpenCode 1.18 已废弃(官方文档站无 hooks 页、实机零调用),方案 B 无旧通道可寻;C 只是兜底。
+- 随包新增 **`opencode/gitflow-guard.ts`**(零外部依赖,不 import @opencode-ai/plugin):订阅 `tool.execute.before`,仅拦 bash/powershell,把命令交给 `check --platform opencode --command <cmd>`,deny(exit 2)时**抛错阻断**工具(官方 env-protection 示例同款语义);守卫 CLI 不可用时 fail-open 放行。
+- `wire --client opencode` 落位改为**复制插件文件**到 `.opencode/plugins/gitflow-guard.ts`(全局 `~/.config/opencode/plugins/gitflow-guard.ts`);`--unwire` 删文件,不动其他插件。
+- 守卫 CLI 定位:插件上两级目录(项目根)`bin/` → `$OPENCODE_PROJECT_DIR/bin/` → PATH,规避 hook 进程 cwd 不确定性。
+- 协议参考 `.agents/hooks/references/opencode.md` 重写;README 双语、复测矩阵 F 节、wire/cli 单测同步;dogfood 配置由 `.opencode/hook/hooks.yaml` 换为 `.opencode/plugins/gitflow-guard.ts`。
+- **修复后需全量重跑 A/B 组并更新结果**(本机 opencode 1.18.15 可复测)。
+
+## 修复后复测(2026-08-29,真机会话,deepseek-v4-flash)
+
+| 用例 | 命令 | 结果 | 证据 |
+|---|---|---|---|
+| OPENCODE-A1 | `git push origin master` | **PASS** | 会话输出 `✗ git push origin master failed` + `Error: [gitflow-guard] blocked: Protected branch "master" forbids direct push / Next: ...`;`origin/master` 前后同为 `6935065...` 未动 |
+| OPENCODE-A1' | 插件加载 | **PASS** | 首版插件日志 `failed to load plugin ... Plugin export is not a function` → 改函数工厂;再版 `process.execPath` 是 opencode 自身(非 node)导致 check exit 1 fail-open → 改 shebang 直跑(Unix)/PATH node(Windows);两坑修复后插件加载并正确阻断 |
+| OPENCODE-B1 | `git push origin fix/verify-01` | **PASS** | 真实执行:远端出现 `refs/heads/fix/verify-01` = `ff6fafe...`(与本地 commit 一致) |
+
+> 插件实现要点(防再踩坑):① 插件导出必须是**函数**(工厂)返回事件处理器对象;② 插件运行在 opencode 进程内,`process.execPath` 是 opencode 自身,不能当解释器,Unix 靠脚本 shebang 直跑、Windows 用 PATH 上的 `node`;③ 守卫定位:插件上两级(项目根)`bin/` → `$OPENCODE_PROJECT_DIR/bin/` → `GITFLOW_GUARD_BIN` → PATH;④ 拒绝语义 = handler 抛错,其余 fail-open。
+
+## 边界核验(2026-08-29,追加)
+
+| 场景 | 结果 | 证据/说明 |
+|---|---|---|
+| 从仓库子目录启动会话 | **PASS(修正前次误报)** | 前次记录「子目录不加载项目插件」系**实验布置错误**(setup commit 打在 fix 分支后 checkout master,会话在无 config 的空工作树跑,内置默认不保护 master 故放行)。干净对照(reflog 自洽、config 保护 master):根目录与 sub/proj 子目录启动**均拦截** `git push origin master`(会话输出 blocked 文案,远端 ref 未动) |
+| 全局插件形态 | **加载确认,拦截依赖全局守卫** | XDG 全局插件 `/tmp/oc-data/opencode/plugins/gitflow-guard.ts` 被加载(每次命令输出其 fail-open 告警为证);**纯全局(无项目插件)+ 无 GITFLOW_GUARD_BIN/PATH 守卫 → fail-open 放行,受保护 push 真实推送成功**(远端 23c8228→c2a1cab,随后回滚)——全局形态必须配全局安装的 `gitflow-guard` 或 `GITFLOW_GUARD_BIN` |
+| 项目+全局双接线 | **双加载会留噪音日志** | 两者同加载:每次命令先一条全局插件的 fail-open 告警,再由项目插件拦截;文档已注明避免双接 |
+| 守卫不可用 fail-open 真机 | 覆盖 | 上述纯全局无守卫场景即真实 fail-open 链路:push 放行 + 告警输出,与单测语义一致 |
+
+> 沙箱注记:本机受限 shell 下 `~/.npm`、`~/.gemini` 等主目录写操作被拒,影响全局安装与 agy 会话缓存;项目级形态(受控仓库在 /tmp)不受影响。

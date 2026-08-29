@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { isWired, WIRE_CLIENTS } from '../src/wire'
 import { applyWire } from '../src/wire'
@@ -63,24 +63,38 @@ describe('wire: JSON 客户端(claude/codex)幂等落位与移除', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('isWired 遇无效 JSON → false(不误报已接线)', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.claude/settings.json')
+    try {
+      mkdirSync(join(dir, '.claude'), { recursive: true })
+      writeFileSync(path, '{broken')
+      await expect(isWired('claude', path)).resolves.toBe(false)
+      await expect(isWired('antigravity', path, dir)).resolves.toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
-describe('wire: antigravity(实验支持)对象形态', () => {
-  it('落位为 gitflow-guard 顶层键; unwire 移除且不伤其他内容', async () => {
+describe('wire: antigravity 对象形态(命令须绝对路径, AGY-D2)', () => {
+  it('落位为 gitflow-guard 顶层键, 命令含仓库根绝对路径; unwire 移除且不伤其他内容', async () => {
     const dir = tempDir()
     const path = join(dir, '.agents/hooks.json')
     try {
-      expect(await applyWire('antigravity', path, false, false)).toBe('added')
+      expect(await applyWire('antigravity', path, false, false, dir)).toBe('added')
       const obj = JSON.parse(readFileSync(path, 'utf8'))
       expect(obj['gitflow-guard'].PreToolUse[0].matcher).toBe('run_command')
-      expect(obj['gitflow-guard'].PreToolUse[0].hooks[0].command).toContain('--platform antigravity')
-      expect(await applyWire('antigravity', path, false, false)).toBe('exists')
+      expect(obj['gitflow-guard'].PreToolUse[0].hooks[0].command).toBe(`node ${join(dir, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`)
+      await expect(isWired('antigravity', path, dir)).resolves.toBe(true)
+      expect(await applyWire('antigravity', path, false, false, dir)).toBe('exists')
 
       writeFileSync(path, JSON.stringify({ keep: { x: 1 }, 'gitflow-guard': { PreToolUse: [] } }) + '\n')
-      expect(await applyWire('antigravity', path, false, false)).toBe('added') // 已有键但空列表 → 补条目
+      expect(await applyWire('antigravity', path, false, false, dir)).toBe('added') // 已有键但空列表 → 补条目
       const merged = JSON.parse(readFileSync(path, 'utf8'))
       expect(merged.keep.x).toBe(1)
-      expect(await applyWire('antigravity', path, true, false)).toBe('removed')
+      expect(await applyWire('antigravity', path, true, false, dir)).toBe('removed')
       const after = JSON.parse(readFileSync(path, 'utf8'))
       expect(after.keep.x).toBe(1)
       expect(after['gitflow-guard']).toBeUndefined()
@@ -88,45 +102,86 @@ describe('wire: antigravity(实验支持)对象形态', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
-})
 
-describe('wire: OpenCode YAML(语义 id 判重)', () => {
-  const yamlPath = (dir: string) => join(dir, '.opencode/hook/hooks.yaml')
-
-  it('不存在 → 写模板; 再 wire → exists; 保留其他条目后仍正确合并', async () => {
+  it('全局落位(无仓库根)命令回退 PATH 上的 gitflow-guard', async () => {
     const dir = tempDir()
-    const path = yamlPath(dir)
+    const path = join(dir, '.gemini/config/hooks.json')
     try {
-      expect(await applyWire('opencode', path, false, false)).toBe('added')
-      let text = readFileSync(path, 'utf8')
-      expect(text).toMatch(/^hooks:/m)
-      expect(text).toMatch(/- id: gitflow-guard/)
-      expect(text).toContain('$OPENCODE_PROJECT_DIR')
-
-      expect(await applyWire('opencode', path, false, false)).toBe('exists')
-
-      // 已有其他 id 的列表 → 在 hooks: 下追加
-      writeFileSync(path, 'hooks:\n  - id: other\n    event: tool.before.edit\n    actions:\n      - bash: echo hi\n')
-      expect(await applyWire('opencode', path, false, false)).toBe('added')
-      const merged = readFileSync(path, 'utf8')
-      expect(merged).toContain('- id: other')
-      expect(merged).toContain('- id: gitflow-guard')
-      expect(await applyWire('opencode', path, true, false)).toBe('removed')
-      const after = readFileSync(path, 'utf8')
-      expect(after).toContain('- id: other')
-      expect(after).not.toContain('gitflow-guard')
+      expect(await applyWire('antigravity', path, false, false, null)).toBe('added')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj['gitflow-guard'].PreToolUse[0].hooks[0].command).toBe('gitflow-guard check --platform antigravity')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   })
 
-  it('只剩自己的条目时 unwire → 整体清空 hooks 列表', async () => {
+  it('旧格式(AGY-D2 前相对 bin 命令)wire → 替换为新格式, 不双条并存', async () => {
     const dir = tempDir()
-    const path = yamlPath(dir)
+    const path = join(dir, '.agents/hooks.json')
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    const old = { 'gitflow-guard': { PreToolUse: [{ matcher: 'run_command', hooks: [{ type: 'command', command: 'node bin/gitflow-guard.mjs check --platform antigravity' }] }] } }
+    writeFileSync(path, JSON.stringify(old) + '\n')
+    try {
+      expect(await applyWire('antigravity', path, false, false, dir)).toBe('added')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      const commands = obj['gitflow-guard'].PreToolUse.map((e: { hooks: Array<{ command: string }> }) => e.hooks[0].command)
+      expect(commands).toEqual([`node ${join(dir, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('旧格式条目 unwire → removed(整键移除); isWired 对旧格式为 false(提示重新 wire)', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.agents/hooks.json')
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    const old = { 'gitflow-guard': { PreToolUse: [{ matcher: 'run_command', hooks: [{ type: 'command', command: 'node bin/gitflow-guard.mjs check --platform antigravity' }] }] } }
+    writeFileSync(path, JSON.stringify(old) + '\n')
+    try {
+      await expect(isWired('antigravity', path, dir)).resolves.toBe(false)
+      expect(await applyWire('antigravity', path, true, false, dir)).toBe('removed')
+      expect(JSON.parse(readFileSync(path, 'utf8'))['gitflow-guard']).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('wire: OpenCode 插件(复制随包插件文件, OpenCode 1.18+ plugins 机制)', () => {
+  const pluginPath = (dir: string) => join(dir, '.opencode/plugins/gitflow-guard.ts')
+
+  it('不存在 → 复制插件; 再 wire → exists(幂等); unwire → removed; 再 unwire → absent', async () => {
+    const dir = tempDir()
+    const path = pluginPath(dir)
+    try {
+      expect(await applyWire('opencode', path, false, false)).toBe('added')
+      const text = readFileSync(path, 'utf8')
+      expect(text).toContain('tool.execute.before')
+      expect(text).toContain('check --platform opencode')
+      await expect(isWired('opencode', path)).resolves.toBe(true)
+
+      expect(await applyWire('opencode', path, false, false)).toBe('exists')
+      expect(await applyWire('opencode', path, false, true)).toBe('exists') // dry-run 不写不报错
+
+      expect(await applyWire('opencode', path, true, false)).toBe('removed')
+      expect(await isWired('opencode', path)).toBe(false)
+      expect(await applyWire('opencode', path, true, false)).toBe('absent')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('unwire 只删自己的插件文件, 不伤同一目录的其他插件', async () => {
+    const dir = tempDir()
+    const path = pluginPath(dir)
     try {
       await applyWire('opencode', path, false, false)
+      const other = join(dir, '.opencode/plugins/other-plugin.ts')
+      writeFileSync(other, 'export default {}\n')
       expect(await applyWire('opencode', path, true, false)).toBe('removed')
-      expect(readFileSync(path, 'utf8') || '').not.toMatch(/hooks:/)
+      expect(readFileSync(other, 'utf8')).toBe('export default {}\n') // 其他插件未动
+      const rest = readdirSync(join(dir, '.opencode/plugins'))
+      expect(rest).toEqual(['other-plugin.ts'])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -142,9 +197,10 @@ describe('wire: 客户端规格表', () => {
     const codex = WIRE_CLIENTS.find((c) => c.client === 'codex')!
     expect(codex.projectPath).toBe('.codex/hooks.json')
     const opencode = WIRE_CLIENTS.find((c) => c.client === 'opencode')!
-    expect(opencode.projectPath).toBe('.opencode/hook/hooks.yaml')
+    expect(opencode.projectPath).toBe('.opencode/plugins/gitflow-guard.ts')
+    expect(opencode.globalPath()).toBe(join(homedir(), '.config', 'opencode', 'plugins', 'gitflow-guard.ts'))
     const ag = WIRE_CLIENTS.find((c) => c.client === 'antigravity')!
     expect(ag.projectPath).toBe('.agents/hooks.json')
-    expect(ag.experimental).toBe(true)
+    expect(ag.experimental).toBeUndefined() // 真机核验闭环(AGY-D1..D4)后摘除实验标注
   })
 })

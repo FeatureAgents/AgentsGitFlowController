@@ -151,7 +151,7 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
   const hints: string[] = []
   for (const spec of WIRE_CLIENTS) {
     if (spec.client === 'dsh' || spec.client === 'pi') continue
-    if (!(await isWired(spec.client, join(repoRoot, spec.projectPath)))) hints.push(spec.client)
+    if (!(await isWired(spec.client, join(repoRoot, spec.projectPath), repoRoot))) hints.push(spec.client)
   }
   if (hints.length > 0) {
     console.log(t('cli.statusWireHints'))
@@ -233,7 +233,7 @@ async function wireCore(
   const path = scope === 'project' ? join(opts.repoRoot!, spec.projectPath) : spec.globalPath()
   console.log(t('cli.wireTarget', { client, path }))
   if (opts.dryRun) {
-    const res = await applyWire(client, path, !!opts.unwire, true)
+    const res = await applyWire(client, path, !!opts.unwire, true, opts.repoRoot)
     if (res === 'added') console.log(t('cli.wireDryRunAdd', { client, path }))
     else if (res === 'removed') console.log(t('cli.wireDryRunRemove', { client, path }))
     else console.log(t('cli.wireDryRunNoOp', { client, path }))
@@ -250,7 +250,7 @@ async function wireCore(
       if (ans !== 'y' && ans !== 'yes') return 1
     }
   }
-  const res = await applyWire(client, path, !!opts.unwire, false)
+  const res = await applyWire(client, path, !!opts.unwire, false, opts.repoRoot)
   if (res === 'added') console.log(t('cli.wireCreated', { client, path }))
   else if (res === 'exists') console.log(t('cli.wireAlready', { client, path }))
   else if (res === 'removed') console.log(t('cli.wireRemoved', { client, path }))

@@ -40,20 +40,20 @@ You define your own branches —
 
 ```bash
 # DSH — in-process plugin; restart DSH afterwards (plugins load at startup)
-dsh plugin --profile web add agents-gitflow-guard@0.0.21
+dsh plugin --profile web add agents-gitflow-guard
 ```
 
 ```bash
 # Claude Code · Codex · OpenCode · Antigravity — standalone hooks, no DSH needed
-npm i -g agents-gitflow-guard@0.0.21
+npm i -g agents-gitflow-guard
 ```
 
 ```bash
 # Pi — in-process extension
-npm i -D agents-gitflow-guard@0.0.21
+npm i -D agents-gitflow-guard
 ```
 
-> **Version gotcha**: a bare `add` or unpinned `npm i` resolves whatever `latest` is at install time — on machines behind a stale npm/pnpm registry cache or mirror it may install an old version. If the installed version looks wrong, pin it explicitly. (DSH users: the pnpm peer-dependency *warning* is expected — DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup; the plugin works normally.)
+> **Note**: A bare `add` or `npm i` installs the latest version from npm registry. If your registry mirror has a cache delay or you need to lock to a specific version, append `@<version>` (e.g. `npm i -g agents-gitflow-guard@<version>`). (DSH users: the pnpm peer-dependency *warning* is expected — DSH supplies `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` through its shared profile module fallback at startup; the plugin works normally.)
 >
 > The hook clients (Claude Code · Codex · OpenCode · Antigravity) need one wiring step after install — **one command per client** (below). Pi needs a copy step; DSH is already wired by install.
 
@@ -68,7 +68,7 @@ gitflow-guard wire --client claude --project --yes
 # Codex / OpenCode / Antigravity (each its own config file; --yes skips the y/N prompt)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
-gitflow-guard wire --client antigravity --project --yes     # experimental — not yet verified on a real device
+gitflow-guard wire --client antigravity --project --yes
 ```
 
 ```bash
@@ -356,14 +356,14 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 
 | Agent | Install command | After that |
 |---|---|---|
-| DSH | `dsh plugin --profile web add agents-gitflow-guard@0.0.21` | restart DSH — the plugin auto-mounts as a profile layer |
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard@0.0.21` | `gitflow-guard wire --client <name>` — one command per client (below) |
-| Pi | `npm i -D agents-gitflow-guard@0.0.21` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
+| DSH | `dsh plugin --profile web add agents-gitflow-guard` | restart DSH — the plugin auto-mounts as a profile layer |
+| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name>` — one command per client (below) |
+| Pi | `npm i -D agents-gitflow-guard` | copy `pi/gitflow-guard.ts` into `.pi/extensions/` (below) |
 
 **DSH — in-process plugin** (the standard path, already covered in [Quick Start](#quick-start--30-seconds-to-a-guarded-repo)):
 
 ```bash
-dsh plugin --profile web add agents-gitflow-guard@0.0.21    # pin recommended, see note above
+dsh plugin --profile web add agents-gitflow-guard
 ```
 
 Then restart DSH. Upgrades are the same command, followed by another restart.
@@ -380,11 +380,11 @@ The package declares `dsh.bundle.patch`, so `dsh plugin add` automatically makes
 **Standalone agent hooks** — Claude Code / Codex / OpenCode / Antigravity, no DSH required. Install the CLI once, then wire one client per command (the guard is on by default via its built-in config, so wiring is all that remains):
 
 ```bash
-npm i -g agents-gitflow-guard@0.0.21   # provides the `gitflow-guard` binary
+npm i -g agents-gitflow-guard   # provides the `gitflow-guard` binary
 gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
-gitflow-guard wire --client antigravity --project --yes   # experimental
+gitflow-guard wire --client antigravity --project --yes
 ```
 
 `wire` reads the existing config file (if any), merges the hook entry in without touching anything else, is idempotent (already wired → skipped), supports `--dry-run` to preview and `--unwire` to remove, and asks before touching `--global` files. The exact files it writes (for reference, and for hand-writing instead of `wire`) are:
@@ -411,18 +411,18 @@ gitflow-guard wire --client antigravity --project --yes   # experimental
 }
 ```
 
-```yaml
-# OpenCode — .opencode/hook/hooks.yaml
-hooks:
-  - id: gitflow-guard
-    event: tool.before.bash
-    actions:
-      - bash: |
-          gitflow-guard check --platform opencode
+```ts
+// OpenCode — `.opencode/plugins/gitflow-guard.ts` (copy of the shipped `opencode/gitflow-guard.ts`;
+// OpenCode 1.18+ dropped hooks.yaml, the extension point is now plugins — `tool.execute.before`,
+// deny = throwing; `wire --client opencode` copies the file for you)
 ```
+`gitflow-guard wire --client opencode` writes this file from the package; hand-write only if you know what you are doing.
 
 ```json
 // Antigravity (Google) — .agents/hooks.json
+// (Antigravity hook processes run with cwd = the config file's directory, so a relative
+// bin/… path breaks; `wire` writes an absolute path for project scope, `gitflow-guard`
+// from PATH for global scope. Shown here: globally-installed form.)
 {
   "gitflow-guard": {
     "PreToolUse": [
@@ -440,7 +440,7 @@ hooks:
 Pi loads extensions in-process (no stdin payload, no subprocess hook). Install the shipped entry point into the project and keep the package in devDependencies:
 
 ```bash
-npm i -D agents-gitflow-guard@0.0.21
+npm i -D agents-gitflow-guard
 mkdir -p .pi/extensions
 cp node_modules/agents-gitflow-guard/pi/gitflow-guard.ts .pi/extensions/gitflow-guard.ts
 ```
@@ -545,18 +545,14 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 
 ## Roadmap
 
-**Shipped**:
+Future capabilities and areas under active exploration:
 
-- ✅ **i18n — localized block messages** (0.0.3): English by default, `"locale": "zh"` for Chinese; custom locales via `registerLocale` since 0.0.12.
-- ✅ **Zero-config onboarding** (0.0.20): built-in `develop` + `main` defaults, deep-merge override, guard on by default with no config file.
-- ✅ **One-command wiring** (0.0.20): `gitflow-guard wire` / `setup` writes each stdin-hook client's hook entry (Claude Code / Codex / OpenCode / Antigravity).
-- ✅ **Six platforms** (0.0.2–0.0.17): DSH (in-process), Claude Code, Codex, OpenCode, Antigravity, Pi (in-process).
+- **New agent integrations**: Research and adapt to emerging agent hooks/extensions (e.g. Cursor, Windsurf, emerging agent CLIs).
+- **Audit aggregation**: Cross-machine audit trail synchronization and team-level compliance export formats.
+- **Workflow presets**: Ready-to-use configuration presets for common Git branching flows (Trunk-based development, multi-environment enterprise setups).
+- **CI hard-gating**: Native CI pipeline hooks and PR check integration while keeping zero-dependency local execution.
 
-**v2 (open)**:
-
-- **audit sync**: sync the user-level audit log across machines (audit is local-only today; since 0.0.14 it lives outside the repository).
-- **more pre-built templates**: extend the built-in defaults with ready-made presets for common flows (solo `develop`, multi-env enterprise) as community-contributed configs.
-- **CI hard-gating research**: whether `pr checks` could become a real gate without hurting the platform-agnostic core.
+For shipped features and release history, see [CHANGELOG.md](CHANGELOG.md).
 
 Contributions welcome — see [Development](#development).
 
@@ -577,7 +573,7 @@ npm install
 npm test          # unit tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
 npm run typecheck     # tsc --noEmit, 0 errors
 npm run build         # tsdown → lib/ (CLI and plugin share the build)
-npm run check:pins    # assert package.json version matches every README lock-version pin and the CHANGELOG heading
+npm run check:pins    # assert package.json version matches CHANGELOG heading and any README version pins
 npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale regression + Claude Code / Codex / OpenCode / Antigravity hook wiring + Pi extension
 ```
 
@@ -590,5 +586,3 @@ npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale
 ## License
 
 [MIT](LICENSE) © FeatureAgents
-
-Historical v0 design decisions (Chinese; superseded by the role-driven model shipped in 0.0.2 — current behavior is documented in this README): [docs/design.md](docs/design.md).

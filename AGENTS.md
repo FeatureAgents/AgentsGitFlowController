@@ -18,7 +18,7 @@
 - 测试：`npm test`(vitest, 全绿才算完成)
 - 类型检查：`npm run typecheck`(tsc --noEmit, 0 Error 才算完成)
 - 安装进 DSH：`node scripts/install-dsh.mjs [profile]`(本机无 DSH 时跳过)
-- **发布(自动化)**：bump 叠加在**待合并的内容 PR 分支**上(`npm version patch`, 版本提交落在该分支; bump 前确认 README 双语锁版本示例已同步为本次版本号, feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ 用户合并该 PR(内容+changelog+版本号一次带进 develop)→ **从最新 `origin/develop` 打 annotated tag 并推送**(`git fetch && git tag -a vX.Y.Z origin/develop && git push origin vX.Y.Z`)→ CI 自动发布
+- **发布(自动化)**：bump 叠加在**待合并的内容 PR 分支**上(`npm version patch`, 版本提交落在该分支; feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ 用户合并该 PR(内容+changelog+版本号一次带进 develop)→ **从最新 `origin/develop` 打 annotated tag 并推送**(`git fetch && git tag -a vX.Y.Z origin/develop && git push origin vX.Y.Z`)→ CI 自动发布
   —— tag 不打在内容分支上: rebase 式合并会改写 SHA, 分支侧的 tag 会成为不在 develop 历史里的悬空提交(v0.0.12 实证), 发布物与仓库溯源断裂
   —— 仅当内容已合入后的纯补发(如版本同步)才开独立 `feature/release-<版本>` PR
   —— 本地 develop 永不直接变更(§4); develop 的一切演进只经 GitHub 的 PR 合并与用户推送产生
