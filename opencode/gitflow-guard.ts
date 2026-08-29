@@ -57,15 +57,17 @@ async function runGuard(command: string): Promise<void> {
   }
   const args = [...target.args, 'check', '--platform', 'opencode', '--command', command]
   let stderr = ''
+  // 对象属性承载 spawn 错误: TS 对回调内赋值的局部变量不做跨闭包窄化(会推断为 never)
+  const outcome: { spawnError?: Error } = {}
   const code = await new Promise<number>((resolvePromise) => {
     const child = spawn(target.bin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let settled = false
     child.stderr.on('data', (d: Buffer) => (stderr += d.toString()))
     child.on('error', (e) => {
-      // spawn 失败等内部故障: fail-open, 不阻断工具管道
+      // spawn 失败等内部故障: fail-open, 不阻断工具管道; 告警统一在尾部输出(避免双打)
       if (settled) return
       settled = true
-      console.error(`[gitflow-guard] cannot spawn guard: ${e.message} — allowing tool call (fail-open)`)
+      outcome.spawnError = e
       resolvePromise(-1)
     })
     child.on('close', (code) => {
@@ -75,7 +77,11 @@ async function runGuard(command: string): Promise<void> {
     })
   })
   if (code === 2) throw new Error(stderr.trim() || `[gitflow-guard] blocked: ${command}`)
-  if (code !== 0) console.error(`[gitflow-guard] check exited ${code} — allowing tool call (fail-open): ${stderr.trim()}`)
+  if (code !== 0) {
+    const spawnMsg = outcome.spawnError?.message
+    if (spawnMsg) console.error(`[gitflow-guard] cannot spawn guard: ${spawnMsg} — allowing tool call (fail-open)`)
+    else console.error(`[gitflow-guard] check exited ${code} — allowing tool call (fail-open): ${stderr.trim()}`)
+  }
 }
 
 /** OpenCode 插件工厂(官方要求导出函数): 订阅 tool.execute.before, 仅拦 bash/powershell */

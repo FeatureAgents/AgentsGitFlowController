@@ -180,6 +180,55 @@ describe('opencode plugin: exit 语义(阻断 = 抛错, 其余 fail-open)', () =
     expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('cannot spawn guard'))
     errSpy.mockRestore()
   })
+
+  it('close(无退出码, code=null) → 视为意外退出 fail-open', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { child, emitClose } = fakeChild()
+    spawnMock.mockReturnValue(child)
+    const plugin = await pluginFactory()
+    const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git status' } })
+    emitClose(null)
+    await expect(p).resolves.toBeUndefined()
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('check exited -1'))
+    errSpy.mockRestore()
+  })
+
+  it('error 后 close 双触发: settled 守卫只结算一次, 不抛不重复告警', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { child, emitError, emitClose } = fakeChild()
+    spawnMock.mockReturnValue(child)
+    const plugin = await pluginFactory()
+    const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git status' } })
+    emitError(new Error('ENOENT'))
+    emitClose(-1) // 双触发
+    await expect(p).resolves.toBeUndefined()
+    expect(errSpy).toHaveBeenCalledTimes(1)
+    errSpy.mockRestore()
+  })
+
+  it('并发调用: 多次 handler 并行, 各自 spawn 独立且互不干扰', async () => {
+    const { child: c1, emitStderr: e1, emitClose: close1 } = fakeChild()
+    const { child: c2, emitClose: close2 } = fakeChild()
+    spawnMock.mockReturnValueOnce(c1).mockReturnValueOnce(c2)
+    const plugin = await pluginFactory()
+    const handler = plugin['tool.execute.before']
+    const p1 = handler({ tool: 'bash' }, { args: { command: 'git push origin develop' } })
+    const p2 = handler({ tool: 'bash' }, { args: { command: 'git status' } })
+    e1('blocked: x')
+    close1(2)
+    close2(0)
+    await expect(p1).rejects.toThrow(/blocked: x/)
+    await expect(p2).resolves.toBeUndefined()
+    expect(spawnMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('插件工厂可重复调用(每次返回独立处理器对象)', async () => {
+    const a = await pluginFactory()
+    const b = await pluginFactory()
+    expect(a).not.toBe(b)
+    expect(a['tool.execute.before']).toEqual(expect.any(Function))
+    expect(b['tool.execute.before']).toEqual(expect.any(Function))
+  })
 })
 
 describe('opencode plugin: 守卫定位链', () => {
