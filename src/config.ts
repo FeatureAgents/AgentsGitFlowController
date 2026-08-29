@@ -19,6 +19,12 @@ export const DEFAULT_CONFIG = {
     integration: { branches: ['develop'], update: 'pr' as const, mergeBy: 'anyone' as const },
     archive: { branches: ['main'], update: 'pr' as const, mergeBy: 'user' as const },
   },
+  worktree: {
+    requireCleanOnPr: false,
+    requireCleanOnMerge: false,
+    allowUntracked: true,
+    requireUpstreamSynced: false,
+  },
   ci: { enabled: true },
   locale: 'en',
 } satisfies GuardConfig
@@ -127,6 +133,24 @@ export function mergeConfig(raw: unknown): ConfigLoadResult {
   if (typeof r.ci === 'object' && r.ci !== null) {
     const ci = r.ci as Record<string, unknown>
     if (typeof ci.enabled === 'boolean') config.ci.enabled = ci.enabled
+  }
+
+  if (typeof r.worktree === 'object' && r.worktree !== null) {
+    const wt = r.worktree as Record<string, unknown>
+    config.worktree = config.worktree ? { ...config.worktree } : {}
+    if (typeof wt.requireCleanOnPr === 'boolean') config.worktree.requireCleanOnPr = wt.requireCleanOnPr
+    else if (wt.requireCleanOnPr !== undefined) errors.push('worktree.requireCleanOnPr must be a boolean')
+
+    if (typeof wt.requireCleanOnMerge === 'boolean') config.worktree.requireCleanOnMerge = wt.requireCleanOnMerge
+    else if (wt.requireCleanOnMerge !== undefined) errors.push('worktree.requireCleanOnMerge must be a boolean')
+
+    if (typeof wt.allowUntracked === 'boolean') config.worktree.allowUntracked = wt.allowUntracked
+    else if (wt.allowUntracked !== undefined) errors.push('worktree.allowUntracked must be a boolean')
+
+    if (typeof wt.requireUpstreamSynced === 'boolean') config.worktree.requireUpstreamSynced = wt.requireUpstreamSynced
+    else if (wt.requireUpstreamSynced !== undefined) errors.push('worktree.requireUpstreamSynced must be a boolean')
+  } else if (r.worktree !== undefined) {
+    errors.push('worktree must be an object')
   }
 
   // 角色级合并: 用户写到的角色覆盖默认, 未写的沿用默认(integration/archive 由默认提供, 不再必填)

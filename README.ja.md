@@ -295,6 +295,12 @@ archive (任意; リリース後に人間がアーカイブ)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // 任意
     "archive":     ["main"]                                      // 任意
   },
+  "worktree": {                        // 任意: ワークツリーと上流ベースラインガード
+    "requireCleanOnPr": false,         // PR 作成前にステージ/未ステージ変更のクリーンを要求 (デフォルト false)
+    "requireCleanOnMerge": false,      // マージ前にワークツリーのクリーンを要求 (デフォルト false)
+    "allowUntracked": true,            // 未追跡ファイル (??) を許可するか; false で存在時にブロック (デフォルト true)
+    "requireUpstreamSynced": false     // PR 作成前に上流ベースラインとの同期を要求 (デフォルト false)
+  },
   "locale": "en",                      // 任意: メッセージ言語 — 登録済み locale ('en'/'zh' 組み込み); 未登録値は status で警告され英語にフォールバック
   "strict": false,                     // 任意: fail-closed モード — 設定エラーや内部エラー時に警告放行ではなくブロックする
   "ci": { "enabled": true }            // 任意: gh pr checks を参考情報として記録
@@ -304,6 +310,7 @@ archive (任意; リリース後に人間がアーカイブ)
 - 各役割には **配列**（短縮形）または **オブジェクト** `{ branches, update?, mergeBy? }` を指定できます。
 - `update`: `pr`（デフォルト）= PR/MR 経由でのみ合流可能; `flexible` = 直接プッシュおよびローカルマージを許可（小規模チーム向け）。
 - `mergeBy`（production）: `user`（デフォルト）= 人間のみがマージボタンをクリック可能; `anyone` = PR マージを許可。
+- **ワークツリーと上流ベースラインガード (`worktree`)**: 任意の状態および乖離度チェック —— `requireCleanOnPr: true` は未コミットのステージ/未ステージ変更がある場合に PR 作成をブロックします。`requireCleanOnMerge: true` はワークツリーがダーティな状態でのローカルおよび PR マージをブロックします。`allowUntracked`（デフォルト `true`）は未追跡ファイル（`??`）を摩擦なく許可し、人間と AI の厳格な共同開発環境では `false` に設定してブロックできます。`requireUpstreamSynced: true` はブランチが上流ベースラインより遅れている場合に PR 作成をブロックします。複合コマンド（例: `git add . && git commit && gh pr create`）では後続セグメントに対してクリーン状態が動的にシミュレートされます。
 - 各ブランチ項目は完全一致名または正規表現（自動判別）です。**正規表現の安全性**: ブランチパターンはそのままコンパイルされるため、`featurePattern` やブランチエントリで壊滅的なバックトラッキングを引き起こす構文（`(\w+)+` などのネストされた量詞）は避けてください。
 - **言語設定**: メッセージはデフォルトで英語です。`"locale": "zh"` を追加すると中国語に切り替わります。また、任意の `gitflow-guard` サブコマンドに `--locale <en|zh>` を渡すこともできます（優先順位: CLI フラグ > プロジェクト設定 > 英語）。`--help` や未知のコマンド通知、空の監査ログ行など、すべての CLI フレームワークテキストが locale に追従します。
 - **カスタム言語の登録**: 下流パッケージは実行時に言語を追加できます — `import { registerLocale } from 'agents-gitflow-guard'`、内蔵の英語辞書と同じキーセットを持つ辞書を渡して `registerLocale('fr', frDict)` を呼び出し、プロジェクト設定で `"locale": "fr"` を指定します。

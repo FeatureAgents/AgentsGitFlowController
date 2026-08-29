@@ -295,6 +295,12 @@ archive(可选, 发布后你亲手归档)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // 可选
     "archive":     ["main"]                                      // 可选
   },
+  "worktree": {                        // 可选: 工作区与上游基线门禁
+    "requireCleanOnPr": false,         // 创建 PR 前要求暂存区与工作区干净 (默认 false)
+    "requireCleanOnMerge": false,      // 合并前要求工作区干净 (默认 false)
+    "allowUntracked": true,            // 是否允许未追踪文件 (??); false 时存在即阻断 (默认 true)
+    "requireUpstreamSynced": false     // 创建 PR 前要求已同步上游基线 (默认 false)
+  },
   "locale": "en",                      // 可选: 文案语言——任意已注册 locale('en'/'zh' 内置); 未注册值在 status 告警并回退英文
   "strict": false,                     // 可选: fail-closed —— 配置异常/内部错误改为拦截, 而非告警放行
   "ci": { "enabled": true }            // 可选: gh pr checks 作参考日志
@@ -304,6 +310,7 @@ archive(可选, 发布后你亲手归档)
 - 每个角色既可用**数组**(简写),也可用**对象** `{ branches, update?, mergeBy? }`。
 - `update`:`pr`(默认)= 只能 PR/MR 合入;`flexible` = 允许直推/本地合入(小团队)。
 - `mergeBy`(生产):`user`(默认)= 只能你点合并;`anyone` = 放行 PR 合并。
+- **工作区与上游基线门禁 (`worktree`)**: 可选状态与偏离度守护——`requireCleanOnPr: true` 在存在未提交改动（暂存或未暂存）时阻断 PR 发起；`requireCleanOnMerge: true` 在工作区脏时阻断本地与 PR 合并；`allowUntracked`（默认 `true`）零摩擦放行未追踪文件（`??`），在人机协作严格场景可设为 `false` 严格阻断；`requireUpstreamSynced: true` 在当前分支落后上游基线时阻断 PR 创建。支持多段复合命令（如 `git add . && git commit && gh pr create`）对后续段的干净状态动态模拟。
 - 每条分支条目是精确名或正则(自动识别)。**正则安全**:分支正则由项目作者提供并按原样编译——`featurePattern` 与分支条目请避免灾难性回溯写法(如 `(\w+)+` 这类嵌套量词)。
 - **文案语言**:默认英文;加 `"locale": "zh"` 切中文,或给任意 `gitflow-guard` 子命令传 `--locale <en|zh>`(优先级:CLI 旗标 > 项目配置 > 英文)。全部用户可见文案都跟随 locale——包括 `--help`、未知子命令提示、审计为空的提示等 CLI 框架文案。
 - **自定义语言**:下游包可在运行时追加语言——`import { registerLocale } from 'agents-gitflow-guard'`,调用 `registerLocale('fr', frDict)` 注册一份与内置英文键完全一致的字典(注册时校验),再在项目配置写 `"locale": "fr"` 即生效。

@@ -296,6 +296,12 @@ archive (opcional; você arquiva após o release)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // opcional
     "archive":     ["main"]                                      // opcional
   },
+  "worktree": {                        // opcional: guardião da árvore de trabalho e linha base upstream
+    "requireCleanOnPr": false,         // exige alterações staged/unstaged limpas antes de criar PR (padrão false)
+    "requireCleanOnMerge": false,      // exige árvore de trabalho limpa antes do merge (padrão false)
+    "allowUntracked": true,            // permite arquivos não rastreados (??); false bloqueia se existirem (padrão true)
+    "requireUpstreamSynced": false     // exige sincronização com a linha base upstream antes de criar PR (padrão false)
+  },
   "locale": "en",                      // opcional: idioma das mensagens — qualquer locale registrado ('en'/'zh' integrados); valores desconhecidos avisam no status e usam inglês como fallback
   "strict": false,                     // opcional: fail-closed — configuração inválida / erros internos bloqueiam em vez de alertar e permitir
   "ci": { "enabled": true }            // opcional: verificações gh pr registradas como referência
@@ -305,6 +311,7 @@ archive (opcional; você arquiva após o release)
 - As funções aceitam um **array** (forma reduzida) ou um **objeto** `{ branches, update?, mergeBy? }`.
 - `update`: `pr` (padrão) = atualizações apenas via PR/MR; `flexible` = permite merges diretos/locais (equipes pequenas).
 - `mergeBy` (produção): `user` (padrão) = apenas você clica em merge; `anyone` = permite merge do PR.
+- **Guardião da árvore de trabalho e linha base upstream (`worktree`)**: verificações opcionais de estado e divergência —— `requireCleanOnPr: true` bloqueia a criação de PR se houver alterações não comitadas (staged/unstaged); `requireCleanOnMerge: true` bloqueia merges locais e de PR em árvores de trabalho sujas; `allowUntracked` (`true` por padrão) permite arquivos não rastreados (`??`) sem fricção, ou pode ser definido como `false` para colaboração estrita humano-agente; `requireUpstreamSynced: true` bloqueia a criação de PR quando a branch está atrás da linha base upstream. Em comandos compostos de múltiplos segmentos (ex.: `git add . && git commit && gh pr create`), um estado limpo é simulado dinamicamente para os segmentos subsequentes.
 - Cada entrada de branch é um nome exato ou uma regex (detectada automaticamente). **Segurança de regex**: os padrões de branch são definidos por você e compilados diretamente — evite construções com retrocesso catastrófico (ex.: quantificadores aninhados como `(\w+)+`) em `featurePattern` e nas entradas de branch.
 - **Idioma**: mensagens são em inglês por padrão; adicione `"locale": "zh"` para chinês, ou passe `--locale <en|zh>` para qualquer subcomando do `gitflow-guard` (prioridade: flag de CLI > configuração do projeto > inglês). Todo o texto voltado ao usuário segue o locale — incluindo mensagens de framework de CLI como `--help`, avisos de comando desconhecido e a linha de auditoria vazia.
 - **Locales customizados**: pacotes a jusante podem adicionar idiomas em tempo de execução — `import { registerLocale } from 'agents-gitflow-guard'`, chame `registerLocale('fr', frDict)` com um dicionário que cubra exatamente as mesmas chaves do inglês embutido (validado no registro), e depois defina `"locale": "fr"` na configuração do projeto para ativá-lo.

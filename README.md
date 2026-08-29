@@ -296,6 +296,12 @@ archive (optional; you archive after release)
     "production":  { "branches": ["prd"], "update": "pr", "mergeBy": "user" }, // optional
     "archive":     ["main"]                                      // optional
   },
+  "worktree": {                        // optional: working tree and upstream baseline guard
+    "requireCleanOnPr": false,         // require clean staged/unstaged changes before creating PR (default false)
+    "requireCleanOnMerge": false,      // require clean working tree before merging (default false)
+    "allowUntracked": true,            // allow untracked files (??); false blocks if untracked exist (default true)
+    "requireUpstreamSynced": false     // require branch to be synced with upstream baseline (default false)
+  },
   "locale": "en",                      // optional: message language — any registered locale ('en'/'zh' built-in); unknown values warn in status and fall back to English
   "strict": false,                     // optional: fail-closed — invalid config / internal errors block instead of warn-and-allow
   "ci": { "enabled": true }            // optional: gh pr checks logged as reference
@@ -305,6 +311,7 @@ archive (optional; you archive after release)
 - Roles accept either an **array** (shorthand) or an **object** `{ branches, update?, mergeBy? }`.
 - `update`: `pr` (default) = updates only via PR/MR; `flexible` = allow direct/local merges (small teams).
 - `mergeBy` (production): `user` (default) = only you click merge; `anyone` = allow PR merge through.
+- **Working tree & upstream baseline guard (`worktree`)**: optional state and divergence checks — `requireCleanOnPr: true` blocks PR creation if there are uncommitted staged/unstaged changes; `requireCleanOnMerge: true` blocks local and PR merges on dirty working trees; `allowUntracked` (default `true`) allows untracked files (`??`) without friction, or set `false` for strict human-agent collaboration; `requireUpstreamSynced: true` blocks PR creation when the branch is behind the upstream baseline (`behind > 0`). Multi-segment compound commands (e.g. `git add . && git commit && gh pr create`) dynamically simulate a clean state for subsequent segments.
 - Each branch entry is an exact name or a regex (auto-detected). **Regex safety**: branch patterns are authored by you and compiled as-is — avoid catastrophic-backtracking constructs (e.g. nested quantifiers like `(\w+)+`) in `featurePattern` and branch entries.
 - **Language**: messages are English by default; add `"locale": "zh"` for Chinese, or pass `--locale <en|zh>` to any `gitflow-guard` subcommand (priority: CLI flag > project config > English). All user-facing text follows the locale — including CLI framework messages such as `--help`, unknown-command notices, and the empty-audit line.
 - **Custom locales**: downstream packages can add a language at runtime — `import { registerLocale } from 'agents-gitflow-guard'`, call `registerLocale('fr', frDict)` with a dictionary covering exactly the same keys as built-in English (validated on registration), then set `"locale": "fr"` in the project config to activate it.
