@@ -67,7 +67,7 @@ gitflow-guard wire --client claude --project --yes
 # Codex / OpenCode / Antigravity(各写各的配置文件; --yes 跳过 y/N 确认)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
-gitflow-guard wire --client antigravity --project --yes     # 实验支持; 尚未真机验证
+gitflow-guard wire --client antigravity --project --yes
 ```
 
 ```bash
@@ -382,7 +382,7 @@ npm i -g agents-gitflow-guard@0.0.21   # 提供 `gitflow-guard` 二进制
 gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
-gitflow-guard wire --client antigravity --project --yes   # 实验支持
+gitflow-guard wire --client antigravity --project --yes
 ```
 
 `wire` 读取已有配置文件(如有)并把 hook 条目合入——不碰其他内容、幂等(已接则跳过)、支持 `--dry-run` 预览与 `--unwire` 移除、写 `--global` 前必先询问。它写入的准确文件(供参考,也可代替 `wire` 手写)是:
@@ -409,18 +409,17 @@ gitflow-guard wire --client antigravity --project --yes   # 实验支持
 }
 ```
 
-```yaml
-# OpenCode — .opencode/hook/hooks.yaml
-hooks:
-  - id: gitflow-guard
-    event: tool.before.bash
-    actions:
-      - bash: |
-          gitflow-guard check --platform opencode
+```ts
+// OpenCode — `.opencode/plugins/gitflow-guard.ts`(随包 `opencode/gitflow-guard.ts` 的副本;
+// OpenCode 1.18+ 已移除 hooks.yaml,扩展点改为 plugins —— `tool.execute.before` 事件,
+// 拒绝语义 = 抛错; `wire --client opencode` 自动复制该文件)
 ```
+`gitflow-guard wire --client opencode` 会从包内写入此文件;非必要不建议手写。
 
 ```json
 // Antigravity (Google) — .agents/hooks.json
+// (agy hook 进程 cwd = hook 配置文件所在目录,相对 bin/… 会解析失败; `wire` 项目级写绝对路径、
+// 全局写 PATH 上的 gitflow-guard。此处展示全局安装形态。)
 {
   "gitflow-guard": {
     "PreToolUse": [

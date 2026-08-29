@@ -5,12 +5,12 @@
 //   C) Codex hook       (gitflow-guard check --platform codex)
 //   D) zh locale
 //   E) antigravity 编码
-//   F) OpenCode hook    (gitflow-guard check --platform opencode)
+//   F) OpenCode 插件   (--platform opencode 协议层 + wire 落位 plugins 目录装配断言)
 //   G) Pi 扩展          (createPiExtension tool_call block 契约, 真实 CLI 走通)
 // 用法: npm run verify:matrix (内含 npm run build + 本脚本)
 
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -183,29 +183,44 @@ console.log('[D] zh locale')
   }
 }
 
-console.log('[E] antigravity encoding')
+console.log('[E] antigravity encoding (真机 payload 形状: cwd 嵌套在 toolCall.args.Cwd, AGY-D3)')
 {
   const repo = tempRepo(CONFIG)
   try {
-    const deny = runCheck('antigravity', JSON.stringify({ hook_event_name: 'PreToolUse', toolCall: { args: { CommandLine: 'git branch -D main' } }, cwd: repo }), repo)
+    // 与 TestResult/antigravity.md 摘录的真实 payload 同形: 顶层无 cwd
+    const payload = (cmd) =>
+      JSON.stringify({ artifactDirectoryPath: '/tmp/brain/1', conversationId: 'c1', stepIdx: 2, toolCall: { name: 'run_command', args: { CommandLine: cmd, Cwd: repo, WaitMsBeforeAsync: 10000 } }, workspacePaths: [repo] })
+    const deny = runCheck('antigravity', payload('git branch -D main'), repo)
     check('拦截: exit 0', deny.code === 0, `code=${deny.code}`)
     check('拦截: stdout decision=deny', /"decision":"deny"/.test(deny.stdout), deny.stdout)
-    const ok = runCheck('antigravity', JSON.stringify({ hook_event_name: 'PreToolUse', toolCall: { args: { CommandLine: 'ls -la' } }, cwd: repo }), repo)
+    const ok = runCheck('antigravity', payload('ls -la'), repo)
     check('放行: exit 0 且无输出(快路径)', ok.code === 0 && ok.stdout === '', `code=${ok.code} out=${ok.stdout}`)
+    // wire 装配: 命令必须绝对路径(agy hook 进程 cwd=配置目录, 相对 bin 会 MODULE_NOT_FOUND)
+    execFileSync('node', [BIN, 'wire', '--client', 'antigravity', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
+    const ag = JSON.parse(readFileSync(join(repo, '.agents', 'hooks.json'), 'utf8'))
+    const agCmd = ag['gitflow-guard'].PreToolUse[0].hooks[0].command
+    check('wire 落位: antigravity 命令为仓库根绝对路径', agCmd === `node ${join(repo, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`, agCmd)
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }
 }
 
-console.log('[F] OpenCode hook (--platform opencode)')
+console.log('[F] OpenCode hook (--platform opencode 协议层 + wire 插件装配)')
 {
   const repo = tempRepo(CONFIG)
   try {
+    // 协议层: check 直连(插件最终走同一 CLI)
     const deny = runCheck('opencode', JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'git push origin develop' }, cwd: repo }), repo)
     check('拦截: exit 2', deny.code === 2, `code=${deny.code}`)
     check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
     const ok = runCheck('opencode', JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'ls -la' }, cwd: repo }), repo)
     check('放行: exit 0 且无输出(快路径)', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
+    // wire 装配: OpenCode 1.18+ 无 hooks.yaml, 落位为 plugins 目录的插件文件
+    execFileSync('node', [BIN, 'wire', '--client', 'opencode', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
+    const plugin = readFileSync(join(repo, '.opencode', 'plugins', 'gitflow-guard.ts'), 'utf8')
+    check('wire 落位: 插件文件含 tool.execute.before 订阅', /tool\.execute\.before/.test(plugin) && /input\.tool !== 'bash'/.test(plugin), 'plugin content')
+    check('wire 落位: 插件走 check --platform opencode', plugin.includes('check --platform opencode'))
+    check('wire 落位: 插件拒绝语义 = 抛错阻断(exit 2)', /code === 2/.test(plugin) && /throw new Error/.test(plugin), 'plugin content')
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }

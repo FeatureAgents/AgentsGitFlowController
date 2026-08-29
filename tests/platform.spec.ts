@@ -30,9 +30,10 @@ describe('platform: extractHookPayload', () => {
     expect(extractHookPayload(raw, 'auto')?.command).toBe('git merge feature/x')
   })
 
-  it('auto: antigravity toolCall envelope', () => {
-    const raw = JSON.stringify({ toolCall: { name: 'run_command', args: { CommandLine: 'git push origin develop' } } })
+  it('auto: antigravity toolCall envelope(含嵌套 Cwd)', () => {
+    const raw = JSON.stringify({ toolCall: { name: 'run_command', args: { CommandLine: 'git push origin develop', Cwd: '/repo' } } })
     expect(extractHookPayload(raw, 'auto')?.command).toBe('git push origin develop')
+    expect(extractHookPayload(raw, 'auto')?.cwd).toBe('/repo')
   })
 
   it('auto: opencode tool_args.command', () => {
@@ -54,7 +55,18 @@ describe('platform: extractHookPayload', () => {
 
   it('antigravity 显式平台: toolCall.args.CommandLine envelope(§8.1 显式分支用例)', () => {
     const raw = JSON.stringify({ hook_event_name: 'PreToolUse', toolCall: { name: 'run_command', args: { CommandLine: 'git merge feature/x' } }, cwd: '/r' })
-    expect(extractHookPayload(raw, 'antigravity')).toEqual({ command: 'git merge feature/x', cwd: '/r', toolUseId: undefined, event: 'pre' })
+    expect(extractHookPayload(raw, 'antigravity')).toEqual({ command: 'git merge feature/x', cwd: undefined, toolUseId: undefined, event: 'pre' })
+  })
+
+  it('antigravity 显式平台: cwd 取 toolCall.args.Cwd(嵌套大写 C, 顶层无 cwd —— AGY-D3 真机核验)', () => {
+    const raw = JSON.stringify({
+      artifactDirectoryPath: '/tmp/brain/1',
+      conversationId: 'c1',
+      stepIdx: 2,
+      toolCall: { name: 'run_command', args: { CommandLine: 'git push origin master', Cwd: '/tmp/e2e-antigravity-repo', WaitMsBeforeAsync: 10000 } },
+      workspacePaths: ['/tmp/e2e-antigravity-repo'],
+    })
+    expect(extractHookPayload(raw, 'antigravity')).toEqual({ command: 'git push origin master', cwd: '/tmp/e2e-antigravity-repo', toolUseId: undefined, event: 'pre' })
   })
 })
 

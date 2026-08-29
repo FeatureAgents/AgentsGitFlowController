@@ -53,3 +53,9 @@
 2. **`extractHookPayload` antigravity 分支应取 `toolCall.args.Cwd`**:当前取顶层 `j.cwd`(真实 payload 无此字段)——仓库定位依赖兜底链,全局 hook 场景会静默放行。`platform.ts` 一行级修复 + 单测与复测矩阵 E 节补用例。
 3. **核验后定稿条件已满足**:AGY-D1/D4 行为符合设计,真机拦截/放行全通——上述两点修复后可摘除"实验支持"标注。
 4. 会话模式注记:`--add-dir` 显式加入 workspace 是前置;`--print` 的 prompt 须紧跟标志(参数顺序敏感)。
+
+## 修复(2026-08-29,feature/antigravity-opencode-fix)
+
+- **AGY-D2(已修)**:`wire` antigravity 项目级命令改为**仓库根绝对路径**(`node <root>/bin/gitflow-guard.mjs check --platform antigravity`);全局落位用 PATH 上的 `gitflow-guard`。dogfood `.agents/hooks.json`、`references/antigravity.md`、README 双语同步;wire/cli 单测与矩阵 E 节补落位断言。
+- **AGY-D3(已修)**:`extractHookPayload` antigravity 分支改为取 **`toolCall.args.Cwd`**(嵌套大写 C,顶层无 cwd 字段);`platform.spec.ts` 补真实 payload 用例,矩阵 E 节 payload 换用真机形状。
+- 修复后按结论 3 **摘除「实验支持」标注**(README 注释与 wire 提示)。
