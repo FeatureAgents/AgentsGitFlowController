@@ -53,7 +53,7 @@ dsh plugin --profile web add agents-gitflow-guard
 npm i -D agents-gitflow-guard
 ```
 
-> **Nota**: Un semplice `add` o `npm i` installa la versione più recente dal registro npm. Se il tuo mirror del registro presenta ritardi di cache o devi bloccare una versione specifica, aggiungi `@<versione>` (es. `npm i -g agents-gitflow-guard@<versione>`). (Quando si usa DSH, l'avviso di peer dependency di pnpm è previsto — DSH fornisce `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` tramite il fallback del modulo profile condiviso a runtime; il plugin funziona normalmente.)
+> **Nota**: Un semplice `add` o `npm i` installa la versione più recente dal registro npm. Se il tuo mirror del registro presenta ritardi di cache o devi bloccare una versione specifica, aggiungi `@<versione>` (es. `npm i -g agents-gitflow-guard@<versione>`). Le dipendenze peer specifiche di DSH (`@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`) sono dichiarate **opzionali** — solo il plug-in in-process di DSH le richiede, fornite da DSH tramite il fallback del modulo profile condiviso a runtime; gli utenti CLI / Pi / OpenCode non sono obbligati a installarle.
 >
 > I client hook CLI eseguono un comando di collegamento (wiring) dopo l'installazione (vedere Passo 2); Pi copia un file di estensione; DSH si monta automaticamente all'installazione del plugin.
 
