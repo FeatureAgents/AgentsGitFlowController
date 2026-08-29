@@ -586,5 +586,3 @@ npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale
 ## License
 
 [MIT](LICENSE) © FeatureAgents
-
-Historical v0 design decisions (Chinese; superseded by the role-driven model shipped in 0.0.2 — current behavior is documented in this README): [docs/design.md](docs/design.md).

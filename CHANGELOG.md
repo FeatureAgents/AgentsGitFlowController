@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.24
+
+- docs(readme): remove misleading legacy design doc reference — bilingual READMEs previously referenced docs/design.md with a stale 0.0.13-era banner labeling it superseded historical decisions; in reality docs/design.md was rewritten in 0.0.14 into the authoritative technical design specification; the confusing link in the License section is removed —— 移除双语 README 结尾误导性的历史设计文档链接:原描述残留 0.0.13 时期横幅并把 docs/design.md 错标为废弃决策,实际上该文件已在 0.0.14 重写为现行技术规格;现移除 License 节后的冗余链接。
+
 ## 0.0.23
 
 - docs(readme): refresh roadmap to future focus & unpin install commands — Roadmap in bilingual READMEs now focuses purely on upcoming exploratory directions (new agent integrations, audit aggregation, workflow presets, CI hard-gating) while referencing CHANGELOG.md for shipped history; install commands across all clients unpinned to standard latest-resolving forms (`dsh plugin add agents-gitflow-guard`, `npm i -g/D agents-gitflow-guard`); `check-version-pins.mjs` relaxed to allow unpinned READMEs while continuing to guard against stale version pins and verifying CHANGELOG headings —— 双语 README 路线图纯粹化与安装命令去版本号:路线图精简为面向未来的演进方向(新 Agent 平台接入、审计汇总与导出、流程预设模板、CI 门禁联动),已落地功能由 CHANGELOG.md 与正文权威承载;全客户端安装命令统一为标准无版本号写法;`check-version-pins.mjs` 放宽对 README 写死版本的硬性要求,继续拦截陈旧版本并校验 CHANGELOG 标题。
