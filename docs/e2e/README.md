@@ -8,7 +8,7 @@
 
 | 客户端 | 接入形态 | 用例文件 | 本机状态 |
 |---|---|---|---|
-| DSH | 进程内插件 | `dsh.md` | ✅ 已安装(挂载 0.0.11,待升级 0.0.21 后验证) |
+| DSH | 进程内插件 | `dsh.md` | ✅ 已实测(0.0.21,2026-08-29) |
 | Claude Code | stdin hook (exit 2) | `claude-code.md` | ✅ 已安装 2.1.224 |
 | Codex | stdin hook (exit 0+JSON) | `codex.md` | ⛔ 未安装(待用户准备) |
 | OpenCode | stdin hook (exit 2) | `opencode.md` | ✅ 已安装 1.18.15 |
