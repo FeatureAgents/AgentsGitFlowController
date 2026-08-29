@@ -41,3 +41,14 @@
 1. **Claude Code 通道完整可用**:wire 产物真实生效;exit-2 编码、stderr 文案展示、远端零污染均符合设计。
 2. 本次覆盖 A1/B1/A7(+C1);A2–A6(force push/分支删除/merge/链式/sudo)未逐条跑——与 A1/A7 同通道同内核,建议逻辑变更后按 docs/e2e/claude-code.md 全量补跑。
 3. headless 模式下模型偶发改写命令(如自动加 `--set-upstream`),用例断言以远端 ref 前后为准,不依赖模型措辞。
+
+---
+
+## 2026-08-29 复测（feature/fix-major-issues · 0.0.33）
+
+| 用例 | 操作 | 结果 | 证据 |
+|---|---|---|---|
+| CLAUDE-C1 | wire 落位 | **PASS(文件层面)** | `.claude/settings.json` 生成 `"matcher": "Bash"` + `node ${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform claude` |
+| CLAUDE-A1 | `git push origin master` | **NOT RUN** | `claude -p` 报 `selected model (deepseek-v4-flash-vision-exp[1m]) may not exist or you may not have access`（模型不可用/无权限）。协议层已由 verify:matrix 覆盖 |
+
+> 本次 0.0.33 复测 claude 会话因所选模型不可用未跑成；CLI 选择 deepseek 模型系本机 claude 配置所指向，跨客户端混用所致，与本修复无关。

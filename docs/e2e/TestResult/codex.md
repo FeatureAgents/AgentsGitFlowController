@@ -78,3 +78,49 @@
 
 1. **Codex 协议与通道实机全通**: wire 落位、PreToolUse hook 触发、JSON 编码识别(`exit 0` + `permissionDecision: "deny"`)、远端零污染、放行执行均 100% 符合设计规格。
 2. **无需代码修复**: 现有 `src/platform.ts`、`src/wire.ts` 对 Codex 的实现完全准确，真机测试全量通过（16/16 用例 PASS）。
+
+---
+
+## 2026-08-29 复测（feature/fix-major-issues · 0.0.33）
+
+### 测试信息
+
+| 项 | 值 |
+|---|---|
+| 测试日期 | 2026-08-29 |
+| 守卫版本 | 0.0.33（feature/fix-major-issues 分支，`bin/gitflow-guard.mjs` + `lib/` 复制进受控仓库） |
+| 客户端 | Codex CLI 0.150.1（model: deepseek-v4-flash-vision-exp, provider: custom） |
+| 测试场 | `/tmp/e2e-codex-repo-bevpYN`（master=integration(`update: pr`), beta=preview, `task/*`=feature；裸远端 `/tmp/e2e-cx-origin-44llyF`） |
+| 挂载方式 | `gitflow-guard wire --client codex --project --yes`（`.codex/hooks.json`: `"^Bash$"` + `node bin/gitflow-guard.mjs check --platform codex`） |
+| 执行模式 | `codex exec --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust "<指令>" < /dev/null`（cwd=受控仓库） |
+
+### 结果汇总（0.0.33 复测）
+
+| 用例 | 命令 | 结果 | 证据 |
+|---|---|---|---|
+| CODEX-C1 | wire 落位 | **PASS** | `.codex/hooks.json` 生成 `"matcher": "^Bash$"` + `check --platform codex` 条目 |
+| CODEX-A1 | `git push origin master` | **PASS** | `hook: PreToolUse Blocked`；`Command blocked by PreToolUse hook: ... Protected branch "master" forbids direct push`；模型报告 "no push occurred" |
+| CODEX-B1 | `git push origin task/e2e-cx` | **PASS** | `hook: PreToolUse Completed` → `/bin/zsh -lc 'git push origin task/e2e-cx' succeeded`；裸远端真实创建 `refs/heads/task/e2e-cx = 9c48272...` |
+
+### 证据细节
+
+- **A1 会话输出摘录**：
+  ```text
+  hook: PreToolUse Blocked
+  ERROR codex_core::tools::router: error=Command blocked by PreToolUse hook: [gitflow-guard] blocked: Protected branch "master" forbids direct push
+  ```
+- **B1 会话输出摘录**：
+  ```text
+  hook: PreToolUse Completed
+  exec /bin/zsh -lc 'git push origin task/e2e-cx' ... succeeded: * [new branch] task/e2e-cx -> task/e2e-cx
+  ```
+- **远端 ref 对比**：
+  ```text
+  origin/master 执行前: 9c48272a0447f79df0633b53eb7b17abd4772698
+  origin/master 执行后: 9c48272a0447f79df0633b53eb7b17abd4772698 (A1 未动 ✓)
+  origin/task/e2e-cx (B1 后): 9c48272a0447f79df0633b53eb7b17abd4772698 (真实创建 ✓)
+  ```
+
+### 结论
+
+0.0.33 复测确认 **Codex 通道 wire/C1/A1/B1 全通过**；guard 内核与 Codex 协议编码在本次修复（feature/fix-major-issues）下无回归。
