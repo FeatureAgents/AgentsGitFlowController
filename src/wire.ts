@@ -82,6 +82,22 @@ function jsonContains(obj: unknown, needle: string): boolean {
   return false
 }
 
+/** JSON 递归搜索(谓词版): 用于旧格式条目的柔性识别 */
+function jsonContainsBy(obj: unknown, pred: (v: unknown) => boolean): boolean {
+  if (pred(obj)) return true
+  if (Array.isArray(obj)) return obj.some((x) => jsonContainsBy(x, pred))
+  if (obj !== null && typeof obj === 'object') return Object.values(obj).some((x) => jsonContainsBy(x, pred))
+  return false
+}
+
+/** 判断命令是否为本插件 antigravity 条目: 新格式绝对路径 node <root>/bin/gitflow-guard.mjs … 或
+ *  AGY-D2 之前的旧相对格式 node bin/gitflow-guard.mjs …, 或全局 PATH 形态(无 .mjs);
+ *  格式演进后旧条目仍能被识别/替换/移除, 避免新旧双条并存。 */
+function antigravityCommandish(cmd: unknown): boolean {
+  if (typeof cmd !== 'string') return false
+  return cmd.includes('gitflow-guard.mjs check --platform antigravity') || cmd === 'gitflow-guard check --platform antigravity'
+}
+
 function parseJsonOrThrow(path: string, raw: string): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(raw)
@@ -109,7 +125,12 @@ async function addJsonEntry(path: string, client: 'claude' | 'codex' | 'antigrav
   if (client === 'antigravity') {
     const block = (obj['gitflow-guard'] ??= { PreToolUse: [] }) as { PreToolUse: unknown }
     if (!Array.isArray(block.PreToolUse)) throw new Error(`invalid ${path}: gitflow-guard.PreToolUse must be an array`)
-    block.PreToolUse.push(entry)
+    const entries = block.PreToolUse as unknown[]
+    if (entries.some((e) => jsonContainsBy(e, (v) => v === cmd))) return 'exists'
+    // 旧格式(AGY-D2 之前, 相对 bin 路径)条目替换为新格式——避免新旧双条并存(旧条 MODULE_NOT_FOUND 污染会话)
+    const next = entries.filter((e) => !jsonContainsBy(e, antigravityCommandish))
+    next.push(entry)
+    block.PreToolUse = next
   } else {
     const hooksObj = (obj['hooks'] ??= {}) as Record<string, unknown>
     const arr = (hooksObj['PreToolUse'] ??= []) as unknown[]
@@ -126,10 +147,13 @@ async function removeJsonEntry(path: string, client: 'claude' | 'codex' | 'antig
   const raw = await readText(path)
   if (raw === null) return 'absent'
   const obj = parseJsonOrThrow(path, raw)
-  if (!jsonContains(obj, cmd)) return 'absent'
   if (client === 'antigravity') {
+    // 新旧格式都算本插件条目: 旧相对格式(AGY-D2 前)也能被 unwire 移除
+    const block = obj['gitflow-guard']
+    if (!block || !jsonContainsBy(block, antigravityCommandish)) return 'absent'
     delete obj['gitflow-guard']
   } else {
+    if (!jsonContains(obj, cmd)) return 'absent'
     const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
     const arr = hooksObj?.['PreToolUse']
     if (Array.isArray(arr)) {

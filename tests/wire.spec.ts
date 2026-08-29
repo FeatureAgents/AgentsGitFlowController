@@ -101,6 +101,37 @@ describe('wire: antigravity 对象形态(命令须绝对路径, AGY-D2)', () => 
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('旧格式(AGY-D2 前相对 bin 命令)wire → 替换为新格式, 不双条并存', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.agents/hooks.json')
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    const old = { 'gitflow-guard': { PreToolUse: [{ matcher: 'run_command', hooks: [{ type: 'command', command: 'node bin/gitflow-guard.mjs check --platform antigravity' }] }] } }
+    writeFileSync(path, JSON.stringify(old) + '\n')
+    try {
+      expect(await applyWire('antigravity', path, false, false, dir)).toBe('added')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      const commands = obj['gitflow-guard'].PreToolUse.map((e: { hooks: Array<{ command: string }> }) => e.hooks[0].command)
+      expect(commands).toEqual([`node ${join(dir, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('旧格式条目 unwire → removed(整键移除); isWired 对旧格式为 false(提示重新 wire)', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.agents/hooks.json')
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    const old = { 'gitflow-guard': { PreToolUse: [{ matcher: 'run_command', hooks: [{ type: 'command', command: 'node bin/gitflow-guard.mjs check --platform antigravity' }] }] } }
+    writeFileSync(path, JSON.stringify(old) + '\n')
+    try {
+      await expect(isWired('antigravity', path, dir)).resolves.toBe(false)
+      expect(await applyWire('antigravity', path, true, false, dir)).toBe('removed')
+      expect(JSON.parse(readFileSync(path, 'utf8'))['gitflow-guard']).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('wire: OpenCode 插件(复制随包插件文件, OpenCode 1.18+ plugins 机制)', () => {

@@ -81,7 +81,7 @@ async function runGuard(command: string): Promise<void> {
 /** OpenCode 插件工厂(官方要求导出函数): 订阅 tool.execute.before, 仅拦 bash/powershell */
 export default async function gitflowGuardPlugin() {
   return {
-    'tool.execute.before': async (input: { tool?: string }, output: { args?: { command?: unknown } }) => {
+    'tool.execute.before': async (input: { tool?: string; args?: Record<string, unknown> }, output: { args?: Record<string, unknown> }) => {
       // 只拦截命令执行面(bash/powershell); 其余工具(read/edit 等)不经过守卫
       if (input.tool !== 'bash' && input.tool !== 'powershell') return
       const command = typeof output.args?.command === 'string' ? output.args.command : ''

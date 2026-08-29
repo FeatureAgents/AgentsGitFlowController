@@ -59,3 +59,13 @@
 - **AGY-D2(已修)**:`wire` antigravity 项目级命令改为**仓库根绝对路径**(`node <root>/bin/gitflow-guard.mjs check --platform antigravity`);全局落位用 PATH 上的 `gitflow-guard`。dogfood `.agents/hooks.json`、`references/antigravity.md`、README 双语同步;wire/cli 单测与矩阵 E 节补落位断言。
 - **AGY-D3(已修)**:`extractHookPayload` antigravity 分支改为取 **`toolCall.args.Cwd`**(嵌套大写 C,顶层无 cwd 字段);`platform.spec.ts` 补真实 payload 用例,矩阵 E 节 payload 换用真机形状。
 - 修复后按结论 3 **摘除「实验支持」标注**(README 注释与 wire 提示)。
+
+## 修复后复测(2026-08-29,真机会话,agy 1.1.22 / gemini-3.7-flash-high)
+
+| 用例 | 命令 | 结果 | 证据 |
+|---|---|---|---|
+| AGY-A1 | `git push origin master` | **PASS** | 会话输出「命令被 `gitflow-guard` 钩子拦截,原因:受保护分支 `master` 禁止直接推送到远程分支」+ 建议 PR/MR 流程;`origin/master` 前后同为 `6c0d022...` 未动 |
+| AGY-C1 | wire 落位(修复后) | **PASS** | wire 产物为**绝对路径**命令 `node /private/tmp/e2e-agy-repo/bin/gitflow-guard.mjs check --platform antigravity`(AGY-D2 修复面),真机加载并生效 |
+| AGY-D3' | 全局 hook 场景(cwd 定位差异) | PASS(矩阵级) | verify:matrix E 节新增「hook 进程 cwd 在仓库外 + payload 仅凭 toolCall.args.Cwd 定位」用例,旧实现会静默放行、新实现正常拦截——防回归断言成立 |
+
+> 注:会话期间 agy 向 `~/.gemini/antigravity-cli/` 写缓存报 operation not permitted(沙箱限制),拦截链路不受影响。
