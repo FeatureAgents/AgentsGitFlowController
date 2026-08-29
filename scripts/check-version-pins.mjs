@@ -22,7 +22,7 @@ export function checkPins(version, files) {
 
 function main() {
   const version = JSON.parse(readFileSync('package.json', 'utf8')).version
-  const files = ['README.md', 'README.zh.md', 'README.ja.md', 'CHANGELOG.md'].map((name) => ({ name, content: readFileSync(name, 'utf8') }))
+  const files = ['README.md', 'README.zh.md', 'README.ja.md', 'README.de.md', 'README.fr.md', 'README.it.md', 'README.pt.md', 'README.es.md', 'CHANGELOG.md'].map((name) => ({ name, content: readFileSync(name, 'utf8') }))
   // 锁定安装示例只存在于双语 README; CHANGELOG 仅校验小节标题(见下), 不要求含 pin
   const errors = checkPins(version, files.filter((f) => f.name !== 'CHANGELOG.md'))
   if (!files.some((f) => f.name === 'CHANGELOG.md' && f.content.includes('## ' + version))) {
