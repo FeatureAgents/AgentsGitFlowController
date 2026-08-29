@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.36
+
+- ci(release): drop the registry-url from setup-node so no registry auth token (default GITHUB_TOKEN) is injected; npm publishing is now purely OIDC trusted-publishing with automatic provenance —— 移除 setup-node 的 `registry-url`, 不再注入 registry 认证 token(默认 GITHUB_TOKEN); npm 发布完全走 OIDC trusted publishing 并自动生成 provenance, 无任何静态 token 残留。
+
 ## 0.0.35
 
 - ci(release): switch npm publishing to OIDC trusted publishing — the publish step no longer injects `NODE_AUTH_TOKEN` (`NPM_TOKEN`); npm now authenticates via the short-lived GitHub Actions OIDC identity (`id-token: write`) registered as a trusted publisher on npmjs.com, and provenance attestation is generated automatically (npm ≥ 11.5.1) —— 发布切换到 OIDC trusted publishing: `Publish to npm` 步骤不再注入 `NODE_AUTH_TOKEN`(`NPM_TOKEN`), 发布认证改由 GitHub Actions 的短命 OIDC 身份提供(已在 npmjs.com 注册 trusted publisher), 并在 npm ≥ 11.5.1 下自动生成 provenance 来源证明。
