@@ -2,8 +2,7 @@
 
 > stdin hook:Codex 会话在项目目录内触发 Bash(matcher `^Bash$`)时,读 `.codex/hooks.json` 的 PreToolUse hook,以 **exit 0 + stdout JSON**(`permissionDecision`)表达拦截。
 > 实现细节见 `docs/design/codex.md`;协议见 `.agents/hooks/references/codex.md`。
->
-> ⛔ 本机当前**未安装 Codex**。安装并配置凭证后,按本文件执行;结果证据写入 `TestResult/codex.md`。
+> 结果证据写入 `TestResult/codex.md`。
 
 ## 前置条件
 

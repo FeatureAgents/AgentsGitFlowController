@@ -2,8 +2,8 @@
 
 > 状态: **唯一现行规格**, 描述 0.0.13 起的角色驱动实现(含本文 §10 的存储修订)。
 > v0(permit/confirm 特许制)设计定稿已被 0.0.2 角色驱动模型整体取代, 原文仅存于 git 历史
-> (`git show 0.0.12:docs/design.md`); 演进脉络见 §15。用户侧文档以双语 README 为准。
-> 时点验证报告: `docs/verify-0.0.2.md`(注意其 §3.4 记录的是 0.0.9 反转前行为)。
+> (`git show 0.0.12:docs/design.md`); 演进记录见 `CHANGELOG.md`。用户侧文档以双语 README 为准。
+> 实机验证与测试证据: 见 `docs/e2e/TestResult/`。
 
 ---
 
@@ -218,21 +218,4 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 2. 分支正则由项目作者编写, 注意避免灾难性回溯(README 有提示); 非法正则在加载期报错。
 3. 审计单机存储(§10), 多机协同需 v2 同步。
 4. 插件改动需重建重启 DSH(`npm run build`); 核心逻辑全部纯函数 + 配置驱动, 把「改代码」压到最少。
-
-## 15. 演进记录
-
-| 版本 | 要点 |
-|---|---|
-| v0(2026-08-17) | 五轮对齐定稿 permit/confirm 特许制(base/trunk 角色、聊天确认通道、P1/P2/P3 特许); 原文存 git 历史 |
-| 0.0.2 | **模型重构**: 废弃特许系统, 改角色驱动(integration/preview/production/archive), 以「你的合并点击」为唯一确认; GitLab glab 适配; Claude Code hook(check 子命令) |
-| 0.0.3–0.0.6 | i18n(en/zh); Codex、OpenCode、Antigravity 相继接入; Antigravity 拦截协议按官方修正(exit 0 + decision JSON) |
-| 0.0.8–0.0.10 | Copilot 明确不接入; archive 允许建 PR(合并仍限用户); 跨平台 CI 矩阵; 安装文档准确性 |
-| 0.0.11 | 分类器硬化两批(shell 包装/嵌套/plumbing/pull/通配 refspec); strict 策略位 + fail-open 分级告警; pr-merge 无法解析一律保守拒绝 |
-| 0.0.12 | registerLocale 运行时扩展; CLI 全文案随 --locale; 审计 ISO 时间戳; 包元数据补全 |
-| 0.0.13 | ref-move/ref-update 命令族收编(reset/rebase/amend/filter-branch/update-ref/branch -m/-f); 组合旗标绕过封堵; 发版 tag 改从合并后 develop 打 + 一分支一 PR 铁律; design.md 加历史横幅 |
-| 本版(0.0.14) | **运行时数据迁出仓库**(§10, 堵「agent 伪造自身授权状态」的后门); 本文重写为现行唯一规格(取代历史横幅方案) |
-| 0.0.17 | Pi 进程内扩展接入(官方 tool_call 事件 + {block:true} 拒绝; 见 .agents/hooks/references/pi.md), 真机验证 108 用例矩阵全绿 |
-| 0.0.18 | 安装/配置文档统一为「一个 npm 包 + 逐客户端表」, wire scope(global/project)决策与默认配置落档 |
-| 0.0.19 | Pi 真机空隙修复: `sudo` 剥壳(含 -u 消费)、`symbolic-ref` 收编 ref-update、`cherry-pick`/`revert` 收编 ref-move(-n/恢复旗标豁免)、`checkout -B/-C` 目标名送 ref-update; G4(tag -f)与 G6(普通 commit)经拍板维持现状并明示理由(§5) |
-| 0.0.20 | **内置默认配置 + 每客户端默认 hooks**: 无 config 也默认保护 develop(integration)+main(archive), 用户配置深度合并覆盖; 新增 `wire`(落位/卸载/预览/作用域询问/全局显式确认)与 `setup`(交互向导); 各客户端 hook 模板随包内置; status 输出默认配置提示与未接线引导 |
 

@@ -1,3 +1,8 @@
+---
+name: design-sync
+description: Synchronize design docs, reference specs, and implementation before extending features. 功能扩展时同步更新设计文档与协议参考。
+---
+
 # design-sync · 功能扩展时同步更新设计文档
 
 在**任何功能扩展/行为变化**落地代码前加载本技能:保证「实现 = 设计文档 = 参考文档」三者同步,禁止先改代码后补文档。
