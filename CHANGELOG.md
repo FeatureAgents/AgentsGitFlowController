@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.35
+
+- ci(release): switch npm publishing to OIDC trusted publishing — the publish step no longer injects `NODE_AUTH_TOKEN` (`NPM_TOKEN`); npm now authenticates via the short-lived GitHub Actions OIDC identity (`id-token: write`) registered as a trusted publisher on npmjs.com, and provenance attestation is generated automatically (npm ≥ 11.5.1) —— 发布切换到 OIDC trusted publishing: `Publish to npm` 步骤不再注入 `NODE_AUTH_TOKEN`(`NPM_TOKEN`), 发布认证改由 GitHub Actions 的短命 OIDC 身份提供(已在 npmjs.com 注册 trusted publisher), 并在 npm ≥ 11.5.1 下自动生成 provenance 来源证明。
+
 ## 0.0.34
 
 - fix(cli): make `audit()` use the injected `runner` instead of the hardcoded `gitRunner` so audit git queries can be fully mocked; remove the unused `isAncestor` dead code from `src/repo.ts`; CI and the release verification suite now run `check:readmes` so 11-language README asymmetry surfaces at PR time rather than at publish; mark the DSH peer dependencies (`@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`) as `optional` via `peerDependenciesMeta` so CLI / Pi / OpenCode users are not forced to install the DSH in-process plugin stack; the 11-language README installation note is synchronized accordingly —— `audit()` 改用注入的 `runner` 解析仓库而非硬编码 `gitRunner`，使 audit 命令的 git 查询可被完整 mock；移除 `src/repo.ts` 中无消费者调用的 `isAncestor` 死代码；CI 与 Release 验证套件新增 `check:readmes`，让 11 语言 README 不对称在 PR 阶段即暴露而非发布时才被拦截；DSH peer 依赖（`@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools`）经 `peerDependenciesMeta` 标记为 `optional`，CLI / Pi / OpenCode 用户不再被强制安装 DSH 进程内插件套件；11 语言 README 安装说明同步更新。

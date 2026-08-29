@@ -86,9 +86,10 @@ jobs:
 
       - name: Publish to npm
         if: steps.check_release.outputs.should_release == 'true'
+        # npm Trusted Publishing (OIDC): 发布认证由 GitHub Actions 的 OIDC 短命身份提供，无需 NPM_TOKEN。
+        # 前提: 在 npmjs.com 为该包注册 trusted publisher(org=FeatureAgents, repo=AgentsGitFlowController, workflow=release.yml)。
+        # npm>=11.5.1 时自动生成 provenance；若未在 npmjs 侧授权 trusted publisher，此处会认证失败。
         run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Extract Changelog & Create GitHub Release
         if: steps.check_release.outputs.should_release == 'true'
