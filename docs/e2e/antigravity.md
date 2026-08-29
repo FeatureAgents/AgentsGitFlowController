@@ -2,16 +2,14 @@
 
 > stdin hook:Antigravity(Google 编码 agent,2.0 已并入 Gemini CLI)触发 `run_command` 的 PreToolUse 时,读 `.agents/hooks.json`,以 **exit 0 + stdout `{decision:"deny", reason}`** 表达拦截。
 > 实现细节见 `docs/design/antigravity.md`;协议见 `.agents/hooks/references/antigravity.md`。
->
-> ⚠️ 该平台为**实验支持**:wire 格式依据官方文档实现,真机核验后定稿——**本文件即核验入口**。
-> ⛔ 本机当前**未安装** Antigravity。安装后按本文件执行,结果写入 `TestResult/antigravity.md`。
+> 实机测试证据见 `docs/e2e/TestResult/antigravity.md`。
 
 ## 前置条件
 
-- 本机 `antigravity`(或 `gemini`)CLI 可用且已登录;冒烟通过为准。
+- 本机 `antigravity`(或 `agy`)CLI 可用且已登录;冒烟通过为准。
 - 受控测试仓库(见总览)。
-- wire 落位:`gitflow-guard wire --client antigravity --project --yes`(生成 `.agents/hooks.json`;相对路径 `bin/...`)。
-- **核验重点**:官方文档未注明 hook 的 cwd/环境变量展开——真机确认 hook 进程 cwd 与受控仓库的对应关系,若 `bin/` 相对路径解析失败,改用绝对路径并记录到 TestResult。
+- wire 落位:`gitflow-guard wire --client antigravity --project --yes`(生成 `.agents/hooks.json`,hook 命令为仓库根绝对路径)。
+- 会话模式:`agy --add-dir <repo> --dangerously-skip-permissions --print="..."`。
 
 ## 用例
 

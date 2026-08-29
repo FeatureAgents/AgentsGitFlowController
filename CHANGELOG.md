@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.25
+
+- docs(design): synchronize per-client design notes & streamline design spec — update `docs/design/opencode.md` to document the OpenCode 1.18+ plugins mechanism and `docs/design/antigravity.md` with the verified absolute-path and `toolCall.args.Cwd` envelope; remove the redundant §15 evolution table from `docs/design.md` to establish `CHANGELOG.md` as the single authoritative version history; remove obsolete temporary handoff notes and historical 0.0.2 verification report —— 同步平台设计分册与精简总设计规格: 更新 `docs/design/opencode.md` 记录 OpenCode 1.18+ 插件机制, 更新 `docs/design/antigravity.md` 记录绝对路径与真机 payload 形状并移除实验标记; 从 `docs/design.md` 移除冗余的 §15 演进记录表, 确立 `CHANGELOG.md` 为唯一版本演进权威来源; 清理已闭环的临时交接文档与历史 0.0.2 验证报告。
+
 ## 0.0.24
 
 - docs(readme): remove misleading legacy design doc reference — bilingual READMEs previously referenced docs/design.md with a stale 0.0.13-era banner labeling it superseded historical decisions; in reality docs/design.md was rewritten in 0.0.14 into the authoritative technical design specification; the confusing link in the License section is removed —— 移除双语 README 结尾误导性的历史设计文档链接:原描述残留 0.0.13 时期横幅并把 docs/design.md 错标为废弃决策,实际上该文件已在 0.0.14 重写为现行技术规格;现移除 License 节后的冗余链接。
