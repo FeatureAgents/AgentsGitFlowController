@@ -68,7 +68,7 @@ gitflow-guard wire --client claude --project --yes
 # Codex / OpenCode / Antigravity (each its own config file; --yes skips the y/N prompt)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
-gitflow-guard wire --client antigravity --project --yes     # experimental
+gitflow-guard wire --client antigravity --project --yes     # experimental — not yet verified on a real device
 ```
 
 ```bash
