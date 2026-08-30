@@ -515,7 +515,7 @@ npm link
 
 지원되는 명령어 형식의 범위 내에서 역할 경계는 로컬에서 엄격하게 강제됩니다. 보호 대상 역할 브랜치(integration / preview / production / archive)로의 합류는 반드시 설정된 경로(PR/MR 또는 사람의 직접 머지)를 거쳐야 합니다. 표준적인 난독화 래퍼는 모두 분류 및 차단 대상에 포함되어 있습니다 — 셸 래퍼(`sh -c` / `bash -lc`), 서브셸 및 백틱/`$()` 중첩, `env`/`command`/`nohup`/`xargs`/`sudo` 접두사 및 `VAR=x` 할당, 절대 경로, 파이프라인 및 `||` 후속 구문, Git 전역 옵션(`-C .`, `--git-dir=…`), 와일드카드 refspec(`refs/heads/*:refs/heads/*`), fetch+merge 용도로 사용되는 `git pull`, `send-pack`/`update-ref`/`symbolic-ref` 등의 plumbing 명령어. 보호 브랜치 강제 재생성(`checkout -B`/`switch -C`) 및 보호 브랜치에서의 cherry-pick/revert는 ref-update / ref-move 게이트에 의해 차단됩니다. 실행 가능한 적대적 테스트 코퍼스는 `tests/accuracy-audit.spec.ts`에 수록되어 있습니다.
 
-**로컬에서 방어할 수 없는 영역**: 호스팅 서비스의 API를 직접 호출하는 방식(`gh api repos/…/pulls/N/merge`, `curl`)이나 인터프리터 자식 프로세스 내부 실행(`node -e "child_process.exec('git push …')"`) 등은 구조상 베스트 에포트로 남습니다. 진정으로 우회 불가능한 경계는 호스팅 서비스의 브랜치 보호 규칙입니다. 본 가드를 즉각적인 피드백 및 감사 추적 도구로 활용하고 서버 측 브랜치 보호와 병행하세요.
+**로컬에서 방어할 수 없는 영역**: 호스팅 서비스의 API를 직접 호출하는 방식(`gh api repos/…/pulls/N/merge`, `curl`)이나 인터프리터 자식 프로세스 내부 실행(`node -e "child_process.exec('git push …')"`) 등은 구조상 베스트 에포트로 남습니다. 또한 `$()` / 백틱 중첩이 10단계를 넘으면 더 이상 전개되지 않습니다(파서는 비정상 입력으로 충돌하는 대신 전개를 중단합니다). 진정으로 우회 불가능한 경계는 호스팅 서비스의 브랜치 보호 규칙입니다. 본 가드를 즉각적인 피드백 및 감사 추적 도구로 활용하고 서버 측 브랜치 보호와 병행하세요.
 
 ---
 
