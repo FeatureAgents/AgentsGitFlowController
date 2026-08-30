@@ -202,6 +202,10 @@ export function validateConfig(config: GuardConfig): string[] {
     for (let j = i + 1; j < allRoles.length; j++) {
       const bb = config.branches[allRoles[j]]
       if (!bb) continue
+      // 注意: 重叠检测为字面量精确比较(branches 条目是用户写的字面分支名)。
+      // 若两个角色用不同正则表达同一组分支(如 `release/.*` 与 `release/[\\w-]+`),
+      // 不会被识别为重叠 —— 这是已知的设计权衡(角色条目正则合法性已在 normalizeRole 预编译报错)。
+      // 配置者须确保各角色的分支名集合不通过不同写法交叉, 否则门禁角色判定会歧义。
       const overlap = a.branches.some((s) => bb.branches.includes(s))
       if (overlap) errors.push(`branches.${allRoles[i]} and branches.${allRoles[j]} share the same entries`)
     }
