@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.37
+
+- test(gate): close minor coverage gaps from the audit report — add 🟡-5 test asserting `--all` push short-circuits the detached-HEAD branch (verifies the `pushAll` priority path, not `pushDetached`) and 🟡-6 test for `preview` + `flexible` + feature local-merge → allow, symmetric to the existing `integration` + `flexible` case; document the 🟡-8 literal-match limitation in role-overlap detection (no code change; regex-equivalent branch sets are not flagged, a known design tradeoff); update 🟡-9 `package.json` description and keywords to surface the worktree guard (clean working tree + upstream divergence) for npm discoverability —— 补全审计报告中的 minor 覆盖盲区: 新增 🟡-5 测试断言 `--all` 推送在 detached HEAD 下仍走 `pushAll` 短路（验证优先级路径而非 `pushDetached`），以及 🟡-6 测试覆盖 `preview` + `flexible` + feature 本地合入 → 放行（与既有 `integration` + `flexible` 对称）；补充 🟡-8 角色重叠检测仅为字面量精确比较的已知限制说明（不改代码，正则等价分支集合不被识别，属设计权衡）；更新 🟡-9 `package.json` 的 description 与 keywords，使 worktree 守卫（干净工作区 + 上游偏离）在 npm 可被检索发现。
+
 ## 0.0.36
 
 - ci(release): drop the registry-url from setup-node so no registry auth token (default GITHUB_TOKEN) is injected; npm publishing is now purely OIDC trusted-publishing with automatic provenance —— 移除 setup-node 的 `registry-url`, 不再注入 registry 认证 token(默认 GITHUB_TOKEN); npm 发布完全走 OIDC trusted publishing 并自动生成 provenance, 无任何静态 token 残留。
