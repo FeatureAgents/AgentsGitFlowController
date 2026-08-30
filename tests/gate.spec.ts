@@ -19,6 +19,7 @@ function makeConfig(over: Partial<GuardConfig> = {}): GuardConfig {
 
 const config = makeConfig()
 const flexibleIntegration = makeConfig({ branches: { ...config.branches, integration: { branches: ['develop'], update: 'flexible' } } })
+const flexiblePreview = makeConfig({ branches: { ...config.branches, preview: { branches: ['ita1'], update: 'flexible' } } })
 
 function facts(over: Partial<GateFacts> = {}): GateFacts {
   return { currentBranch: 'feature/dev-x-01', ...over }
@@ -78,6 +79,12 @@ describe('gate: 直推受保护分支', () => {
   it('--all 推送 → deny', () => {
     expect(decide({ kind: 'push', dst: null, force: false, delete: false, all: true }, facts(), config).kind).toBe('deny')
   })
+
+  it('🟡-5 · --all 推送 + detached HEAD 仍走 all 短路 → deny(命中 pushAll 文案, 非 detached 文案)', () => {
+    const d = decide({ kind: 'push', dst: null, force: false, delete: false, all: true }, facts({ currentBranch: null }), config)
+    expect(d.kind).toBe('deny')
+    if (d.kind === 'deny') expect(d.reason).toMatch(/all\/--mirror push would include protected branches/i)
+  })
 })
 
 describe('gate: 删除受保护分支', () => {
@@ -102,6 +109,10 @@ describe('gate: 本地合入', () => {
 
   it('集成 flexible: feature 本地合入 → allow', () => {
     expect(decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, facts({ currentBranch: 'develop' }), flexibleIntegration).kind).toBe('allow')
+  })
+
+  it('🟡-6 · 预览 flexible: feature 本地合入 → allow(与 integration flexible 对称)', () => {
+    expect(decide({ kind: 'local-merge', source: 'feature/dev-x-01' }, facts({ currentBranch: 'ita1' }), flexiblePreview).kind).toBe('allow')
   })
 
   it('预览分支: feature 本地合入 → deny(须 PR)', () => {
