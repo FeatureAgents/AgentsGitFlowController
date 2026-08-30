@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.38
+
+- docs(process): add the `dev-loop` executable development-loop skill and wire it into AGENTS.md §4 — `.agents/skills/dev-loop/SKILL.md` turns the §4 pipeline (start-work → TDD → code-review + test-review → closeout) into a runnable loop with an explicit back-edge: review is a hard gate, "passed" is precisely defined as both `code-reviewer` and `test-reviewer` emitting zero `[問題]` items, and closeout (bump / CHANGELOG / PR) is forbidden while any `[問題]` item remains; AGENTS.md §4 now references the skill so the loop discipline is enforced, not left as a suggestion —— 新增 `dev-loop` 可执行开发循环技能并接入 AGENTS.md §4: `.agents/skills/dev-loop/SKILL.md` 将 §4 流水线（start-work → TDD → 代码审查 + 测试审查 → 收尾）固化为带显式回退边的循环，审查作为硬门禁，"通过"精确定义为 `code-reviewer` 与 `test-reviewer` 均输出零 `[問題]` 项，任何 `[問題]` 项未解决前禁止进入收尾（bump / CHANGELOG / 开 PR）；AGENTS.md §4 现引用该技能，使循环纪律被强制而非仅作建议。
+
 ## 0.0.37
 
 - test(gate): close minor coverage gaps from the audit report — add 🟡-5 test asserting `--all` push short-circuits the detached-HEAD branch (verifies the `pushAll` priority path, not `pushDetached`) and 🟡-6 test for `preview` + `flexible` + feature local-merge → allow, symmetric to the existing `integration` + `flexible` case; document the 🟡-8 literal-match limitation in role-overlap detection (no code change; regex-equivalent branch sets are not flagged, a known design tradeoff); update 🟡-9 `package.json` description and keywords to surface the worktree guard (clean working tree + upstream divergence) for npm discoverability —— 补全审计报告中的 minor 覆盖盲区: 新增 🟡-5 测试断言 `--all` 推送在 detached HEAD 下仍走 `pushAll` 短路（验证优先级路径而非 `pushDetached`），以及 🟡-6 测试覆盖 `preview` + `flexible` + feature 本地合入 → 放行（与既有 `integration` + `flexible` 对称）；补充 🟡-8 角色重叠检测仅为字面量精确比较的已知限制说明（不改代码，正则等价分支集合不被识别，属设计权衡）；更新 🟡-9 `package.json` 的 description 与 keywords，使 worktree 守卫（干净工作区 + 上游偏离）在 npm 可被检索发现。
