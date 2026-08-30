@@ -122,7 +122,7 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 纯函数, 无 I/O, 对抗语料回归覆盖:
 
 - **分段**: `&&` `||` `|` `;` 换行拆段, 引号内分隔符不算。
-- **嵌套**: 反引号与 `$()` 内层文本递归送分类(单引号内不展开, 与 shell 语义一致); 子 shell 括号包裹剥离。
+- **嵌套**: 反引号与 `$()` 内层文本递归送分类(单引号内不展开, 与 shell 语义一致); 子 shell 括号包裹剥离。递归深度上限 `MAX_NESTED_DEPTH = 10`, 超限不再展开内层(fail-open 降级, 防病态嵌套栈溢出使 hook 进程崩溃)。
 - **解包**: shell 解释器包装(`sh/bash/zsh/dash/ksh -c`, 含 `-lc` 合并短旗标)取脚本体重分类; 执行前缀 `env`/`command`/`nohup`/`xargs`/`sudo`(含 `-u <user>` 参数消费)与 `VAR=x` 赋值逐层剥离; 绝对路径命令取 basename。
 - **git 形态**: 子命令前全局选项(`-C`/`-c k=v`/`--git-dir` 等)剥离后再判; `push` refspec 族(`+` 强推前缀、`src:`/`:dst` 删除、`refs/heads/` 前缀剥离、`--tags` 豁免、HEAD/裸推延迟到门禁按模拟分支解析); `pull` 取末个非 flag 为来源交本地合入门禁(fetch+merge 不再绕过); plumbing 收编(`send-pack` 按推送语义、`update-ref`/`symbolic-ref` 直改 refs 送 ref-update); `cherry-pick`/`revert` 送 ref-move(`-n`/`--no-commit` 与恢复旗标豁免); `checkout -B/-C`(含旗标簇)目标名送 ref-update + checkout 模拟切换两段。
 - **gh/glab**: `gh pr create --base|-B`、`glab mr create --target-branch`、`gh pr merge <n>`、`glab mr merge <id>`; `-h/--help/--version` 不误判。
