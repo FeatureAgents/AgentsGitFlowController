@@ -1,6 +1,6 @@
 {
   "name": "agents-gitflow-guard",
-  "version": "0.0.36",
+  "version": "0.0.37",
   "description": "A configurable branch-role guard for AI coding agents (DSH / Claude Code / Codex / OpenCode / Antigravity / Pi) — zero-config defaults (develop+main) out of the box, deep-merge override, per-client native hooks via gitflow-guard wire/setup, and worktree guards (clean working tree + upstream divergence) for safe merges and PRs; integration/preview/production/archive, each with its own update rules",
   "license": "MIT",
   "type": "module",
