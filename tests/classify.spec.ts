@@ -204,3 +204,27 @@ describe('classify: checkout -B / switch -C 强制重建(Pi 真机 G5)', () => {
     expect(classify('git switch -C --detach')).toEqual([{ kind: 'checkout', branch: null }])
   })
 })
+
+describe('classify: 嵌套展开深度上限(🟡-7)', () => {
+  it('正常嵌套仍逐层展开, 内层命令被分类', () => {
+    // 三层嵌套: 真实命令里 $(a $(b)) 属常见形态, 上限若被调低到 3 层以下会在此转红
+    const r = classify('echo $(echo $(git push origin develop))')
+    expect(r.some((c) => c.kind === 'push' && (c as { dst?: string | null }).dst === 'develop')).toBe(true)
+  })
+
+  it('病态深层嵌套不导致调用栈溢出(整条嵌套链降级为空分类)', () => {
+    const depth = 5000
+    const bomb = '$('.repeat(depth) + 'git push origin develop' + ')'.repeat(depth)
+    expect(classify(bomb)).toEqual([])
+  })
+
+  it('超过深度上限后停止展开内层(外层照常分类, 内层不产出)', () => {
+    const depth = 50
+    const deep = 'echo $(git push origin develop)'
+    const nested = deep.replace('$(', '$('.repeat(depth)).replace(')', ')'.repeat(depth))
+    const r = classify(nested)
+    // 外层 echo 仍被解析; 超限的内层 git push 不再展开
+    expect(r.some((c) => c.kind === 'other')).toBe(true)
+    expect(r.some((c) => c.kind === 'push')).toBe(false)
+  })
+})
