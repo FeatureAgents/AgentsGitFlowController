@@ -2,12 +2,24 @@
 
 import type { Classified, ClassifyContext, GuardCliClassified, LocalMergeClassified, PrCreateClassified, PrMergeClassified, PushClassified } from './types'
 
+/**
+ * 嵌套展开深度上限: 超过后不再递归展开内层命令。
+ * 病态嵌套($($(...)) 数千层)会让 classify 无限递归直至调用栈溢出, hook 进程以未捕获异常崩溃;
+ * 超限时降级为「不展开内层」, 外层命令照常分类 —— 与项目内部异常默认 fail-open 的策略一致。
+ * 已知权衡: 攻击者可用超过上限的嵌套藏匿内层命令规避检查, 但此类命令在真实 shell 中同样畸形, 风险可接受。
+ */
+const MAX_NESTED_DEPTH = 10
+
 /** 拆分命令为多段(&& / || / | / 分号 / 换行), 每段独立分类; 引号内的分隔符不算 */
 export function classify(command: string, ctx: ClassifyContext = {}): Classified[] {
+  return classifyDepth(command, ctx, 0)
+}
+
+function classifyDepth(command: string, ctx: ClassifyContext, depth: number): Classified[] {
   const { plain, nested } = extractNested(command)
   return [
     ...splitSegments(plain).flatMap((seg) => classifySegment(seg, ctx)),
-    ...nested.flatMap((n) => classify(n, ctx)),
+    ...(depth >= MAX_NESTED_DEPTH ? [] : nested.flatMap((n) => classifyDepth(n, ctx, depth + 1))),
   ]
 }
 
