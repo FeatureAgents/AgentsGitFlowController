@@ -67,7 +67,7 @@ AgentsGitFlowController/
 
 - **开工第零步（基线先行）**：任何内容工作动手前，先加载并执行项目技能 **`.agents/skills/start-work/SKILL.md`**——`git fetch` 核对基线、从 `origin/develop` 派生工作分支后再动文件；发现工作区停在陈旧检出（main 或其他）时，stash 存档后在新分支上重放，禁止就地编辑或携带提交。
 - 测试驱动与代码实现之间按 TDD 循环迭代：先写失败测试（红）→ 最小实现（绿）→ 重构，循环直至完成。
-- 代码审查与测试审查在**合并前**执行，审查通过才进入收尾。
+- 代码审查与测试审查在**合并前**执行，审查通过才进入收尾。审查环节须按项目技能 **`.agents/skills/dev-loop/SKILL.md`** 的 loop 协议执行：`code-reviewer` 与 `test-reviewer` 均输出**无 [問題] 项**方视为"审查通过"；任一含 [問題] 项须回退实现端修正并重审，不得带未解决 [問題] 项进入收尾（bump / CHANGELOG / 开 PR）。
 - **本仓库自身开发也走 GitFlow**：`feature/<主题>` 分支开发 → 测试/矩阵全绿 → **PR 到 develop**【经用户确认合并】; **禁止直接 commit/push develop**。develop 只承载集成、发版 tag 与归档 PR 的源——这与插件对 `develop=integration (update=pr)` 的约束一致，规矩靠纪律执行，不靠插件兜底。
 - **本地 develop 零变更**：禁止对本地 develop 做任何变更操作(commit / amend / reset / cherry-pick / `npm version` / 打 tag / 拉取合并等一律不做)。develop 的一切演进只经 GitHub 的 PR 合并与用户推送产生; 需要基于 develop 的动作一律从 `origin/develop` 派生工作分支(如 `feature/release-<版本>`)。
 - **一分支一 PR, 合并即弃**: PR 合并(或关闭)后立即删除分支(远端+本地); 后续任何工作一律从最新 `origin/develop` 重新切分支。禁止在已合并过的分支上继续追加提交——rebase 式合并会改写 SHA, 复用旧分支会形成两份平行履历, 下一次 PR 必然出现大面积假冲突(0.0.13 第三轮整改实证)。
