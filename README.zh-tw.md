@@ -515,7 +515,7 @@ npm link
 
 在其支援的指令形態內，角色邊界在本地端被強制執行：合入受保護角色分支（integration / preview / production / archive）必須遵循配置好的路徑（PR/MR，或生產/歸檔的人工合併）。常見的混淆包裝均已納入分類與攔截 —— shell 包裝（`sh -c` / `bash -lc`）、子 shell 與反引號/`$()` 巢狀嵌合、`env`/`command`/`nohup`/`xargs`/`sudo` 前綴與 `VAR=x` 賦值、絕對路徑、管線與 `||` 後半段、Git 全域選項（`-C .`、`--git-dir=…`）、萬用字元 refspec（`refs/heads/*:refs/heads/*`）、作為 fetch+merge 使用的 `git pull`，以及 `send-pack`/`update-ref`/`symbolic-ref` 等底層 plumbing 指令；強制重建受保護分支（`checkout -B`/`switch -C`）與受保護分支上的 cherry-pick/revert 則由 ref-update / ref-move 門禁攔截。可執行的對抗測試語料庫位於 `tests/accuracy-audit.spec.ts`。
 
-目前已知**本地端無法防禦**的途徑：直接呼叫代碼託管平台的 API（`gh api repos/…/pulls/N/merge`、`curl`）以及直譯器子進程內嵌執行（`node -e "child_process.exec('git push …')"`）；任意深度的引號與編碼變換天然只能盡力而為。真正不可繞過的安全防禦邊界在於你程式碼託管平台上的分支保護規則。請兩者搭配使用 —— 將本守衛視為即時反饋與稽核留痕工具，而非資安防火牆。
+目前已知**本地端無法防禦**的途徑：直接呼叫代碼託管平台的 API（`gh api repos/…/pulls/N/merge`、`curl`）以及直譯器子進程內嵌執行（`node -e "child_process.exec('git push …')"`）；任意深度的引號與編碼變換天然只能盡力而為;`$()` 或反引號的巢狀結構超過 10 層後不再展開(剖析器會停止展開, 而非在病態酬載上崩潰)。真正不可繞過的安全防禦邊界在於你程式碼託管平台上的分支保護規則。請兩者搭配使用 —— 將本守衛視為即時反饋與稽核留痕工具，而非資安防火牆。
 
 ---
 
