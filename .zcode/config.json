@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "enabled": true,
+    "events": {
+      "PreToolUse": [
+        {
+          "matcher": "^Bash$",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node ${ZCODE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform zcode"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

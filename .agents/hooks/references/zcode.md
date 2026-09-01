@@ -1,7 +1,8 @@
 # Registering hooks in ZCode
 
 > Source: official ZCode client guide (bundled zcode-guide plugin, "Diagnosing Hook Configuration" — mirrors the official hooks documentation).
-> Client status: **planned integration** — `HookPlatform` member, wire spec and matrix cases land with the implementation PR (AGENTS.md §8).
+> Client status: **supported** — `HookPlatform` member, wire spec (`.zcode/config.json` with `hooks.enabled: true` and `events` nesting), and matrix cases implemented.
+
 > ⚠ **The stdin payload shape is NOT documented** — `extractHookPayload` / `detectPlatform` support must stay marked *pending real-device verification* until a live payload is captured.
 
 Registered in the workspace `<repo>/.zcode/config.json` (or `zcode.json`) or globally in `~/.zcode/cli/config.json`, under the top-level `hooks` key. **Configuration-file hooks are disabled by default** — `hooks.enabled: true` is required for them to run (plugin hooks auto-enable the runner):

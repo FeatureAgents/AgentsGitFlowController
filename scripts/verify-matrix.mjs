@@ -7,6 +7,9 @@
 //   E) antigravity 编码
 //   F) OpenCode 插件   (--platform opencode 协议层 + wire 落位 plugins 目录装配断言)
 //   G) Pi 扩展          (createPiExtension tool_call block 契约, 真实 CLI 走通)
+//   H) CodeBuddy hook   (gitflow-guard check --platform codebuddy + wire 装配)
+//   I) ZCode hook       (gitflow-guard check --platform zcode + wire enabled/events 装配)
+
 // 用法: npm run verify:matrix (内含 npm run build + 本脚本)
 
 import { execFileSync } from 'node:child_process'
@@ -257,6 +260,48 @@ console.log('[G] Pi extension (tool_call block contract, real CLI)')
   }
 }
 
+console.log('[H] CodeBuddy hook (--platform codebuddy + wire 装配)')
+{
+  const repo = tempRepo(CONFIG)
+  try {
+    const deny = runCheck('codebuddy', JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: repo }), repo)
+    check('拦截: exit 2', deny.code === 2, `code=${deny.code}`)
+    check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
+    const ok = runCheck('codebuddy', JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }), repo)
+    check('放行: exit 0 且无输出', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
+    // wire 装配: 落位到 .codebuddy/settings.json
+    execFileSync('node', [BIN, 'wire', '--client', 'codebuddy', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
+    const settings = JSON.parse(readFileSync(join(repo, '.codebuddy', 'settings.json'), 'utf8'))
+    const cmd = settings.hooks.PreToolUse[0].hooks[0].command
+    check('wire 落位: CodeBuddy 命令含 check --platform codebuddy', cmd.includes('check --platform codebuddy'), cmd)
+    check('wire 落位: matcher 为 ^Bash$', settings.hooks.PreToolUse[0].matcher === '^Bash$')
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+}
+
+console.log('[I] ZCode hook (--platform zcode + wire 装配)')
+{
+  const repo = tempRepo(CONFIG)
+  try {
+    const deny = runCheck('zcode', JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: repo }), repo)
+    check('拦截: exit 2', deny.code === 2, `code=${deny.code}`)
+    check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
+    const ok = runCheck('zcode', JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }), repo)
+    check('放行: exit 0 且无输出', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
+    // wire 装配: 落位到 .zcode/config.json, 需 enabled: true 与 events 嵌套
+    execFileSync('node', [BIN, 'wire', '--client', 'zcode', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
+    const config = JSON.parse(readFileSync(join(repo, '.zcode', 'config.json'), 'utf8'))
+    check('wire 落位: ZCode hooks.enabled 必须为 true', config.hooks.enabled === true)
+    const cmd = config.hooks.events.PreToolUse[0].hooks[0].command
+    check('wire 落位: ZCode 命令含 check --platform zcode', cmd.includes('check --platform zcode'), cmd)
+    check('wire 落位: matcher 为 ^Bash$', config.hooks.events.PreToolUse[0].matcher === '^Bash$')
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+}
+
 console.log('\n' + lines.join('\n'))
 console.log(`\n=== ${pass} PASS / ${fail} FAIL ===`)
 process.exit(fail ? 1 : 0)
+
