@@ -1,5 +1,5 @@
 ---
-name: unittest-case
+name: unit-testcase
 description: Use when defining failing unit-test scenarios before implementation or refactor
 tools: Read, Edit, Write, Bash
 ---
