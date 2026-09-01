@@ -1,6 +1,6 @@
 ---
 name: dev-loop
-description: The executable development loop for this repo. Wires start-work → TDD (red/green/refactor) → code-review + test-review gate → (loop back on any [問題] item) → closeout (bump/CHANGELOG/QA/PR). Load this skill for ANY content work; the review gate is a hard loop — never enter closeout with unresolved [問題] items.
+description: The executable development loop for this repo. Wires start-work → TDD (unit-testcase/e2e-testcase → coder → unit-tester/e2e-tester) → review gate (code-reviewer + security-checker + test-reviewer) → (loop back on any [問題] item) → closeout (bump/CHANGELOG/QA/PR). Load this skill for ANY content work; the review gate is a hard loop — never enter closeout with unresolved [問題] items.
 ---
 
 # dev-loop · Executable Development Loop (Hard Gate, Not a Suggestion)
@@ -13,22 +13,26 @@ This skill is the **runnable form** of the pipeline declared in AGENTS.md §4. A
 ┌─ start-work (baseline first: git fetch + derive feature/<topic> from origin/develop)
 │
 ├─ TDD INNER LOOP (repeat until green + behavior-verified)
-│     red   → write a failing test that is NOT vacuously true (prove it fails for the right reason)
-│     green → minimal implementation
+│     red   → unit-testcase / e2e-testcase: write failing unit tests or define E2E scenarios
+│     green → coder: minimal implementation
+│     test  → unit-tester: green unit tests / e2e-tester: verify real sandbox & physical evidence
 │     refactor → cleanup; re-run tests
 │
-├─ code-reviewer  ──┐
-├─ test-reviewer  ──┤  (both run; each emits [通過] / [問題] lists)
-│                   │
-│         any [問題] item present? ──YES──▶ back to coder/tester, fix, RE-RUN BOTH REVIEWS (loop)
-│                   │
-│                   NO (both clean)
-│                   ▼
+├─ code-reviewer     ──┐
+├─ security-checker  ──┼─ (all run; each emits [通過] / [問題] lists)
+├─ test-reviewer     ──┘
+│                      │
+│            any [問題] item present? ──YES──▶ back to coder/tester, fix, RE-RUN REVIEWS (loop)
+│                      │
+│                      NO (all clean)
+│                      ▼
+├─ doc-writer (update AGENTS.md, READMEs via readme-sync if needed)
+│
 ├─ closeout
 │     • bump version (npm version patch) on the feature branch
 │     • CHANGELOG entry (version number only, no date, same PR)
 │     • QA triple: typecheck 0 Error · npm test all green · npm run verify:matrix all green
-│     • readme-sync if user-facing docs changed (npm run check:readmes)
+│     • pre-commit-review: list files, confirm manifest with user before commit
 │     • PR to develop (title + body in ENGLISH) — merge only after user confirmation
 │
 └─ after merge: delete branch (remote + local); never append to a merged branch
@@ -36,11 +40,12 @@ This skill is the **runnable form** of the pipeline declared in AGENTS.md §4. A
 
 ## Gate Definition (the loop's exit condition)
 
-**"Review passed" is precisely: both `code-reviewer` and `test-reviewer` emit conclusions with ZERO `[問題]` items** (no blocking, no violation). Only then is closeout unlocked.
+**"Review passed" is precisely: `code-reviewer`, `security-checker`, and `test-reviewer` emit conclusions with ZERO `[問題]` items** (no blocking, no violation). Only then is closeout unlocked.
 
 - **code-reviewer checks against**: AGENTS.md §4/§5 iron rules (local develop zero-change, no AI co-author signature, CHANGELOG-with-PR, 11-language README parity, atomic/minimal change), §7 pitfall log, §8 client checklist.
+- **security-checker checks against**: AGENTS.md §5 safety rules (no destructive shell usage, no unsafe exec/injection, secret leakage, boundary regressions).
 - **test-reviewer checks against**: AGENTS.md §6 test rules (assert behavior not just "no throw", real coverage not line-counting, restrained mocking).
-- **On any `[問題]` item**: closeout is FORBIDDEN. Return to the responsible implementation stage (coder / tester), fix, then **re-run both reviews**. Do NOT merge with unresolved `[問題]` items — there is no "approved-with-issues" path.
+- **On any `[問題]` item**: closeout is FORBIDDEN. Return to the responsible implementation stage (coder / unittester / e2e-tester), fix, then **re-run all reviews**. Do NOT merge with unresolved `[問題]` items — there is no "approved-with-issues" path.
 - **Review output format**: each reviewer MUST emit explicit `[通過]` and `[問題]` lists; when clean, output verbatim "審查通過，可進入收尾" (review passed, may close out).
 
 ## Why a Loop, Not a Line

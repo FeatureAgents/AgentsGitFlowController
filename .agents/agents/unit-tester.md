@@ -1,5 +1,5 @@
 ---
-name: unittester
+name: unit-tester
 description: Use when running the unit test loop and fixing implementation until the red-to-green cycle passes
 tools: Read, Edit, Write, Bash
 ---
