@@ -64,9 +64,9 @@ AgentsGitFlowController/
 → 测试驱动 (unittest-case) 
 → 测试驱动 (e2e-testcase-case) 
 → 代码实现 (coder) 
+→ 代码审查 (code-reviewer) 
 → 测试 (unittester) 
 → 测试 (e2e-testcaser)
-→ 代码审查 (code-reviewer) 
 → 测试审查 (test-reviewer)
 → 文档同步 (doc-writer)
 ```
