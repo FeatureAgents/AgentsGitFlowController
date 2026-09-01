@@ -25,8 +25,10 @@ docs/issues.md
 # 本地客户端设计底稿（私有工作文档, 非公开提交）
 docs/design/antigravity.md
 docs/design/claude-code.md
+docs/design/codebuddy.md
 docs/design/codex.md
 docs/design/dsh.md
 docs/design/opencode.md
 docs/design/pi.md
+docs/design/zcode.md
 
