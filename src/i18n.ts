@@ -104,7 +104,7 @@ const en: Dict = {
   'cli.checkInternalError': (v) => `[gitflow-guard] check internal error, allowed through: ${v.msg}`,
   'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] guard disabled: invalid config: ${v.err}`,
   // —— wire / setup / 默认配置引导 ——
-  'cli.wireUnknownClient': (v) => `unknown client: ${v.client} (expected dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode)`,
+  'cli.wireUnknownClient': (v) => `unknown client: ${v.client} (expected dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor)`,
   'cli.wireNeedRepo': () => 'project scope needs a git repository — run inside a repo or pass --repo <path>',
   'cli.wireScopeAsk': () => 'Scope — project (this repo only) or global (all repos on this machine)? [project/global] ',
   'cli.wireScopeInvalid': () => 'invalid scope (expected project or global)',
@@ -126,8 +126,8 @@ const en: Dict = {
   'cli.statusWireHints': () => 'Wiring:',
   'cli.statusWireHint': (v) => `  ${v.client}: not wired — run: gitflow-guard wire --client ${v.client}`,
   'cli.setupIntro': () => 'gitflow-guard setup — wire one client for this project. (Ctrl+C to cancel)',
-  'cli.setupClientAsk': () => 'Which client? [dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode] ',
-  'cli.setupClientInvalid': () => 'invalid client (expected dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode)',
+  'cli.setupClientAsk': () => 'Which client? [dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor] ',
+  'cli.setupClientInvalid': () => 'invalid client (expected dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor)',
   'cli.setupNoTty': () => 'setup needs an interactive terminal — use: gitflow-guard wire --client <name> --yes',
   'guardStrictConfigBroken.why': () => 'Guard config is invalid while strict mode is enabled',
   'guardStrictConfigBroken.next': () => 'Fix gitflow-guard.config.json (or remove "strict": true) before retrying.',
@@ -138,8 +138,8 @@ const en: Dict = {
 Usage:
   gitflow-guard status [--repo <path>] [--locale <en|zh>]
   gitflow-guard audit [--lines <count>] [--repo <path>] [--locale <en|zh>]
-  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|codebuddy|zcode>] [--command "<cmd>"] [--repo <path>] [--locale <en|zh>]
-  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <path>] [--locale <en|zh>]
+  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|codebuddy|zcode|cursor>] [--command "<cmd>"] [--repo <path>] [--locale <en|zh>]
+  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <path>] [--locale <en|zh>]
   gitflow-guard setup [--repo <path>] [--locale <en|zh>]
   gitflow-guard --help
 
@@ -148,7 +148,7 @@ Notes:
   status/audit are read-only; the agent can self-inspect.
   --locale overrides the message language for this invocation (flag > project config > English).
   check reads the hook payload on stdin (platform-specific protocol: claude/opencode exit 2,
-  codex/antigravity JSON on stdout) and is meant for pre/post hooks of AI agents.
+  codex/antigravity/cursor JSON on stdout) and is meant for pre/post hooks of AI agents.
   wire writes each client's hook config (or the OpenCode plugin file) into the project
   (default) or global scope; dsh/pi are in-process and only print guidance. No config file
   needed — built-in defaults (develop+main) apply out of the box; create
@@ -230,7 +230,7 @@ const zh: Dict = {
   'cli.checkInternalError': (v) => `[gitflow-guard] check 内部错误, 已放行: ${v.msg}`,
   'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] 守卫未启用: 配置无效: ${v.err}`,
   // —— wire / setup / 默认配置引导 ——
-  'cli.wireUnknownClient': (v) => `未知客户端: ${v.client}(应为 dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode)`,
+  'cli.wireUnknownClient': (v) => `未知客户端: ${v.client}(应为 dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor)`,
   'cli.wireNeedRepo': () => '项目级作用域需要一个 git 仓库 — 请在仓库内运行, 或传 --repo <路径>',
   'cli.wireScopeAsk': () => '作用域 — project(仅当前仓库) 还是 global(本机所有仓库)? [project/global] ',
   'cli.wireScopeInvalid': () => '无效作用域(应为 project 或 global)',
@@ -252,8 +252,8 @@ const zh: Dict = {
   'cli.statusWireHints': () => '接线:',
   'cli.statusWireHint': (v) => `  ${v.client}: 未接线 — 运行: gitflow-guard wire --client ${v.client}`,
   'cli.setupIntro': () => 'gitflow-guard setup — 为本项目接线一个客户端。(Ctrl+C 取消)',
-  'cli.setupClientAsk': () => '选哪个客户端? [dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode] ',
-  'cli.setupClientInvalid': () => '无效客户端(应为 dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode)',
+  'cli.setupClientAsk': () => '选哪个客户端? [dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor] ',
+  'cli.setupClientInvalid': () => '无效客户端(应为 dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor)',
   'cli.setupNoTty': () => 'setup 需要交互终端 — 请用: gitflow-guard wire --client <名字> --yes',
   'guardStrictConfigBroken.why': () => '守卫配置无效, 且已启用 strict 模式',
   'guardStrictConfigBroken.next': () => '请先修复 gitflow-guard.config.json(或移除 "strict": true)后重试',
@@ -264,8 +264,8 @@ const zh: Dict = {
 用法:
   gitflow-guard status [--repo <路径>] [--locale <en|zh>]
   gitflow-guard audit [--lines <数量>] [--repo <路径>] [--locale <en|zh>]
-  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|codebuddy|zcode>] [--command "<cmd>"] [--repo <路径>] [--locale <en|zh>]
-  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|codebuddy|zcode|cursor>] [--command "<cmd>"] [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <路径>] [--locale <en|zh>]
   gitflow-guard setup [--repo <路径>] [--locale <en|zh>]
   gitflow-guard --help
 
@@ -273,7 +273,7 @@ const zh: Dict = {
 说明:
   status/audit 只读, agent 可自查。
   --locale 可临时覆盖本次调用的文案语言(旗标 > 项目配置 > 英文)。
-  check 读 stdin hook payload 做门禁(平台协议: claude/opencode exit 2, codex/antigravity stdout JSON),
+  check 读 stdin hook payload 做门禁(平台协议: claude/opencode exit 2, codex/antigravity/cursor stdout JSON),
   供 Claude Code / Codex / OpenCode 等 agent 的 pre/post hook 调用。
   wire 把各客户端默认 hook 写入工程(默认)或全局作用域(opencode 为复制插件文件); dsh/pi 为进程内接入, 仅打印引导。
   无需配置文件 — 内置默认(develop+main)开箱即用; 建 gitflow-guard.config.json 可覆盖, 或写 "enabled": false 关闭。`,

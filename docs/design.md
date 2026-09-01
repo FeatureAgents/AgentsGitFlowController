@@ -154,10 +154,11 @@ locale: 内置 `en`/`zh`; `registerLocale(name, dict)` 运行时扩展(键一致
 | Pi | 进程内扩展(tool_call 事件) | event.input.command | 返回值 {block:true, reason}, 不经 stdin/exit 协议 |
 | CodeBuddy | PreToolUse hook(.codebuddy/settings.json; 官方 Claude Code Hooks 兼容实现, Beta v1.16.0+) | 同 Claude 形(无判别字段) | exit 2, stderr 即原因(官方 stdout 消息优先级更高, 守卫 stdout 留空即落 stderr) |
 | ZCode | PreToolUse hook(.zcode/config.json; 配置文件 hooks 默认禁用, 须 hooks.enabled:true) | 待真机核验(CLAUDE_* 模板变量别名暗示同 Claude 形) | exit 2, stderr 即原因(stdout JSON 为严格 schema, 多键即失效, 弃用) |
+| Cursor | beforeShellExecution hook(.cursor/hooks.json) | command + cwd (含 cursor_version / workspace_roots 判别字段) | exit 0 + stdout {"permission":"deny","user_message":...,"agent_message":...} |
 
-`check --platform auto` 按 payload 判别: `turn_id`→codex、`toolCall`→antigravity、`tool_args`→opencode、其余→claude。CodeBuddy / ZCode 的 payload 与 Claude 同形且无判别字段, auto 一并归 claude 通道——两者 deny 编码与 claude 相同(exit 2), 判定行为无差异; wire 落位写显式 `--platform codebuddy|zcode`。
+`check --platform auto` 按 payload 判别: `turn_id`→codex、`toolCall`→antigravity、`tool_args`→opencode、`cursor_version`/`workspace_roots`→cursor、其余→claude。CodeBuddy / ZCode 的 payload 与 Claude 同形且无判别字段, auto 一并归 claude 通道——两者 deny 编码与 claude 相同(exit 2), 判定行为无差异; wire 落位写显式 `--platform codebuddy|zcode|cursor`。
 
-> 接入状态: CodeBuddy / ZCode 已**正式接入**——`HookPlatform` 成员、wire 规格（`.codebuddy/settings.json` 与 `.zcode/config.json`）、dogfood 配置及复测矩阵九节用例（[H] 与 [I]）全部落地闭环。
+> 接入状态: CodeBuddy / ZCode / Cursor 已**正式接入**——`HookPlatform` 成员、wire 规格（`.codebuddy/settings.json`、`.zcode/config.json` 与 `.cursor/hooks.json`）、dogfood 配置及复测矩阵十节用例（[H]、[I] 与 [J]）全部落地闭环。
 
 ## 9. CLI
 

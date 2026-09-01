@@ -1,13 +1,13 @@
 // 跨平台 hook 适配层: 解析各家工具 stdin payload → 统一 {command, cwd, event}; 按平台编码 deny
 // 只以各平台官方 hook 文档为准, 自行实现; 拿不准的 wire 格式在真机核验后定稿。
-// 范围注记(AGENTS.md §8.1 例外): HookPlatform 仅覆盖 stdin-hook 类平台(claude/codex/antigravity/opencode/codebuddy/zcode)。
+// 范围注记(AGENTS.md §8.1 例外): HookPlatform 仅覆盖 stdin-hook 类平台(claude/codex/antigravity/opencode/codebuddy/zcode/cursor)。
 // DSH 与 Pi 是进程内接入, 不在本层:
 // - DSH 挂载经 patch.yml + dsh.bundle.patch, 拦截经 src/index.ts 的 apply() 监听 tools/pre-execute、
 //   以返回值 {kind:'deny',reason} 表达, 协议记载见 .agents/hooks/references/dsh.md;
 // - Pi 经项目扩展监听 tool_call、以返回值 {block:true, reason} 表达, 适配层在 src/pi.ts
 //   (createPiExtension), 协议记载见 .agents/hooks/references/pi.md。
 
-export type HookPlatform = 'claude' | 'codex' | 'antigravity' | 'opencode' | 'codebuddy' | 'zcode'
+export type HookPlatform = 'claude' | 'codex' | 'antigravity' | 'opencode' | 'codebuddy' | 'zcode' | 'cursor'
 
 export type HookEvent = 'pre' | 'post' | 'post-failure'
 
@@ -29,9 +29,12 @@ interface RawPayload {
   hook_event_name?: unknown
   tool_input?: { command?: unknown }
   tool_args?: { command?: unknown; cmd?: unknown }
+  command?: unknown
   cwd?: unknown
   tool_use_id?: unknown
   turn_id?: unknown
+  cursor_version?: unknown
+  workspace_roots?: unknown
   // agy 1.1.22 实机 payload 核验(TestResult/antigravity.md AGY-D3): cwd 在 toolCall.args.Cwd(嵌套大写 C), 不在顶层
   toolCall?: { args?: { CommandLine?: unknown; Cwd?: unknown } }
 }
@@ -41,7 +44,7 @@ function str(v: unknown): string {
 }
 
 function eventFrom(hookEventName: unknown): HookEvent {
-  if (hookEventName === 'PostToolUse') return 'post'
+  if (hookEventName === 'PostToolUse' || hookEventName === 'afterShellExecution') return 'post'
   if (hookEventName === 'PostToolUseFailure') return 'post-failure'
   return 'pre'
 }
@@ -49,7 +52,8 @@ function eventFrom(hookEventName: unknown): HookEvent {
 function parseRaw(raw: string): RawPayload | null {
   if (!raw) return null
   try {
-    const j = JSON.parse(raw) as unknown
+    const cleaned = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw
+    const j = JSON.parse(cleaned) as unknown
     if (typeof j !== 'object' || j === null) return null
     return j as RawPayload
   } catch {
@@ -69,6 +73,10 @@ export function extractHookPayload(raw: string, platform: HookPlatform | 'auto' 
     // Claude Code / Codex / CodeBuddy / ZCode 同形: tool_input.command + cwd
     command = str(j.tool_input?.command)
     cwd = str(j.cwd)
+  } else if (plat === 'cursor') {
+    // Cursor beforeShellExecution (command + cwd) 或 preToolUse (tool_input.command + workspace_roots)
+    command = str(j.command) || str(j.tool_input?.command)
+    cwd = str(j.cwd) || (Array.isArray(j.workspace_roots) && typeof j.workspace_roots[0] === 'string' ? j.workspace_roots[0] : '')
   } else if (plat === 'opencode') {
     // OpenCode tool.before.* : tool_args.command(或 cmd)+ cwd
     command = str(j.tool_args?.command) || str(j.tool_args?.cmd)
@@ -82,13 +90,14 @@ export function extractHookPayload(raw: string, platform: HookPlatform | 'auto' 
   return { command, cwd: cwd || undefined, toolUseId: str(j.tool_use_id) || undefined, event: eventFrom(j.hook_event_name) }
 }
 
-/** 按 payload 判别平台: 非空 turn_id→codex, toolCall→antigravity, tool_args→opencode, 其余→claude */
+/** 按 payload 判别平台: 非空 turn_id→codex, toolCall→antigravity, tool_args→opencode, cursor_version/workspace_roots→cursor, 其余→claude */
 export function detectPlatform(raw: string): HookPlatform {
   const j = parseRaw(raw)
   if (!j) return 'claude'
   if (j.turn_id) return 'codex'
   if (j.toolCall) return 'antigravity'
   if (j.tool_args) return 'opencode'
+  if (j.cursor_version || j.workspace_roots) return 'cursor'
   return 'claude'
 }
 
@@ -114,6 +123,17 @@ export function encodeDeny(platform: HookPlatform, reason: string): DenyEncoding
       // 官方(antigravity.google/docs/ide/hooks): 必须 exit 0; stdout 顶层 { decision: allow|deny|ask|force_ask, reason }
       // 包裹 hookSpecificOutput 或非零退出都会校验失败; decision 无 "block" 值
       return { exitCode: 0, stdout: JSON.stringify({ decision: 'deny', reason }) }
+    case 'cursor':
+      // 官方(cursor.com/docs/reference/hooks): exit 0 + stdout JSON { permission: 'deny', user_message, agent_message }
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          permission: 'deny',
+          user_message: reason,
+          agent_message: reason,
+        }),
+        stderr: reason,
+      }
   }
 }
 
