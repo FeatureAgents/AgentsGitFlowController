@@ -182,4 +182,5 @@ export type GateDecision =
   | { kind: 'deny'; reason: string; next: string }
 
 /** wire 目标客户端枚举(dsh/pi 为进程内接入, 无 hook 文件, 仅输出接入引导) */
-export type ClientId = 'dsh' | 'claude' | 'codex' | 'opencode' | 'antigravity' | 'pi'
+export type ClientId = 'dsh' | 'claude' | 'codex' | 'opencode' | 'antigravity' | 'pi' | 'codebuddy' | 'zcode'
+

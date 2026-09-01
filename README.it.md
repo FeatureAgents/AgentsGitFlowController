@@ -2,7 +2,7 @@
 
 > **Sei stanco che gli agenti IA ignorino il tuo GitFlow?**
 
-Un guardiano configurabile per i ruoli dei branch Git per agenti di codifica IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) e [Pi](https://github.com/mariozechner/pi).
+Un guardiano configurabile per i ruoli dei branch Git per agenti di codifica IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) e [Pi](https://github.com/mariozechner/pi).
 Definisci i tuoi branch —
 **integration** (le feature confluiscono tramite PR/MR), **preview** (endpoint di ambiente), **production**, **archive** — ciascuno con le proprie regole di aggiornamento. Gli agenti non possono aggirare il flusso e i merge critici rimangono nelle tue mani.
 
@@ -36,10 +36,10 @@ Definisci i tuoi branch —
 
 ## Guida rapida — 30 secondi per proteggere il repository
 
-**Passo 1 — installazione.** Tutti e sei i client utilizzano lo stesso pacchetto npm `agents-gitflow-guard` — scegli la modalità di installazione corrispondente al tuo agente:
+**Passo 1 — installazione.** Tutti gli otto client utilizzano lo stesso pacchetto npm `agents-gitflow-guard` — scegli la modalità di installazione corrispondente al tuo agente:
 
 ```bash
-# Modalità A: Client Hook CLI (Claude Code · Codex · OpenCode · Antigravity)
+# Modalità A: Client Hook CLI (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
 npm i -g agents-gitflow-guard
 ```
 
@@ -65,11 +65,14 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity (ciascuno con il proprio file di configurazione; --yes salta la richiesta y/N)
+# Codex / OpenCode / Antigravity / CodeBuddy / ZCode (ciascuno con il proprio file di configurazione; --yes salta la richiesta y/N)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
+gitflow-guard wire --client codebuddy --project --yes
+gitflow-guard wire --client zcode --project --yes
 ```
+
 
 ```bash
 # Anteprima (nessuna scrittura) / rimozione / guida interattiva:
@@ -363,11 +366,11 @@ La destinazione della PR/MR viene risolta tramite `gh pr view` (GitHub) o `glab 
 
 | Tipo di Client / Piattaforma | Comando di Installazione | Passo di Montaggio e Collegamento |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <nome> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <nome> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | Riavviare DSH — il plugin si monta automaticamente come layer del profilo |
 | Pi | `npm i -D agents-gitflow-guard` | Copiare `pi/gitflow-guard.ts` in `.pi/extensions/` |
 
-### 1. Client Hook CLI autonomi (Claude Code · Codex · OpenCode · Antigravity)
+### 1. Client Hook CLI autonomi (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
 
 Installa la CLI globalmente una sola volta, quindi **collega ciascun client con un singolo comando** (il guardiano è attivo per impostazione predefinita tramite la sua configurazione integrata, quindi il collegamento è tutto ciò che resta da fare):
 
@@ -377,6 +380,8 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
+gitflow-guard wire --client codebuddy --project --yes
+gitflow-guard wire --client zcode --project --yes
 ```
 
 `wire` legge il file di configurazione esistente (se presente), inserisce la voce dell'hook senza toccare nient'altro, è idempotente (già collegato → saltato), supporta `--dry-run` per visualizzare l'anteprima e `--unwire` per rimuovere, e richiede conferma prima di modificare i file `--global`. I file esatti scritti (a scopo di riferimento e per la scrittura manuale alternativa a `wire`) sono:
@@ -453,9 +458,9 @@ npm install && npm run build
 Monta la build locale nella piattaforma target del tuo agente:
 
 ```bash
-# A. Client Hook CLI autonomi (Claude Code · Codex · OpenCode · Antigravity)
+# A. Client Hook CLI autonomi (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
 npm link # o npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/path/to/AgentsGitFlowController
@@ -477,10 +482,11 @@ npm link
 ### 5. Meccanismo degli hook e note tecniche
 
 - **Protocollo della piattaforma**: L'hook legge il payload su stdin e risponde secondo il protocollo della piattaforma specifica:
-  - **Claude Code / OpenCode**: `exit 2` (stderr contiene la motivazione e i passi operativi successivi).
+  - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2` (stderr contiene la motivazione e i passi operativi successivi).
   - **Codex**: stdout JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`.
   - **Antigravity**: stdout JSON `{"decision":"deny","reason":...}` con `exit 0` (Antigravity richiede exit 0).
   - **Pi**: Estensione in-process in ascolto sull'evento `tool_call` con rifiuto tramite `{ block: true, reason }`.
+
 - **Esecuzione pre-tool**: Viene intercettato solo l'evento pre-tool; il guardiano blocca *prima* dell'esecuzione dei comandi, pertanto non sono necessari hook post-tool o fasi di pulizia dei permessi.
 - **Risoluzione di PATH per gli eseguibili**: L'installazione globale (`npm i -g`) fornisce l'eseguibile `gitflow-guard`. Se l'ambiente di esecuzione dell'agente non eredita il `PATH` interattivo, utilizza il percorso completo ottenuto con `npm bin -g`.
 - **Abilitato per impostazione predefinita**: I valori predefiniti integrati (`integration: ["develop"]`, `archive: ["main"]`) hanno effetto senza alcun file di configurazione. Le configurazioni personalizzate in `gitflow-guard.config.json` vengono applicate tramite deep-merge sui valori predefiniti.

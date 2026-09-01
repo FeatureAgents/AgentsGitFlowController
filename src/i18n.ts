@@ -104,7 +104,7 @@ const en: Dict = {
   'cli.checkInternalError': (v) => `[gitflow-guard] check internal error, allowed through: ${v.msg}`,
   'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] guard disabled: invalid config: ${v.err}`,
   // —— wire / setup / 默认配置引导 ——
-  'cli.wireUnknownClient': (v) => `unknown client: ${v.client} (expected dsh|claude|codex|opencode|antigravity|pi)`,
+  'cli.wireUnknownClient': (v) => `unknown client: ${v.client} (expected dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode)`,
   'cli.wireNeedRepo': () => 'project scope needs a git repository — run inside a repo or pass --repo <path>',
   'cli.wireScopeAsk': () => 'Scope — project (this repo only) or global (all repos on this machine)? [project/global] ',
   'cli.wireScopeInvalid': () => 'invalid scope (expected project or global)',
@@ -126,8 +126,8 @@ const en: Dict = {
   'cli.statusWireHints': () => 'Wiring:',
   'cli.statusWireHint': (v) => `  ${v.client}: not wired — run: gitflow-guard wire --client ${v.client}`,
   'cli.setupIntro': () => 'gitflow-guard setup — wire one client for this project. (Ctrl+C to cancel)',
-  'cli.setupClientAsk': () => 'Which client? [dsh|claude|codex|opencode|antigravity|pi] ',
-  'cli.setupClientInvalid': () => 'invalid client (expected dsh|claude|codex|opencode|antigravity|pi)',
+  'cli.setupClientAsk': () => 'Which client? [dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode] ',
+  'cli.setupClientInvalid': () => 'invalid client (expected dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode)',
   'cli.setupNoTty': () => 'setup needs an interactive terminal — use: gitflow-guard wire --client <name> --yes',
   'guardStrictConfigBroken.why': () => 'Guard config is invalid while strict mode is enabled',
   'guardStrictConfigBroken.next': () => 'Fix gitflow-guard.config.json (or remove "strict": true) before retrying.',
@@ -138,10 +138,11 @@ const en: Dict = {
 Usage:
   gitflow-guard status [--repo <path>] [--locale <en|zh>]
   gitflow-guard audit [--lines <count>] [--repo <path>] [--locale <en|zh>]
-  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity>] [--command "<cmd>"] [--repo <path>] [--locale <en|zh>]
-  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <path>] [--locale <en|zh>]
+  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|codebuddy|zcode>] [--command "<cmd>"] [--repo <path>] [--locale <en|zh>]
+  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <path>] [--locale <en|zh>]
   gitflow-guard setup [--repo <path>] [--locale <en|zh>]
   gitflow-guard --help
+
 
 Notes:
   status/audit are read-only; the agent can self-inspect.
@@ -229,7 +230,7 @@ const zh: Dict = {
   'cli.checkInternalError': (v) => `[gitflow-guard] check 内部错误, 已放行: ${v.msg}`,
   'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] 守卫未启用: 配置无效: ${v.err}`,
   // —— wire / setup / 默认配置引导 ——
-  'cli.wireUnknownClient': (v) => `未知客户端: ${v.client}(应为 dsh|claude|codex|opencode|antigravity|pi)`,
+  'cli.wireUnknownClient': (v) => `未知客户端: ${v.client}(应为 dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode)`,
   'cli.wireNeedRepo': () => '项目级作用域需要一个 git 仓库 — 请在仓库内运行, 或传 --repo <路径>',
   'cli.wireScopeAsk': () => '作用域 — project(仅当前仓库) 还是 global(本机所有仓库)? [project/global] ',
   'cli.wireScopeInvalid': () => '无效作用域(应为 project 或 global)',
@@ -251,8 +252,8 @@ const zh: Dict = {
   'cli.statusWireHints': () => '接线:',
   'cli.statusWireHint': (v) => `  ${v.client}: 未接线 — 运行: gitflow-guard wire --client ${v.client}`,
   'cli.setupIntro': () => 'gitflow-guard setup — 为本项目接线一个客户端。(Ctrl+C 取消)',
-  'cli.setupClientAsk': () => '选哪个客户端? [dsh|claude|codex|opencode|antigravity|pi] ',
-  'cli.setupClientInvalid': () => '无效客户端(应为 dsh|claude|codex|opencode|antigravity|pi)',
+  'cli.setupClientAsk': () => '选哪个客户端? [dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode] ',
+  'cli.setupClientInvalid': () => '无效客户端(应为 dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode)',
   'cli.setupNoTty': () => 'setup 需要交互终端 — 请用: gitflow-guard wire --client <名字> --yes',
   'guardStrictConfigBroken.why': () => '守卫配置无效, 且已启用 strict 模式',
   'guardStrictConfigBroken.next': () => '请先修复 gitflow-guard.config.json(或移除 "strict": true)后重试',
@@ -263,10 +264,11 @@ const zh: Dict = {
 用法:
   gitflow-guard status [--repo <路径>] [--locale <en|zh>]
   gitflow-guard audit [--lines <数量>] [--repo <路径>] [--locale <en|zh>]
-  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity>] [--command "<cmd>"] [--repo <路径>] [--locale <en|zh>]
-  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|codebuddy|zcode>] [--command "<cmd>"] [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <路径>] [--locale <en|zh>]
   gitflow-guard setup [--repo <路径>] [--locale <en|zh>]
   gitflow-guard --help
+
 
 说明:
   status/audit 只读, agent 可自查。

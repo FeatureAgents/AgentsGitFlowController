@@ -11,13 +11,13 @@ function tempDir(prefix = 'gfguard-wire-') {
   return dir
 }
 
-describe('wire: JSON 客户端(claude/codex)幂等落位与移除', () => {
-  const clients = ['claude', 'codex'] as const
+describe('wire: JSON 客户端(claude/codex/codebuddy)幂等落位与移除', () => {
+  const clients = ['claude', 'codex', 'codebuddy'] as const
 
   for (const client of clients) {
     it(`${client}: 首次落位 added → 二次 exists(幂等) → unwire removed → 二次 absent`, async () => {
       const dir = tempDir()
-      const path = join(dir, client === 'claude' ? '.claude/settings.json' : '.codex/hooks.json')
+      const path = join(dir, client === 'claude' ? '.claude/settings.json' : client === 'codex' ? '.codex/hooks.json' : '.codebuddy/settings.json')
       try {
         expect(await applyWire(client, path, false, false)).toBe('added')
         await expect(isWired(client, path)).resolves.toBe(true)
@@ -72,6 +72,58 @@ describe('wire: JSON 客户端(claude/codex)幂等落位与移除', () => {
       writeFileSync(path, '{broken')
       await expect(isWired('claude', path)).resolves.toBe(false)
       await expect(isWired('antigravity', path, dir)).resolves.toBe(false)
+      await expect(isWired('codebuddy', path)).resolves.toBe(false)
+      await expect(isWired('zcode', path)).resolves.toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('wire: zcode (events 嵌套与 enabled 开关)', () => {
+  it('首次落位 added (启用 hooks.enabled 并嵌套 events.PreToolUse) → 二次 exists → unwire removed', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.zcode/config.json')
+    try {
+      expect(await applyWire('zcode', path, false, false)).toBe('added')
+      await expect(isWired('zcode', path)).resolves.toBe(true)
+      const first = JSON.parse(readFileSync(path, 'utf8'))
+      expect(first.hooks.enabled).toBe(true)
+      expect(first.hooks.events.PreToolUse).toHaveLength(1)
+      expect(first.hooks.events.PreToolUse[0].matcher).toBe('^Bash$')
+      expect(first.hooks.events.PreToolUse[0].hooks[0].command).toBe('node ${ZCODE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform zcode')
+
+      expect(await applyWire('zcode', path, false, false)).toBe('exists')
+      const second = JSON.parse(readFileSync(path, 'utf8'))
+      expect(second.hooks.events.PreToolUse).toHaveLength(1)
+
+      expect(await applyWire('zcode', path, true, false)).toBe('removed')
+      expect(await isWired('zcode', path)).toBe(false)
+      expect(await applyWire('zcode', path, true, false)).toBe('absent')
+
+      // 保留用户其他配置和事件
+      writeFileSync(path, JSON.stringify({
+        custom: 'value',
+        hooks: {
+          enabled: true,
+          events: {
+            PreToolUse: [{ matcher: '^Read$', hooks: [{ type: 'command', command: 'other-tool' }] }],
+            SessionStart: [{ hooks: [{ type: 'command', command: 'init-env' }] }]
+          }
+        }
+      }))
+      expect(await applyWire('zcode', path, false, false)).toBe('added')
+      const merged = JSON.parse(readFileSync(path, 'utf8'))
+      expect(merged.custom).toBe('value')
+      expect(merged.hooks.events.SessionStart).toHaveLength(1)
+      expect(merged.hooks.events.PreToolUse).toHaveLength(2)
+
+      expect(await applyWire('zcode', path, true, false)).toBe('removed')
+      const after = JSON.parse(readFileSync(path, 'utf8'))
+      expect(after.custom).toBe('value')
+      expect(after.hooks.events.SessionStart).toHaveLength(1)
+      expect(after.hooks.events.PreToolUse).toHaveLength(1)
+      expect(after.hooks.events.PreToolUse[0].matcher).toBe('^Read$')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -189,13 +241,19 @@ describe('wire: OpenCode 插件(复制随包插件文件, OpenCode 1.18+ plugins
 })
 
 describe('wire: 客户端规格表', () => {
-  it('六客户端齐全, 文件位置与 references/*.md 一致', () => {
+  it('八客户端齐全, 文件位置与 references/*.md 一致', () => {
     const names = WIRE_CLIENTS.map((c) => c.client)
-    expect(names).toEqual(['claude', 'codex', 'opencode', 'antigravity', 'dsh', 'pi'])
+    expect(names).toEqual(['claude', 'codex', 'opencode', 'antigravity', 'dsh', 'pi', 'codebuddy', 'zcode'])
     const claude = WIRE_CLIENTS.find((c) => c.client === 'claude')!
     expect(claude.projectPath).toBe('.claude/settings.json')
     const codex = WIRE_CLIENTS.find((c) => c.client === 'codex')!
     expect(codex.projectPath).toBe('.codex/hooks.json')
+    const codebuddy = WIRE_CLIENTS.find((c) => c.client === 'codebuddy')!
+    expect(codebuddy.projectPath).toBe('.codebuddy/settings.json')
+    expect(codebuddy.globalPath()).toBe(join(homedir(), '.codebuddy', 'settings.json'))
+    const zcode = WIRE_CLIENTS.find((c) => c.client === 'zcode')!
+    expect(zcode.projectPath).toBe('.zcode/config.json')
+    expect(zcode.globalPath()).toBe(join(homedir(), '.zcode', 'cli', 'config.json'))
     const opencode = WIRE_CLIENTS.find((c) => c.client === 'opencode')!
     expect(opencode.projectPath).toBe('.opencode/plugins/gitflow-guard.ts')
     expect(opencode.globalPath()).toBe(join(homedir(), '.config', 'opencode', 'plugins', 'gitflow-guard.ts'))
@@ -204,3 +262,4 @@ describe('wire: 客户端规格表', () => {
     expect(ag.experimental).toBeUndefined() // 真机核验闭环(AGY-D1..D4)后摘除实验标注
   })
 })
+

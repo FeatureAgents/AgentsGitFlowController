@@ -13,6 +13,8 @@
 | Codex | stdin hook (exit 0+JSON) | `codex.md` | ✅ 已实测(codex-cli 0.150.1, 2026-08-29) |
 | OpenCode | stdin hook (exit 2) | `opencode.md` | ✅ 已安装 1.18.15 |
 | Antigravity | stdin hook (exit 0+{decision}) | `antigravity.md` | ✅ 已实测(agy 1.1.22,2026-08-29);拦截/放行全通,2 处协议差异待修复 |
+| CodeBuddy | stdin hook (exit 2) | `codebuddy.md` | 📝 用例已就绪 |
+| ZCode | stdin hook (exit 2) | `zcode.md` | 📝 用例已就绪 |
 | Pi | 进程内扩展 | `pi.md` | ✅ 已安装 0.84.3 |
 
 ## 统一前置条件(所有客户端)

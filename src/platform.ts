@@ -1,13 +1,13 @@
 // 跨平台 hook 适配层: 解析各家工具 stdin payload → 统一 {command, cwd, event}; 按平台编码 deny
 // 只以各平台官方 hook 文档为准, 自行实现; 拿不准的 wire 格式在真机核验后定稿。
-// 范围注记(AGENTS.md §8.1 例外): HookPlatform 仅覆盖 stdin-hook 类平台(claude/codex/antigravity/opencode)。
+// 范围注记(AGENTS.md §8.1 例外): HookPlatform 仅覆盖 stdin-hook 类平台(claude/codex/antigravity/opencode/codebuddy/zcode)。
 // DSH 与 Pi 是进程内接入, 不在本层:
 // - DSH 挂载经 patch.yml + dsh.bundle.patch, 拦截经 src/index.ts 的 apply() 监听 tools/pre-execute、
 //   以返回值 {kind:'deny',reason} 表达, 协议记载见 .agents/hooks/references/dsh.md;
 // - Pi 经项目扩展监听 tool_call、以返回值 {block:true, reason} 表达, 适配层在 src/pi.ts
 //   (createPiExtension), 协议记载见 .agents/hooks/references/pi.md。
 
-export type HookPlatform = 'claude' | 'codex' | 'antigravity' | 'opencode'
+export type HookPlatform = 'claude' | 'codex' | 'antigravity' | 'opencode' | 'codebuddy' | 'zcode'
 
 export type HookEvent = 'pre' | 'post' | 'post-failure'
 
@@ -65,8 +65,8 @@ export function extractHookPayload(raw: string, platform: HookPlatform | 'auto' 
 
   let command = ''
   let cwd = ''
-  if (plat === 'claude' || plat === 'codex') {
-    // Claude Code 与 Codex 同形: tool_input.command + cwd
+  if (plat === 'claude' || plat === 'codex' || plat === 'codebuddy' || plat === 'zcode') {
+    // Claude Code / Codex / CodeBuddy / ZCode 同形: tool_input.command + cwd
     command = str(j.tool_input?.command)
     cwd = str(j.cwd)
   } else if (plat === 'opencode') {
@@ -96,6 +96,8 @@ export function detectPlatform(raw: string): HookPlatform {
 export function encodeDeny(platform: HookPlatform, reason: string): DenyEncoding {
   switch (platform) {
     case 'claude':
+    case 'codebuddy':
+    case 'zcode':
       // exit 2 = 硬拦截; stderr 即展示给模型的原因
       return { exitCode: 2, stderr: reason }
     case 'opencode':
@@ -114,3 +116,4 @@ export function encodeDeny(platform: HookPlatform, reason: string): DenyEncoding
       return { exitCode: 0, stdout: JSON.stringify({ decision: 'deny', reason }) }
   }
 }
+
