@@ -60,8 +60,14 @@ AgentsGitFlowController/
 默认开发流水线：
 
 ```
-需求拆解 (architect) → 测试驱动 (tester) → 代码实现 (coder)
-→ 代码审查 (code-reviewer) → 测试审查 (test-reviewer)
+需求拆解 (architect) 
+→ 测试驱动 (unittest-case) 
+→ 测试驱动 (e2e-testcase-case) 
+→ 代码实现 (coder) 
+→ 测试 (unittester) 
+→ 测试 (e2e-testcaser)
+→ 代码审查 (code-reviewer) 
+→ 测试审查 (test-reviewer)
 → 文档同步 (doc-writer)
 ```
 
