@@ -15,6 +15,7 @@
 | Antigravity | stdin hook (exit 0+{decision}) | `antigravity.md` | ✅ 已实测(agy 1.1.22,2026-08-29);拦截/放行全通,2 处协议差异待修复 |
 | CodeBuddy | stdin hook (exit 2) | `codebuddy.md` | 📝 用例已就绪 |
 | ZCode | stdin hook (exit 2) | `zcode.md` | 📝 用例已就绪 |
+| Cursor | stdin hook (exit 0+JSON) | `cursor.md` | 📝 用例已就绪 |
 | Pi | 进程内扩展 | `pi.md` | ✅ 已安装 0.84.3 |
 
 ## 统一前置条件(所有客户端)

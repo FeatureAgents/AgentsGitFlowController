@@ -77,12 +77,24 @@ describe('platform: extractHookPayload', () => {
     const raw = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: '/repo' })
     expect(extractHookPayload(raw, 'zcode')).toEqual({ command: 'git push origin develop', cwd: '/repo', toolUseId: undefined, event: 'pre' })
   })
+
+  it('cursor 显式平台: beforeShellExecution command + cwd', () => {
+    const raw = JSON.stringify({ hook_event_name: 'beforeShellExecution', command: 'git push origin develop', cwd: '/repo', cursor_version: '0.45.0' })
+    expect(extractHookPayload(raw, 'cursor')).toEqual({ command: 'git push origin develop', cwd: '/repo', toolUseId: undefined, event: 'pre' })
+  })
+
+  it('cursor 显式平台: workspace_roots 提取 cwd', () => {
+    const raw = JSON.stringify({ hook_event_name: 'preToolUse', tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, workspace_roots: ['/workspace/root'] })
+    expect(extractHookPayload(raw, 'cursor')).toEqual({ command: 'git push origin develop', cwd: '/workspace/root', toolUseId: undefined, event: 'pre' })
+  })
 })
 
 describe('platform: detectPlatform', () => {
   it('turn_id → codex', () => expect(detectPlatform('{"turn_id":"x"}')).toBe('codex'))
   it('toolCall → antigravity', () => expect(detectPlatform('{"toolCall":{}}')).toBe('antigravity'))
   it('tool_args → opencode', () => expect(detectPlatform('{"tool_args":{"command":"git push"}}')).toBe('opencode'))
+  it('cursor_version → cursor', () => expect(detectPlatform('{"cursor_version":"0.45.0"}')).toBe('cursor'))
+  it('workspace_roots → cursor', () => expect(detectPlatform('{"workspace_roots":["/repo"]}')).toBe('cursor'))
   it('默认 → claude', () => expect(detectPlatform('{"tool_name":"Bash"}')).toBe('claude'))
   it('空 payload(CLI --command 模式 raw="")→ 回退 claude, deny 走 exit 2 协议(P2-5)', () => {
     expect(detectPlatform('')).toBe('claude')
@@ -114,6 +126,12 @@ describe('platform: encodeDeny', () => {
     const enc = encodeDeny('antigravity', 'r')
     expect(enc.exitCode).toBe(0)
     expect(enc.stdout).toContain('"decision":"deny"')
+  })
+  it('cursor → exit 0 + stdout permission deny', () => {
+    const enc = encodeDeny('cursor', 'blocked: x')
+    expect(enc.exitCode).toBe(0)
+    expect(enc.stdout).toBe(JSON.stringify({ permission: 'deny', user_message: 'blocked: x', agent_message: 'blocked: x' }))
+    expect(enc.stderr).toBe('blocked: x')
   })
 })
 

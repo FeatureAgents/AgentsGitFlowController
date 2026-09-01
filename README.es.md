@@ -2,7 +2,7 @@
 
 > **¿Cansado de que los agentes de IA ignoren tu GitFlow?**
 
-Un guardián configurable para roles de ramas Git, diseñado para agentes de programación con IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) y [Pi](https://github.com/mariozechner/pi).
+Un guardián configurable para roles de ramas Git, diseñado para agentes de programación con IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) y [Pi](https://github.com/mariozechner/pi).
 Tú defines tus propias ramas —
 **integration** (las funcionalidades se integran mediante PR/MR), **preview** (entornos de prueba), **production**, **archive** — cada una con sus propias reglas de actualización. Los agentes no pueden eludir el flujo y los merges críticos permanecen en tus manos.
 
@@ -36,10 +36,10 @@ Tú defines tus propias ramas —
 
 ## Inicio Rápido — 30 segundos para proteger tu repositorio
 
-**Paso 1 — Instalar.** Los ocho clientes utilizan el mismo paquete npm `agents-gitflow-guard` — elige el modo de instalación correspondiente a tu agente:
+**Paso 1 — Instalar.** Los nueve clientes utilizan el mismo paquete npm `agents-gitflow-guard` — elige el modo de instalación correspondiente a tu agente:
 
 ```bash
-# Modo A: Clientes Hook CLI (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
+# Modo A: Clientes Hook CLI (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -65,12 +65,13 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode (cada uno con su propio archivo; --yes omite la confirmación y/N)
+# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor (cada uno con su propio archivo; --yes omite la confirmación y/N)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
 gitflow-guard wire --client codebuddy --project --yes
 gitflow-guard wire --client zcode --project --yes
+gitflow-guard wire --client cursor --project --yes
 ```
 
 
@@ -367,11 +368,11 @@ El destino de PR/MR se resuelve mediante `gh pr view` (GitHub) o `glab mr view` 
 
 | Tipo de cliente / Plataforma | Comando de instalación | Paso de montaje y conexión |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <nombre> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <nombre> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | Reiniciar DSH — el plugin se monta automáticamente como capa de perfil |
 | Pi | `npm i -D agents-gitflow-guard` | Copiar `pi/gitflow-guard.ts` dentro de `.pi/extensions/` |
 
-### 1. Clientes Hook CLI autónomos (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
+### 1. Clientes Hook CLI autónomos (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
 
 Instala la CLI de forma global una vez y luego **conecta cada cliente con un solo comando** (el guardián está activo por defecto mediante su configuración integrada, por lo que la conexión es lo único restante):
 
@@ -383,6 +384,7 @@ gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
 gitflow-guard wire --client codebuddy --project --yes
 gitflow-guard wire --client zcode --project --yes
+gitflow-guard wire --client cursor --project --yes
 ```
 
 `wire` lee el archivo de configuración existente (si existe), inserta la entrada del hook sin alterar nada más, es idempotente (si ya está conectado → se omite), admite `--dry-run` para previsualizar y `--unwire` para desinstalar, y solicita confirmación antes de modificar archivos `--global`. Los archivos exactos que escribe (para referencia o para escribirlos manualmente en lugar de usar `wire`) son:
@@ -459,9 +461,9 @@ npm install && npm run build
 Monta la compilación local en tu plataforma de agente de destino:
 
 ```bash
-# A. Clientes Hook CLI autónomos (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
+# A. Clientes Hook CLI autónomos (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
 npm link # o npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/ruta/hacia/AgentsGitFlowController
@@ -486,6 +488,7 @@ npm link
   - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2` (stderr contiene el motivo y los pasos a seguir).
   - **Codex**: JSON en stdout `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`.
   - **Antigravity**: JSON en stdout `{"decision":"deny","reason":...}` con `exit 0` (Antigravity exige código de salida 0).
+  - **Cursor**: JSON en stdout `{"permission":"deny","user_message":...,"agent_message":...}` con `exit 0`.
   - **Pi**: Extensión en proceso que escucha el evento `tool_call` y deniega mediante `{ block: true, reason }`.
 
 - **Ejecución previa a la herramienta (Pre-tool)**: Solo se intercepta el evento previo a la herramienta; el guardián bloquea *antes* de que los comandos se ejecuten, por lo que no se necesitan hooks posteriores ni pasos de limpieza de permisos.
