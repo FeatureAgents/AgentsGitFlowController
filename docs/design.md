@@ -152,8 +152,12 @@ locale: 内置 `en`/`zh`; `registerLocale(name, dict)` 运行时扩展(键一致
 | OpenCode | 插件(tool.execute.before, 1.18+ 无 hooks.yaml) | output.args.command | handler 抛错(经守卫 check exit 2 判定) |
 | Antigravity | PreToolUse(run_command) | toolCall.args.CommandLine | exit 0 + stdout {"decision":"deny","reason":...}(无 block 值, 不可包 hookSpecificOutput) |
 | Pi | 进程内扩展(tool_call 事件) | event.input.command | 返回值 {block:true, reason}, 不经 stdin/exit 协议 |
+| CodeBuddy | PreToolUse hook(.codebuddy/settings.json; 官方 Claude Code Hooks 兼容实现, Beta v1.16.0+) | 同 Claude 形(无判别字段) | exit 2, stderr 即原因(官方 stdout 消息优先级更高, 守卫 stdout 留空即落 stderr) |
+| ZCode | PreToolUse hook(.zcode/config.json; 配置文件 hooks 默认禁用, 须 hooks.enabled:true) | 待真机核验(CLAUDE_* 模板变量别名暗示同 Claude 形) | exit 2, stderr 即原因(stdout JSON 为严格 schema, 多键即失效, 弃用) |
 
-`check --platform auto` 按 payload 判别: `turn_id`→codex、`toolCall`→antigravity、`tool_args`→opencode、其余→claude。
+`check --platform auto` 按 payload 判别: `turn_id`→codex、`toolCall`→antigravity、`tool_args`→opencode、其余→claude。CodeBuddy / ZCode 的 payload 与 Claude 同形且无判别字段, auto 一并归 claude 通道——两者 deny 编码与 claude 相同(exit 2), 判定行为无差异; wire 落位写显式 `--platform codebuddy|zcode`。
+
+> 接入状态: CodeBuddy / ZCode 为**规划接入**——协议参考已落 `.agents/hooks/references/codebuddy.md`、`zcode.md`(设计先行), `HookPlatform` 成员 / wire 规格 / dogfood 配置 / 复测矩阵用例随实现 PR 落地; ZCode payload 形状须真机抓包核验后定稿, CodeBuddy 实机核验避开其使用时段补做。
 
 ## 9. CLI
 
@@ -193,7 +197,7 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 
 - **单元/集成**(vitest, 无需特定 agent 宿主环境): classify(对抗语料)、gate、config(校验/strict)、i18n(键一致性)、repo、index(evaluateCommand 编排/降级路径)、cli(status/audit/check/--locale)、platform(四平台 stdin-hook extract/detect/encode)、stateDir(确定性/隔离性/XDG 重定向)。
 - **accuracy-audit 语料**: §1.1 对抗样本(shell 包装、git 形态、组合旗标)固化为回归清单。
-- **复测矩阵** `npm run verify:matrix` 七节 A–G: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity / Pi 扩展——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段)。
+- **复测矩阵** `npm run verify:matrix` 七节 A–G: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity / Pi 扩展——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段); 规划扩展至九节(追加 CodeBuddy / ZCode, 随实现 PR 落地)。
 - **铁律**: `npm run typecheck`(0 错)+ `npm test`(全绿)+ `npm run verify:matrix`(全绿)才算完成。CI 矩阵 ubuntu/macOS/Windows × Node 22/24。
 
 ## 13. 项目结构
@@ -205,7 +209,7 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 │   ├── gate.ts         # 门禁矩阵(纯函数)
 │   ├── config.ts       # 配置加载/规范化/校验/strict
 │   ├── repo.ts         # git 只读查询 + gh/glab Runner(可注入)
-│   ├── platform.ts     # 六平台 hook 协议 (DSH / Claude Code / Codex / OpenCode / Antigravity / Pi)(extract/detect/encodeDeny)
+│   ├── platform.ts     # 六平台 hook 协议 (DSH / Claude Code / Codex / OpenCode / Antigravity / Pi; 规划扩展 CodeBuddy / ZCode)(extract/detect/encodeDeny)
 │   ├── wire.ts         # 脚手架 wire/setup(各 agent 平台 hook 配置接入与更新)
 │   ├── pi.ts           # Pi 扩展工厂(createPiExtension 进程内事件拦截)
 │   ├── i18n.ts         # en/zh 字典 + registerLocale + MESSAGE_KEYS
