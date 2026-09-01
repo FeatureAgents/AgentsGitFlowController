@@ -2,7 +2,7 @@
 
 > **Sind Sie es leid, dass KI-Agenten Ihren GitFlow umgehen?**
 
-Ein konfigurierbarer Branch-Rollen-Guard für KI-Coding-Agenten — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) und [Pi](https://github.com/mariozechner/pi).
+Ein konfigurierbarer Branch-Rollen-Guard für KI-Coding-Agenten — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) und [Pi](https://github.com/mariozechner/pi).
 Sie definieren Ihre eigenen Branches —
 **integration** (Features werden über PR/MR zusammengeführt), **preview** (Umgebungs-Endpunkte), **production**, **archive** — jeweils mit eigenen Aktualisierungsregeln. Agenten können den Flow nicht überspringen, und sensible Merges bleiben in Ihrer Hand.
 
@@ -36,10 +36,10 @@ Sie definieren Ihre eigenen Branches —
 
 ## Schnellstart — In 30 Sekunden zu einem geschützten Repository
 
-**Schritt 1 — Installieren.** Alle acht Clients verwenden dasselbe npm-Paket `agents-gitflow-guard` — wählen Sie den passenden Installationsmodus für Ihren Agenten:
+**Schritt 1 — Installieren.** Alle neun Clients verwenden dasselbe npm-Paket `agents-gitflow-guard` — wählen Sie den passenden Installationsmodus für Ihren Agenten:
 
 ```bash
-# Modus A: CLI-Hook-Clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
+# Modus A: CLI-Hook-Clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -65,12 +65,13 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode (jeweils eigene Konfigurationsdatei; --yes überspringt die Bestätigung)
+# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor (jeweils eigene Konfigurationsdatei; --yes überspringt die Bestätigung)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
 gitflow-guard wire --client codebuddy --project --yes
 gitflow-guard wire --client zcode --project --yes
+gitflow-guard wire --client cursor --project --yes
 ```
 
 
@@ -367,11 +368,11 @@ Das PR/MR-Ziel wird über `gh pr view` (GitHub) oder `glab mr view` (GitLab) auf
 
 | Client-Typ / Plattform | Installationsbefehl | Einbindungs- & Verdrahtungsschritt |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | DSH neu starten — Plugin bindet sich automatisch als Profil-Layer ein |
 | Pi | `npm i -D agents-gitflow-guard` | Kopieren Sie `pi/gitflow-guard.ts` nach `.pi/extensions/` |
 
-### 1. Eigenständige CLI-Hook-Clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
+### 1. Eigenständige CLI-Hook-Clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
 
 Installieren Sie das CLI einmal global und **verdrahten Sie jeden Client mit einem einzigen Befehl** (der Guard ist über seine Standardkonfiguration standardmäßig aktiv, sodass nur noch die Verdrahtung aussteht):
 
@@ -383,6 +384,7 @@ gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
 gitflow-guard wire --client codebuddy --project --yes
 gitflow-guard wire --client zcode --project --yes
+gitflow-guard wire --client cursor --project --yes
 ```
 
 `wire` liest die bestehende Konfigurationsdatei (falls vorhanden), fügt den Hook-Eintrag ein, ohne etwas anderes zu verändern, ist idempotent (bereits verdrahtet → wird übersprungen), unterstützt `--dry-run` zur Vorschau sowie `--unwire` zum Entfernen und fragt nach, bevor `--global`-Dateien verändert werden. Die genauen Dateien, die geschrieben werden (zur Referenz und zum manuellen Erstellen statt `wire`), lauten:
@@ -459,9 +461,9 @@ npm install && npm run build
 Binden Sie den lokalen Build in Ihre Ziel-Agenten-Plattform ein:
 
 ```bash
-# A. Eigenständige CLI-Hook-Clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
+# A. Eigenständige CLI-Hook-Clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
 npm link # oder npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/path/to/AgentsGitFlowController
@@ -486,6 +488,7 @@ npm link
   - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2` (stderr enthält den Grund und umsetzbare nächste Schritte).
   - **Codex**: stdout JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`.
   - **Antigravity**: stdout JSON `{"decision":"deny","reason":...}` mit `exit 0` (Antigravity verlangt Exit-Code 0).
+  - **Cursor**: stdout JSON `{"permission":"deny","user_message":...,"agent_message":...}` mit `exit 0`.
   - **Pi**: In-Process-Erweiterung, die auf das `tool_call`-Event lauscht und über `{ block: true, reason }` ablehnt.
 
 - **Pre-Tool-Ausführung**: Nur das Pre-Tool-Ereignis wird abgefangen; der Guard blockiert, *bevor* Befehle ausgeführt werden, sodass keine Post-Tool-Hooks oder Permit-Bereinigungsschritte erforderlich sind.

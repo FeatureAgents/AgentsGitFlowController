@@ -21,7 +21,7 @@ export interface WireClientSpec {
   experimental?: boolean
 }
 
-const CLIENTS: ClientId[] = ['dsh', 'claude', 'codex', 'opencode', 'antigravity', 'pi', 'codebuddy', 'zcode']
+const CLIENTS: ClientId[] = ['dsh', 'claude', 'codex', 'opencode', 'antigravity', 'pi', 'codebuddy', 'zcode', 'cursor']
 
 export function isWireClient(v: string): v is ClientId {
   return (CLIENTS as string[]).includes(v)
@@ -39,12 +39,13 @@ export const WIRE_CLIENTS: ReadonlyArray<WireClientSpec> = [
   { client: 'pi', projectPath: '', globalPath: () => '' },
   { client: 'codebuddy', projectPath: '.codebuddy/settings.json', globalPath: () => join(homedir(), '.codebuddy', 'settings.json') },
   { client: 'zcode', projectPath: '.zcode/config.json', globalPath: () => join(homedir(), '.zcode', 'cli', 'config.json') },
+  { client: 'cursor', projectPath: '.cursor/hooks.json', globalPath: () => join(homedir(), '.cursor', 'hooks.json') },
 ]
 
 /** 随包发布的 OpenCode 插件源文件(wire --client opencode 复制到插件目录; dev 下即仓库 opencode/) */
 const OPENCODE_PLUGIN_SOURCE = fileURLToPath(new URL('../opencode/gitflow-guard.ts', import.meta.url))
 
-type JsonWireClient = 'claude' | 'codex' | 'antigravity' | 'codebuddy' | 'zcode'
+type JsonWireClient = 'claude' | 'codex' | 'antigravity' | 'codebuddy' | 'zcode' | 'cursor'
 
 /** 各 JSON 客户端的 hook 命令(与 references/*.md 逐一对应)。
  *  antigravity 必须绝对路径: agy hook 进程 cwd = hook 配置文件所在目录(TestResult/antigravity.md AGY-D2),
@@ -59,6 +60,8 @@ function commandFor(client: JsonWireClient, repoRoot: string | null): string {
       return 'node ${ZCODE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform zcode'
     case 'codex':
       return 'node bin/gitflow-guard.mjs check --platform codex'
+    case 'cursor':
+      return 'node bin/gitflow-guard.mjs check --platform cursor'
     case 'antigravity':
       return repoRoot
         ? `node ${join(repoRoot, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`
@@ -146,6 +149,12 @@ async function addJsonEntry(path: string, client: JsonWireClient, dryRun: boolea
     const arr = (eventsObj['PreToolUse'] ??= []) as unknown[]
     if (!Array.isArray(arr)) throw new Error(`invalid ${path}: hooks.events.PreToolUse must be an array`)
     arr.push(entry)
+  } else if (client === 'cursor') {
+    obj['version'] ??= 1
+    const hooksObj = (obj['hooks'] ??= {}) as Record<string, unknown>
+    const arr = (hooksObj['beforeShellExecution'] ??= []) as unknown[]
+    if (!Array.isArray(arr)) throw new Error(`invalid ${path}: hooks.beforeShellExecution must be an array`)
+    arr.push({ command: cmd })
   } else {
     const hooksObj = (obj['hooks'] ??= {}) as Record<string, unknown>
     const arr = (hooksObj['PreToolUse'] ??= []) as unknown[]
@@ -178,6 +187,16 @@ async function removeJsonEntry(path: string, client: JsonWireClient, dryRun: boo
       else eventsObj!['PreToolUse'] = rest
       if (eventsObj && Object.keys(eventsObj).length === 0) delete hooksObj!['events']
       if (hooksObj && Object.keys(hooksObj).filter((k) => k !== 'enabled').length === 0) delete obj['hooks']
+    }
+  } else if (client === 'cursor') {
+    if (!jsonContains(obj, cmd)) return 'absent'
+    const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
+    const arr = hooksObj?.['beforeShellExecution']
+    if (Array.isArray(arr)) {
+      const rest = arr.filter((e) => (e as { command?: unknown })?.command !== cmd)
+      if (rest.length === 0) delete hooksObj!['beforeShellExecution']
+      else hooksObj!['beforeShellExecution'] = rest
+      if (hooksObj && Object.keys(hooksObj).length === 0) delete obj['hooks']
     }
   } else {
     if (!jsonContains(obj, cmd)) return 'absent'

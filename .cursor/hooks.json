@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "node bin/gitflow-guard.mjs check --platform cursor"
+      }
+    ]
+  }
+}

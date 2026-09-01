@@ -9,6 +9,7 @@
 //   G) Pi 扩展          (createPiExtension tool_call block 契约, 真实 CLI 走通)
 //   H) CodeBuddy hook   (gitflow-guard check --platform codebuddy + wire 装配)
 //   I) ZCode hook       (gitflow-guard check --platform zcode + wire enabled/events 装配)
+//   J) Cursor hook      (gitflow-guard check --platform cursor + wire beforeShellExecution 装配)
 
 // 用法: npm run verify:matrix (内含 npm run build + 本脚本)
 
@@ -301,7 +302,29 @@ console.log('[I] ZCode hook (--platform zcode + wire 装配)')
   }
 }
 
+console.log('[J] Cursor hook (--platform cursor + wire 装配)')
+{
+  const repo = tempRepo(CONFIG)
+  try {
+    const deny = runCheck('cursor', JSON.stringify({ hook_event_name: 'beforeShellExecution', command: 'git push origin develop', cwd: repo, cursor_version: '0.45.0' }), repo)
+    check('拦截: exit 0', deny.code === 0, `code=${deny.code}`)
+    check('拦截: stdout permission=deny', /"permission":"deny"/.test(deny.stdout), deny.stdout)
+    check('拦截: stdout JSON 含 user_message 与 agent_message', /user_message/.test(deny.stdout) && /agent_message/.test(deny.stdout), deny.stdout)
+    const ok = runCheck('cursor', JSON.stringify({ hook_event_name: 'beforeShellExecution', command: 'npm test', cwd: repo }), repo)
+    check('放行: exit 0 且无输出', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
+    // wire 装配: 落位到 .cursor/hooks.json
+    execFileSync('node', [BIN, 'wire', '--client', 'cursor', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
+    const config = JSON.parse(readFileSync(join(repo, '.cursor', 'hooks.json'), 'utf8'))
+    check('wire 落位: Cursor version 为 1', config.version === 1)
+    const cmd = config.hooks.beforeShellExecution[0].command
+    check('wire 落位: Cursor 命令含 check --platform cursor', cmd.includes('check --platform cursor'), cmd)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+}
+
 console.log('\n' + lines.join('\n'))
 console.log(`\n=== ${pass} PASS / ${fail} FAIL ===`)
 process.exit(fail ? 1 : 0)
+
 

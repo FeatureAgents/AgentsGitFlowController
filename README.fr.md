@@ -2,7 +2,7 @@
 
 > **Vous en avez assez que les agents IA contournent votre GitFlow ?**
 
-Un garde-fou configurable pour les rôles de branches Git, conçu pour les agents de codage IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) et [Pi](https://github.com/mariozechner/pi).
+Un garde-fou configurable pour les rôles de branches Git, conçu pour les agents de codage IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) et [Pi](https://github.com/mariozechner/pi).
 Vous définissez vos propres branches —
 **integration** (les fonctionnalités sont intégrées via PR/MR), **preview** (environnements de test), **production**, **archive** — chacune avec ses propres règles de mise à jour. Les agents ne peuvent pas contourner le processus et les fusions sensibles restent entre vos mains.
 
@@ -36,10 +36,10 @@ Vous définissez vos propres branches —
 
 ## Démarrage rapide — 30 secondes pour protéger un dépôt
 
-**Étape 1 — Installer.** Les huit clients utilisent le même paquet npm `agents-gitflow-guard` — choisissez le mode d'installation correspondant à votre agent :
+**Étape 1 — Installer.** Les neuf clients utilisent le même paquet npm `agents-gitflow-guard` — choisissez le mode d'installation correspondant à votre agent :
 
 ```bash
-# Mode A : Clients Hook CLI (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
+# Mode A : Clients Hook CLI (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -65,12 +65,13 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode (chacun son propre fichier de configuration ; --yes ignore la confirmation y/N)
+# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor (chacun son propre fichier de configuration ; --yes ignore la confirmation y/N)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
 gitflow-guard wire --client codebuddy --project --yes
 gitflow-guard wire --client zcode --project --yes
+gitflow-guard wire --client cursor --project --yes
 ```
 
 
@@ -367,11 +368,11 @@ La cible des PR/MR est résolue via `gh pr view` (GitHub) ou `glab mr view` (Git
 
 | Type de client / Plateforme | Commande d'installation | Étape de montage et liaison |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <nom> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <nom> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | Redémarrer DSH — le plugin se monte automatiquement en couche de profil |
 | Pi | `npm i -D agents-gitflow-guard` | Copier `pi/gitflow-guard.ts` dans `.pi/extensions/` |
 
-### 1. Clients Hook CLI autonomes (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
+### 1. Clients Hook CLI autonomes (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
 
 Installez la CLI globalement une seule fois, puis **liez chaque client avec une commande unique** (le garde est actif par défaut via sa configuration intégrée, la liaison est donc la seule étape restante) :
 
@@ -383,6 +384,7 @@ gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
 gitflow-guard wire --client codebuddy --project --yes
 gitflow-guard wire --client zcode --project --yes
+gitflow-guard wire --client cursor --project --yes
 ```
 
 `wire` lit le fichier de configuration existant (le cas échéant), insère l'entrée du hook sans altérer le reste, est idempotent (déjà lié → ignoré), supporte `--dry-run` pour prévisualiser et `--unwire` pour supprimer, et demande confirmation avant de modifier les fichiers `--global`. Les fichiers exacts qu'il écrit (pour référence et pour configuration manuelle sans passer par `wire`) sont :
@@ -459,9 +461,9 @@ npm install && npm run build
 Montez le build local sur la plateforme d'agent ciblée :
 
 ```bash
-# A. Clients Hook CLI autonomes (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode)
+# A. Clients Hook CLI autonomes (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
 npm link # ou npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/chemin/vers/AgentsGitFlowController
@@ -486,6 +488,7 @@ npm link
   - **Claude Code / OpenCode / CodeBuddy / ZCode** : `exit 2` (stderr contient le motif et les instructions pour continuer).
   - **Codex** : JSON sur stdout `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`.
   - **Antigravity** : JSON sur stdout `{"decision":"deny","reason":...}` avec `exit 0` (Antigravity impose un code de retour 0).
+  - **Cursor** : JSON sur stdout `{"permission":"deny","user_message":...,"agent_message":...}` avec `exit 0`.
   - **Pi** : Extension en processus écoutant l'événement `tool_call` et rejetant via `{ block: true, reason }`.
 
 - **Exécution avant outil (Pre-tool)** : Seul l'événement précédant l'outil est intercepté ; le garde bloque *avant* l'exécution des commandes, éliminant le besoin de hooks postérieurs ou d'étapes de nettoyage de permissions.
