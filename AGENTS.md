@@ -18,7 +18,7 @@
 - 测试：`npm test`(vitest, 全绿才算完成)
 - 类型检查：`npm run typecheck`(tsc --noEmit, 0 Error 才算完成)
 - 本地调试与安装：
-  - CLI Hook 客户端（Claude Code / Codex / OpenCode / Antigravity）：`npm link` 后 `gitflow-guard wire --client <client> --project --yes`
+  - CLI Hook 客户端（Claude Code / Codex / OpenCode / Antigravity / CodeBuddy / ZCode）：`npm link` 后 `gitflow-guard wire --client <client> --project --yes`
   - DSH 进程内插件：`node scripts/install-dsh.mjs [profile]`（本机无 DSH 时跳过，装完需重启 DSH）
   - Pi 进程内扩展：`npm link` 或将 `pi/gitflow-guard.ts` 复制到目标仓库 `.pi/extensions/`
 - **发布(全自动化)**：bump 叠加在**待合并的内容 PR 分支**上(`npm version patch`, 版本提交落在该分支; feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ 用户在 GitHub 合并该 PR(内容+changelog+版本号一次带进 develop)→ **CI 自动检测新版本 → 全量矩阵校验 → 自动在 develop 最新 commit 打 annotated tag 并推送 → 自动 npm publish 与创建 GitHub Release**
@@ -43,8 +43,11 @@ AgentsGitFlowController/
 │   └── skills/          # 自建 skill 工作流（start-work、design-sync、readme-sync 等）
 ├── .claude/             # Claude Code dogfood 配置（settings.json / agents）
 ├── .codex/              # Codex dogfood 配置（hooks.json）
+├── .codebuddy/          # CodeBuddy dogfood 配置（settings.json）
+├── .zcode/              # ZCode dogfood 配置（config.json）
 ├── .opencode/           # OpenCode dogfood 配置（plugins/）
 ├── .pi/                 # Pi dogfood 配置（settings.json / extensions/）
+
 ├── src/                 # 核心源码（门禁、命令分类、平台协议、CLI、wire 脚手架、Pi 扩展等）
 ├── tests/               # 单元测试、集成测试与准确率审计语料
 ├── scripts/             # 构建、矩阵校验、版本检查、发版与 E2E 脚本
@@ -122,7 +125,7 @@ AgentsGitFlowController/
 
 ## 8. 客户端支持清单(新增 agent 平台时必须逐项同步)
 
-> 每次给守卫新增一个客户端接入(已有 DSH / Claude Code / Codex / OpenCode / Antigravity / Pi;未来如 Cursor 等),按以下清单逐项同步,最后 `npm run verify:matrix` 全绿才算完成。**漏一项就是隐性半成品**。
+> 每次给守卫新增一个客户端接入(已有 DSH / Claude Code / Codex / OpenCode / Antigravity / Pi / CodeBuddy / ZCode;未来如 Cursor 等),按以下清单逐项同步,最后 `npm run verify:matrix` 全绿才算完成。**漏一项就是隐性半成品**。
 > **例外: GitHub Copilot 不在本插件接入范围** —— 其原生 allow/deny/ask 权限 + rules 已覆盖守卫场景; 官方另有 hooks 系统可由用户自行接入(官方文档见 README)。本插件不为它造半个 hook,也不声称支持该平台。
 > **例外: DSH 走进程内插件协议, 不经 stdin-hook 通道** —— 本清单第 1/3/4 条(stdin payload 形状、hook 注册配置、stdin 参考文档)对 DSH 不适用: 其挂载物是 `patch.yml` + `dsh.bundle.patch`(package.json `"dsh": {"bundle": {"patch": "./patch.yml"}}`), 拦截由 `src/index.ts` 的 `apply()` 监听 `tools/pre-execute`、以返回值 `{kind:'deny', reason}` 表达(stdin payload / exit code 协议对其无意义), 协议记载见 `.agents/hooks/references/dsh.md`。其余平台按全清单逐项执行。
 > **例外: Pi 走进程内扩展协议, 不经 stdin-hook 通道** —— 清单第 1/2/3/4 条对 Pi 按此形态执行: 协议层= `src/pi.ts` 的 `createPiExtension()` + `tests/pi.spec.ts`(监听官方 `tool_call` 事件, 拒绝以返回值 `{block:true, reason}` 表达, 非 stdin/exit code); CLI `--platform` 透传不适用(守卫 CLI 仅作内部子进程, `--platform claude` 只是进程间 deny 编码选择); 仓库级 hook 配置= `.pi/settings.json` + `.pi/extensions/gitflow-guard.ts`(随包发布 `pi/gitflow-guard.ts` 供复制); 参考文档= `.agents/hooks/references/pi.md`(对齐官方 pi.dev/docs/extensions)。第 5/6/7/8 条与其他平台同款执行。

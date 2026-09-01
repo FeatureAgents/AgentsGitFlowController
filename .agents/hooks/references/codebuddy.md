@@ -1,7 +1,8 @@
 # Registering hooks in CodeBuddy Code
 
 > Source: official docs `codebuddy.ai/docs/zh/cli/hooks` (v1.16.0+). The hook feature is a **Claude Code Hooks-compatible implementation**, currently **Beta** — interfaces may change; re-verify on a real device when wiring.
-> Client status: **planned integration** — `HookPlatform` member, wire spec and matrix cases land with the implementation PR (AGENTS.md §8).
+> Client status: **supported** — `HookPlatform` member, wire spec (`.codebuddy/settings.json`), and matrix cases implemented.
+
 
 Registered in the project-root `.codebuddy/settings.json` (project; `settings.local.json` for personal overrides) or `~/.codebuddy/settings.json` (user); enterprise policy takes precedence. Scopes **merge** (not override):
 
