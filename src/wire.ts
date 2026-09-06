@@ -1,8 +1,12 @@
 // 接线层: 把各客户端默认 hook 落位到工程/全局配置文件(wire/setup 共用)。
-// 非破坏性: 已存在同命令条目则跳过; --unwire 精确移除; --dry-run 只打印不写。
+// 非破坏性: 已存在同命令条目则跳过; 任意历史形态的本插件条目迁移为当前 canonical; --unwire 精确移除; --dry-run 只打印不写。
+// 命令形态: node <随包 runner 绝对路径> check --platform <client> —— 锚定「执行本次 wire 的那份包」
+// (全局 npm / 项目 node_modules / npm link 开发仓 / bin+lib 拷贝挂载四种落位下均自洽), 目标项目零部署;
+// 不依赖客户端变量展开(${*_PROJECT_DIR})、不依赖 hook 进程 cwd、不依赖 PATH(design.md 的绝对路径哲学)。
 // 文件位置与命令形态以 .agents/hooks/references/*.md 为准(与官方协议对齐, 已核实)。
 // 日志/异常信息按项目规范用英文; 用户可见文案走 i18n(cli 层)。
 
+import { existsSync } from 'node:fs'
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -27,6 +31,29 @@ export function isWireClient(v: string): v is ClientId {
   return (CLIENTS as string[]).includes(v)
 }
 
+/** 随包 runner 的绝对路径: 本模块开发态位于 <repo>/src/, 构建后位于 <pkg>/lib/ —— 两种布局下
+ *  ../bin/gitflow-guard.mjs 均指向随包 runner(与 OPENCODE_PLUGIN_SOURCE 同一手法)。 */
+export function resolveRunnerPath(): string {
+  return fileURLToPath(new URL('../bin/gitflow-guard.mjs', import.meta.url))
+}
+
+const RUNNER_PATH = resolveRunnerPath()
+
+type JsonWireClient = 'claude' | 'codex' | 'antigravity' | 'codebuddy' | 'zcode' | 'cursor'
+
+/** 钩子命令形态: node <runner 绝对路径> check --platform <client>。
+ *  路径统一正斜杠(node 与各家 shell 在 Windows 均接受, 且免 JSON 反斜杠转义), 含空白时加双引号。
+ *  仅接受常规安装路径(不含 shell 元字符): npm 全局/项目 node_modules 布局的磁盘路径天然满足。 */
+export function guardCommand(runnerPath: string, client: JsonWireClient): string {
+  const p = runnerPath.replace(/\\/g, '/')
+  return `node ${/\s/.test(p) ? `"${p}"` : p} check --platform ${client}`
+}
+
+/** 本次 wire 写出的 canonical 命令 */
+function currentCommand(client: JsonWireClient): string {
+  return guardCommand(RUNNER_PATH, client)
+}
+
 /** 各客户端的 hook 落位规格(dsh/pi 无 hook 文件, 仅输出接入引导)
  *  opencode: OpenCode 1.18+ 已废弃 hooks.yaml(实机零调用, 见 docs/e2e/TestResult/opencode.md),
  *  官方扩展点为 plugins 目录 —— wire 把随包插件 opencode/gitflow-guard.ts 复制到插件目录。 */
@@ -45,31 +72,25 @@ export const WIRE_CLIENTS: ReadonlyArray<WireClientSpec> = [
 /** 随包发布的 OpenCode 插件源文件(wire --client opencode 复制到插件目录; dev 下即仓库 opencode/) */
 const OPENCODE_PLUGIN_SOURCE = fileURLToPath(new URL('../opencode/gitflow-guard.ts', import.meta.url))
 
-type JsonWireClient = 'claude' | 'codex' | 'antigravity' | 'codebuddy' | 'zcode' | 'cursor'
+export type WireResult = 'added' | 'migrated' | 'exists' | 'removed' | 'absent'
 
-/** 各 JSON 客户端的 hook 命令(与 references/*.md 逐一对应)。
- *  antigravity 必须绝对路径: agy hook 进程 cwd = hook 配置文件所在目录(TestResult/antigravity.md AGY-D2),
- *  相对 bin/... 会解析为 .agents/bin/... → MODULE_NOT_FOUND; 全局落位无仓库根, 用 PATH 上的 gitflow-guard。 */
-function commandFor(client: JsonWireClient, repoRoot: string | null): string {
-  switch (client) {
-    case 'claude':
-      return 'node ${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform claude'
-    case 'codebuddy':
-      return 'node ${CODEBUDDY_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform codebuddy'
-    case 'zcode':
-      return 'node ${ZCODE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform zcode'
-    case 'codex':
-      return 'node bin/gitflow-guard.mjs check --platform codex'
-    case 'cursor':
-      return 'node bin/gitflow-guard.mjs check --platform cursor'
-    case 'antigravity':
-      return repoRoot
-        ? `node ${join(repoRoot, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`
-        : 'gitflow-guard check --platform antigravity'
-  }
+/** 本插件 hook 命令判别(任意历史形态): 引用 gitflow-guard 且带本平台 check 旗标即视为本插件条目
+ *  —— 变量模板(${*_PROJECT_DIR}) / 相对路径(bin/...) / 仓库根绝对路径 / PATH shim 全部覆盖,
+ *  wire 时统一替换为 canonical(不双条并存), unwire 时整条移除。 */
+function guardCommandish(client: JsonWireClient, cmd: unknown): boolean {
+  return typeof cmd === 'string' && cmd.includes('gitflow-guard') && cmd.includes(`check --platform ${client}`)
 }
 
-export type WireResult = 'added' | 'exists' | 'removed' | 'absent'
+/** 条目承载的命令(cursor 为扁平 {command}, 其余为嵌套 {hooks:[{command}]}) */
+function entryCommands(client: JsonWireClient, entry: unknown): unknown[] {
+  if (client === 'cursor') return [(entry as { command?: unknown } | null)?.command]
+  return ((entry as { hooks?: Array<{ command?: unknown }> } | null)?.hooks ?? []).map((h) => h?.command)
+}
+
+/** 本插件条目判别(条目级) */
+function entryIsGuard(client: JsonWireClient, entry: unknown): boolean {
+  return entryCommands(client, entry).some((c) => guardCommandish(client, c))
+}
 
 /** 读取文本文件; 缺失返回 null(其余异常也视为缺失, 决策保守) */
 async function readText(path: string): Promise<string | null> {
@@ -101,14 +122,6 @@ function jsonContainsBy(obj: unknown, pred: (v: unknown) => boolean): boolean {
   return false
 }
 
-/** 判断命令是否为本插件 antigravity 条目: 新格式绝对路径 node <root>/bin/gitflow-guard.mjs … 或
- *  AGY-D2 之前的旧相对格式 node bin/gitflow-guard.mjs …, 或全局 PATH 形态(无 .mjs);
- *  格式演进后旧条目仍能被识别/替换/移除, 避免新旧双条并存。 */
-function antigravityCommandish(cmd: unknown): boolean {
-  if (typeof cmd !== 'string') return false
-  return cmd.includes('gitflow-guard.mjs check --platform antigravity') || cmd === 'gitflow-guard check --platform antigravity'
-}
-
 function parseJsonOrThrow(path: string, raw: string): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(raw)
@@ -123,91 +136,87 @@ async function writeJson(path: string, obj: Record<string, unknown>): Promise<vo
   await writeText(path, `${JSON.stringify(obj, null, 2)}\n`)
 }
 
-/** JSON 客户端(claude/codex/antigravity/codebuddy/zcode)新增 hook 条目; 非破坏性合并, 同命令已存在则跳过 */
-async function addJsonEntry(path: string, client: JsonWireClient, dryRun: boolean, repoRoot: string | null): Promise<WireResult> {
-  const cmd = commandFor(client, repoRoot)
+/** 就地重写 hook 列表: 剔除本插件全部条目(任意历史形态), 追加 canonical 条目; 返回是否原有本插件条目 */
+function rewriteHookList(container: Record<string, unknown>, key: string, client: JsonWireClient, entry: unknown, path: string): boolean {
+  const arr = (container[key] ??= []) as unknown[]
+  if (!Array.isArray(arr)) throw new Error(`invalid ${path}: ${key} must be an array`)
+  const had = arr.some((e) => entryIsGuard(client, e))
+  container[key] = [...arr.filter((e) => !entryIsGuard(client, e)), entry]
+  return had
+}
+
+/** JSON 客户端(claude/codex/antigravity/codebuddy/zcode/cursor)新增 hook 条目; 非破坏性合并;
+ *  已有 canonical 且无旧形态 → 跳过; 有任意旧形态条目 → 迁移为 canonical(migrated)。 */
+async function addJsonEntry(path: string, client: JsonWireClient, dryRun: boolean): Promise<WireResult> {
+  const cmd = currentCommand(client)
   const raw = await readText(path)
   const obj = raw === null ? {} : parseJsonOrThrow(path, raw)
-  if (jsonContains(obj, cmd)) return 'exists'
+  if (jsonContains(obj, cmd) && !jsonContainsBy(obj, (v) => guardCommandish(client, v) && v !== cmd)) return 'exists'
+  // 条目形状按客户端协议: antigravity/codex 系嵌套 {matcher, hooks:[{type,command}]}, cursor 扁平 {command}
   const entry =
     client === 'antigravity'
       ? { matcher: 'run_command', hooks: [{ type: 'command', command: cmd }] }
-      : { matcher: client === 'claude' ? 'Bash' : '^Bash$', hooks: [{ type: 'command', command: cmd }] }
+      : client === 'cursor'
+        ? { command: cmd }
+        : { matcher: client === 'claude' ? 'Bash' : '^Bash$', hooks: [{ type: 'command', command: cmd }] }
+  let hadGuard: boolean
   if (client === 'antigravity') {
     const block = (obj['gitflow-guard'] ??= { PreToolUse: [] }) as { PreToolUse: unknown }
     if (!Array.isArray(block.PreToolUse)) throw new Error(`invalid ${path}: gitflow-guard.PreToolUse must be an array`)
-    const entries = block.PreToolUse as unknown[]
-    if (entries.some((e) => jsonContainsBy(e, (v) => v === cmd))) return 'exists'
-    // 旧格式(AGY-D2 之前, 相对 bin 路径)条目替换为新格式——避免新旧双条并存(旧条 MODULE_NOT_FOUND 污染会话)
-    const next = entries.filter((e) => !jsonContainsBy(e, antigravityCommandish))
-    next.push(entry)
-    block.PreToolUse = next
+    hadGuard = rewriteHookList(block as unknown as Record<string, unknown>, 'PreToolUse', client, entry, path)
   } else if (client === 'zcode') {
     const hooksObj = (obj['hooks'] ??= {}) as Record<string, unknown>
     hooksObj['enabled'] = true
     const eventsObj = (hooksObj['events'] ??= {}) as Record<string, unknown>
-    const arr = (eventsObj['PreToolUse'] ??= []) as unknown[]
-    if (!Array.isArray(arr)) throw new Error(`invalid ${path}: hooks.events.PreToolUse must be an array`)
-    arr.push(entry)
+    hadGuard = rewriteHookList(eventsObj, 'PreToolUse', client, entry, path)
   } else if (client === 'cursor') {
     obj['version'] ??= 1
     const hooksObj = (obj['hooks'] ??= {}) as Record<string, unknown>
-    const arr = (hooksObj['beforeShellExecution'] ??= []) as unknown[]
-    if (!Array.isArray(arr)) throw new Error(`invalid ${path}: hooks.beforeShellExecution must be an array`)
-    arr.push({ command: cmd })
+    hadGuard = rewriteHookList(hooksObj, 'beforeShellExecution', client, entry, path)
   } else {
     const hooksObj = (obj['hooks'] ??= {}) as Record<string, unknown>
-    const arr = (hooksObj['PreToolUse'] ??= []) as unknown[]
-    if (!Array.isArray(arr)) throw new Error(`invalid ${path}: hooks.PreToolUse must be an array`)
-    arr.push(entry)
+    hadGuard = rewriteHookList(hooksObj, 'PreToolUse', client, entry, path)
   }
   if (!dryRun) await writeJson(path, obj)
-  return 'added'
+  return hadGuard ? 'migrated' : 'added'
 }
 
-/** JSON 客户端移除本插件条目; 不动其他内容 */
-async function removeJsonEntry(path: string, client: JsonWireClient, dryRun: boolean, repoRoot: string | null): Promise<WireResult> {
-  const cmd = commandFor(client, repoRoot)
+/** JSON 客户端移除本插件条目(任意历史形态); 不动其他内容 */
+async function removeJsonEntry(path: string, client: JsonWireClient, dryRun: boolean): Promise<WireResult> {
   const raw = await readText(path)
   if (raw === null) return 'absent'
   const obj = parseJsonOrThrow(path, raw)
   if (client === 'antigravity') {
-    // 新旧格式都算本插件条目: 旧相对格式(AGY-D2 前)也能被 unwire 移除
+    // gitflow-guard 顶层键内任意历史形态条目都算本插件条目(含 AGY-D2 前相对路径与 PATH 形态)
     const block = obj['gitflow-guard']
-    if (!block || !jsonContainsBy(block, antigravityCommandish)) return 'absent'
+    if (!block || !jsonContainsBy(block, (v) => guardCommandish(client, v))) return 'absent'
     delete obj['gitflow-guard']
   } else if (client === 'zcode') {
-    if (!jsonContains(obj, cmd)) return 'absent'
     const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
     const eventsObj = hooksObj?.['events'] as Record<string, unknown> | undefined
     const arr = eventsObj?.['PreToolUse']
-    if (Array.isArray(arr)) {
-      const rest = arr.filter((e) => !((e as { hooks?: Array<{ command?: unknown }> })?.hooks ?? []).some((h) => h?.command === cmd))
-      if (rest.length === 0) delete eventsObj!['PreToolUse']
-      else eventsObj!['PreToolUse'] = rest
-      if (eventsObj && Object.keys(eventsObj).length === 0) delete hooksObj!['events']
-      if (hooksObj && Object.keys(hooksObj).filter((k) => k !== 'enabled').length === 0) delete obj['hooks']
-    }
+    if (!Array.isArray(arr) || !arr.some((e) => entryIsGuard(client, e))) return 'absent'
+    const rest = arr.filter((e) => !entryIsGuard(client, e))
+    if (rest.length === 0) delete eventsObj!['PreToolUse']
+    else eventsObj!['PreToolUse'] = rest
+    if (eventsObj && Object.keys(eventsObj).length === 0) delete hooksObj!['events']
+    if (hooksObj && Object.keys(hooksObj).filter((k) => k !== 'enabled').length === 0) delete obj['hooks']
   } else if (client === 'cursor') {
-    if (!jsonContains(obj, cmd)) return 'absent'
     const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
     const arr = hooksObj?.['beforeShellExecution']
-    if (Array.isArray(arr)) {
-      const rest = arr.filter((e) => (e as { command?: unknown })?.command !== cmd)
-      if (rest.length === 0) delete hooksObj!['beforeShellExecution']
-      else hooksObj!['beforeShellExecution'] = rest
-      if (hooksObj && Object.keys(hooksObj).length === 0) delete obj['hooks']
-    }
+    if (!Array.isArray(arr) || !arr.some((e) => entryIsGuard(client, e))) return 'absent'
+    const rest = arr.filter((e) => !entryIsGuard(client, e))
+    if (rest.length === 0) delete hooksObj!['beforeShellExecution']
+    else hooksObj!['beforeShellExecution'] = rest
+    if (hooksObj && Object.keys(hooksObj).length === 0) delete obj['hooks']
   } else {
-    if (!jsonContains(obj, cmd)) return 'absent'
     const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
     const arr = hooksObj?.['PreToolUse']
-    if (Array.isArray(arr)) {
-      const rest = arr.filter((e) => !((e as { hooks?: Array<{ command?: unknown }> })?.hooks ?? []).some((h) => h?.command === cmd))
-      if (rest.length === 0) delete hooksObj!['PreToolUse']
-      else hooksObj!['PreToolUse'] = rest
-      if (hooksObj && Object.keys(hooksObj).length === 0) delete obj['hooks']
-    }
+    if (!Array.isArray(arr) || !arr.some((e) => entryIsGuard(client, e))) return 'absent'
+    const rest = arr.filter((e) => !entryIsGuard(client, e))
+    if (rest.length === 0) delete hooksObj!['PreToolUse']
+    else hooksObj!['PreToolUse'] = rest
+    if (hooksObj && Object.keys(hooksObj).length === 0) delete obj['hooks']
   }
   if (!dryRun) await writeJson(path, obj)
   return 'removed'
@@ -236,22 +245,47 @@ async function removePluginFile(path: string, dryRun: boolean): Promise<WireResu
   return 'removed'
 }
 
-/** 执行一次 wire 落位/移除/预览; dsh/pi 由上层直接短路, 不进这里 */
-export async function applyWire(client: ClientId, path: string, unwire: boolean, dryRun: boolean, repoRoot: string | null = null): Promise<WireResult> {
+/** 执行一次 wire 落位/移除/预览; dsh/pi 由上层直接短路, 不进这里。
+ *  真实写入 JSON 客户端前自检随包 runner 真实存在 —— 杜绝把死指针写进用户配置(静默 MODULE_NOT_FOUND)。 */
+export async function applyWire(
+  client: ClientId,
+  path: string,
+  unwire: boolean,
+  dryRun: boolean,
+  deps: { runnerExists?: (p: string) => boolean } = {},
+): Promise<WireResult> {
   if (client === 'opencode') return unwire ? removePluginFile(path, dryRun) : addPluginFile(path, dryRun)
+  if (!unwire && !dryRun) {
+    const runnerExists = deps.runnerExists ?? existsSync
+    if (!runnerExists(RUNNER_PATH)) {
+      throw new Error(`gitflow-guard runner not found at ${RUNNER_PATH} — reinstall the package (npm i -g agents-gitflow-guard)`)
+    }
+  }
   return unwire
-    ? removeJsonEntry(path, client as JsonWireClient, dryRun, repoRoot)
-    : addJsonEntry(path, client as JsonWireClient, dryRun, repoRoot)
+    ? removeJsonEntry(path, client as JsonWireClient, dryRun)
+    : addJsonEntry(path, client as JsonWireClient, dryRun)
 }
 
-/** 只读探测: 该客户端是否已接线(opencode 判插件文件存在; JSON 客户端按命令精确匹配) */
-export async function isWired(client: ClientId, path: string, repoRoot: string | null = null): Promise<boolean> {
+export type WiringState = 'current' | 'legacy' | 'absent'
+
+/** 只读探测接线版本状态: current=canonical 条目在位; legacy=存在任意历史形态条目(status 提示重新 wire 迁移);
+ *  absent=无本插件条目(或配置不可解析, 决策保守)。 */
+export async function wiringState(client: ClientId, path: string): Promise<WiringState> {
   const raw = await readText(path)
-  if (raw === null) return false
-  if (client === 'opencode') return true
+  if (raw === null) return 'absent'
+  if (client === 'opencode') return 'current'
+  let obj: unknown
   try {
-    return jsonContains(JSON.parse(raw), commandFor(client as JsonWireClient, repoRoot))
+    obj = JSON.parse(raw)
   } catch {
-    return false
+    return 'absent'
   }
+  const cmd = currentCommand(client as JsonWireClient)
+  if (jsonContains(obj, cmd)) return 'current'
+  return jsonContainsBy(obj, (v) => guardCommandish(client as JsonWireClient, v)) ? 'legacy' : 'absent'
+}
+
+/** 只读探测: 该客户端是否已接线为当前 canonical 形态(opencode 判插件文件存在; JSON 客户端按命令精确匹配) */
+export async function isWired(client: ClientId, path: string): Promise<boolean> {
+  return (await wiringState(client, path)) === 'current'
 }

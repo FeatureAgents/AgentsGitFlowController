@@ -82,7 +82,7 @@ gitflow-guard wire --client claude --unwire
 gitflow-guard setup
 ```
 
-`wire` fügt sich **zerstörungsfrei** in Ihre bestehende Konfiguration ein (bereits vorhandene Hooks bleiben unberührt) und schreibt standardmäßig in Ihr **Projektverzeichnis** — `--global` (für alle Repositories auf diesem Rechner) fragt immer vorher nach oder erfordert `--yes`. Die dateispezifischen Pfade und Formate der einzelnen Clients sind unter [Installation im Detail](#installation-im-detail) aufgeführt.
+`wire` fügt sich **zerstörungsfrei** in Ihre bestehende Konfiguration ein (bereits vorhandene Hooks bleiben unberührt; veraltete gitflow-guard-Einträge werden beim erneuten Ausführen direkt zur aktuellen selbstverankerten Form migriert) und schreibt standardmäßig in Ihr **Projektverzeichnis** — `--global` (für alle Repositories auf diesem Rechner) fragt immer vorher nach oder erfordert `--yes`. Die dateispezifischen Pfade und Formate der einzelnen Clients sind unter [Installation im Detail](#installation-im-detail) aufgeführt.
 
 > ⚠️ **main ist standardmäßig geschützt.** Nutzer von Trunk-Based-/Ein-Branch-Workflows (bei denen jeder direkt auf einen einzigen Branch pusht) werden bei direkten Pushes auf `main` blockiert, bis sie dies deaktivieren — erstellen Sie dazu eine `gitflow-guard.config.json` mit `{ "enabled": false }` oder bilden Sie Ihre eigenen Branches ab (siehe [Konfigurationsreferenz](#konfigurationsreferenz)). `gitflow-guard status` wiederholt diesen Hinweis, wann immer die integrierten Standardeinstellungen aktiv sind.
 
@@ -394,7 +394,7 @@ gitflow-guard wire --client cursor --project --yes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform claude" }] }
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform claude" }] }
     ]
   }
 }
@@ -405,7 +405,7 @@ gitflow-guard wire --client cursor --project --yes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform codex" }] }
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform codex" }] }
     ]
   }
 }
@@ -420,11 +420,13 @@ gitflow-guard wire --client cursor --project --yes
 {
   "gitflow-guard": {
     "PreToolUse": [
-      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "gitflow-guard check --platform antigravity" } ] }
+      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform antigravity" } ] }
     ]
   }
 }
 ```
+
+> `<npm-global>/agents-gitflow-guard/bin/...` ist ein Platzhalter — `wire` löst ihn beim Verdrahten zum absoluten Pfad des Runners des installierten Pakets auf (vollständig selbstverankert: keine clientseitige Variablenexpansion, keine Annahme über das Arbeitsverzeichnis des Hook-Prozesses, keine PATH-Abhängigkeit, nichts im Ziel-Repository abzulegen). Nach einem Upgrade von ≤ 0.0.41 genügt ein erneuter `wire` pro Client — Alt-Einträge (Variablenvorlage / relativer Pfad / PATH-Form) werden direkt migriert.
 
 ### 2. In-Process-Plugins und Erweiterungen (DSH · Pi)
 
@@ -494,7 +496,7 @@ npm link
 - **Pre-Tool-Ausführung**: Nur das Pre-Tool-Ereignis wird abgefangen; der Guard blockiert, *bevor* Befehle ausgeführt werden, sodass keine Post-Tool-Hooks oder Permit-Bereinigungsschritte erforderlich sind.
 - **Binary PATH-Auflösung**: Die globale Installation (`npm i -g`) stellt das Binary `gitflow-guard` bereit. Falls Ihr Agent-Runner Ihren interaktiven `PATH` nicht erbt, verwenden Sie den vollständigen Pfad aus `npm bin -g`.
 - **Standardmäßig aktiviert**: Die integrierten Standardwerte (`integration: ["develop"]`, `archive: ["main"]`) greifen ohne jede Konfigurationsdatei. Eigene Konfigurationen in `gitflow-guard.config.json` werden per Deep-Merge über die Standardwerte gelegt.
-- **Zerstörungsfreie Verdrahtung**: `gitflow-guard wire` führt Hook-Konfigurationen idempotent zusammen, ohne bestehende Hooks zu verändern, und `wire --unwire` entfernt ausschließlich den Guard-Eintrag.
+- **Zerstörungsfreie Verdrahtung**: `gitflow-guard wire` führt Hook-Konfigurationen idempotent zusammen, ohne bestehende Hooks zu verändern (veraltete gitflow-guard-Einträge werden bei erneuter Ausführung zur aktuellen Form migriert), und `wire --unwire` entfernt ausschließlich den Guard-Eintrag.
 
 ---
 

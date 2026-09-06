@@ -82,7 +82,7 @@ gitflow-guard wire --client claude --unwire
 gitflow-guard setup
 ```
 
-O comando `wire` realiza a mesclagem na sua configuração existente de forma **não destrutiva** (hooks já existentes permanecem intocados) e grava no **diretório do projeto por padrão** — `--global` (todos os repositórios nesta máquina) sempre solicita confirmação prévia ou requer `--yes`. Os arquivos e formatos de cada cliente estão descritos em [Instalação Detalhada](#instalação-detalhada).
+O comando `wire` realiza a mesclagem na sua configuração existente de forma **não destrutiva** (hooks já existentes permanecem intocados; entradas legadas do gitflow-guard são migradas no lugar para a forma atual auto-ancorada ao reexecutar) e grava no **diretório do projeto por padrão** — `--global` (todos os repositórios nesta máquina) sempre solicita confirmação prévia ou requer `--yes`. Os arquivos e formatos de cada cliente estão descritos em [Instalação Detalhada](#instalação-detalhada).
 
 > ⚠️ **main é protegido por padrão.** Usuários de fluxo baseado em tronco / branch única (onde todos realizam push direto em uma única branch) serão bloqueados em pushes diretos na `main` até desativarem a opção — crie `gitflow-guard.config.json` com `{ "enabled": false }` ou mapeie suas próprias branches (veja [Referência de Configuração](#referência-de-configuração)). `gitflow-guard status` repete este aviso sempre que os padrões integrados estão em vigor.
 
@@ -393,7 +393,7 @@ O comando `wire` lê o arquivo de configuração existente (se houver), mescla a
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform claude" }] }
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform claude" }] }
     ]
   }
 }
@@ -404,7 +404,7 @@ O comando `wire` lê o arquivo de configuração existente (se houver), mescla a
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform codex" }] }
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform codex" }] }
     ]
   }
 }
@@ -419,11 +419,13 @@ O comando `wire` lê o arquivo de configuração existente (se houver), mescla a
 {
   "gitflow-guard": {
     "PreToolUse": [
-      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "gitflow-guard check --platform antigravity" } ] }
+      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform antigravity" } ] }
     ]
   }
 }
 ```
+
+> `<npm-global>/agents-gitflow-guard/bin/...` é um marcador de posição — o `wire` o resolve, no momento da fiação, para o caminho absoluto do runner do próprio pacote instalado (totalmente auto-ancorado: sem expansão de variáveis do cliente, sem suposição sobre o diretório de trabalho do hook, sem dependência do PATH, nada a implantar no repositório de destino). Atualizando de ≤ 0.0.41? Execute `wire` novamente uma vez por cliente — as entradas antigas (modelo de variável / caminho relativo / forma PATH) são migradas no lugar.
 
 ### 2. Plugins e Extensões em Processo (DSH · Pi)
 
@@ -493,7 +495,7 @@ npm link
 - **Execução pré-ferramenta**: Apenas o evento pré-ferramenta é interceptado; o guardião bloqueia *antes* que os comandos sejam executados, eliminando a necessidade de hooks pós-ferramenta ou etapas de limpeza de permissões.
 - **Resolução de PATH para o executável**: A instalação global (`npm i -g`) provê o binário `gitflow-guard`. Se o ambiente do seu agente não herdar o `PATH` interativo, use o caminho absoluto retornado por `npm bin -g`.
 - **Ativo por padrão**: Os padrões integrados (`integration: ["develop"]`, `archive: ["main"]`) entram em vigor sem nenhum arquivo de configuração. Configurações personalizadas em `gitflow-guard.config.json` são mescladas via deep-merge sobre os padrões.
-- **Conexão não destrutiva**: `gitflow-guard wire` mescla as configurações de hook de forma idempotente sem alterar hooks existentes, e `wire --unwire` remove apenas a entrada do guardião.
+- **Conexão não destrutiva**: `gitflow-guard wire` mescla as configurações de hook de forma idempotente sem alterar hooks existentes (entradas legadas do gitflow-guard são migradas para a forma atual ao reexecutar), e `wire --unwire` remove apenas a entrada do guardião.
 
 ---
 

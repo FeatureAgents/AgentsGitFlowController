@@ -13,11 +13,13 @@
 {
   "gitflow-guard": {
     "PreToolUse": [
-      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node /abs/path/to/bin/gitflow-guard.mjs check --platform antigravity" } ] }
+      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform antigravity" } ] }
     ]
   }
 }
 ```
+
+> `<npm-global>/agents-gitflow-guard/bin/...` 仅为占位 — `gitflow-guard wire` 落位时把它解析为**本机安装包自身** runner 的绝对路径。写出的命令完全自锚定: 不依赖变量展开、不依赖 hook 进程 cwd(AGY-D2)、不依赖 PATH, 目标仓库无需部署任何文件。重新执行 `wire` 可把旧形态条目(仓库根绝对路径 / 相对路径 / PATH shim)原位迁移为当前形态。
 
 ## Supported events (与守卫相关)
 

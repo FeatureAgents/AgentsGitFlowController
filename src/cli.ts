@@ -10,7 +10,7 @@ import { makeT, resolveLocale } from './i18n'
 import type { I18nVars, Locale } from './i18n'
 import { detectPlatform, encodeDeny, extractHookPayload } from './platform'
 import { currentBranch, findRepoRoot, gitRunner } from './repo'
-import { applyWire, isWireClient, isWired, WIRE_CLIENTS } from './wire'
+import { applyWire, isWireClient, wiringState, WIRE_CLIENTS } from './wire'
 import type { WireScope } from './wire'
 import type { HookPayload, HookPlatform } from './platform'
 import type { BranchRole, ClientId } from './types'
@@ -155,15 +155,20 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
   console.log(t('cli.statusLocalBranches'))
   for (const b of localBranches) console.log(`  ${b} → ${classifyBranch(b)}`)
 
-  // 接线提示: 检测各 stdin-hook 客户端的工程级 hook 是否已落位(status 只读引导, 不写任何文件)
+  // 接线提示: 检测各 stdin-hook 客户端的工程级 hook 落位状态(status 只读引导, 不写任何文件)。
+  // legacy = 存在任意历史形态条目(如 0.0.41 前的 ${*_PROJECT_DIR} 模板) → 引导重跑 wire 迁移。
   const hints: string[] = []
+  const legacy: string[] = []
   for (const spec of WIRE_CLIENTS) {
     if (spec.client === 'dsh' || spec.client === 'pi') continue
-    if (!(await isWired(spec.client, join(repoRoot, spec.projectPath), repoRoot))) hints.push(spec.client)
+    const state = await wiringState(spec.client, join(repoRoot, spec.projectPath))
+    if (state === 'absent') hints.push(spec.client)
+    else if (state === 'legacy') legacy.push(spec.client)
   }
-  if (hints.length > 0) {
+  if (hints.length > 0 || legacy.length > 0) {
     console.log(t('cli.statusWireHints'))
     for (const c of hints) console.log(t('cli.statusWireHint', { client: c }))
+    for (const c of legacy) console.log(t('cli.statusWireLegacyHint', { client: c }))
   }
   return 0
 }
@@ -241,8 +246,9 @@ async function wireCore(
   const path = scope === 'project' ? join(opts.repoRoot!, spec.projectPath) : spec.globalPath()
   console.log(t('cli.wireTarget', { client, path }))
   if (opts.dryRun) {
-    const res = await applyWire(client, path, !!opts.unwire, true, opts.repoRoot)
+    const res = await applyWire(client, path, !!opts.unwire, true)
     if (res === 'added') console.log(t('cli.wireDryRunAdd', { client, path }))
+    else if (res === 'migrated') console.log(t('cli.wireDryRunMigrated', { client, path }))
     else if (res === 'removed') console.log(t('cli.wireDryRunRemove', { client, path }))
     else console.log(t('cli.wireDryRunNoOp', { client, path }))
     return 0
@@ -258,8 +264,9 @@ async function wireCore(
       if (ans !== 'y' && ans !== 'yes') return 1
     }
   }
-  const res = await applyWire(client, path, !!opts.unwire, false, opts.repoRoot)
+  const res = await applyWire(client, path, !!opts.unwire, false)
   if (res === 'added') console.log(t('cli.wireCreated', { client, path }))
+  else if (res === 'migrated') console.log(t('cli.wireMigrated', { client, path }))
   else if (res === 'exists') console.log(t('cli.wireAlready', { client, path }))
   else if (res === 'removed') console.log(t('cli.wireRemoved', { client, path }))
   else console.log(t('cli.wireNotWired', { client, path }))

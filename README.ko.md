@@ -81,7 +81,7 @@ gitflow-guard wire --client claude --unwire
 gitflow-guard setup
 ```
 
-`wire` 명령어는 기존 설정 파일에 **비파괴적으로 병합**되며 (기존 hook은 그대로 유지됨), 기본적으로 **현재 프로젝트 디렉토리**에 작성됩니다. `--global` (머신의 모든 저장소에 적용)을 사용할 때는 항상 사전에 확인을 요청합니다 (`--yes`로 자동 승인 가능). 클라이언트별 파일 및 형식은 [상세 설치 가이드](#상세-설치-가이드)를 참조하세요.
+`wire` 명령어는 기존 설정 파일에 **비파괴적으로 병합**되며 (기존 hook은 그대로 유지됨, 재실행 시 구버전 gitflow-guard 항목은 현재 자기 앵커 형식으로 그 자리에서 마이그레이션됨), 기본적으로 **현재 프로젝트 디렉토리**에 작성됩니다. `--global` (머신의 모든 저장소에 적용)을 사용할 때는 항상 사전에 확인을 요청합니다 (`--yes`로 자동 승인 가능). 클라이언트별 파일 및 형식은 [상세 설치 가이드](#상세-설치-가이드)를 참조하세요.
 
 > ⚠️ **main 브랜치는 기본적으로 보호됩니다.** 트렁크 기반 개발 (모든 팀원이 단일 브랜치에 직접 푸시)을 사용하는 경우, 명시적으로 비활성화할 때까지 `main` 직접 푸시가 차단됩니다 — 비활성화하려면 `{ "enabled": false }`가 포함된 `gitflow-guard.config.json`을 생성하거나 고유한 브랜치 매핑을 설정하세요 ([설정 레퍼런스](#설정-레퍼런스) 참조). `gitflow-guard status`는 내장 기본값이 적용 중일 때 항상 이 안내를 표시합니다.
 
@@ -393,7 +393,7 @@ gitflow-guard wire --client cursor --project --yes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform claude" }] }
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform claude" }] }
     ]
   }
 }
@@ -404,7 +404,7 @@ gitflow-guard wire --client cursor --project --yes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform codex" }] }
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform codex" }] }
     ]
   }
 }
@@ -424,11 +424,13 @@ gitflow-guard wire --client cursor --project --yes
 {
   "gitflow-guard": {
     "PreToolUse": [
-      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "gitflow-guard check --platform antigravity" } ] }
+      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform antigravity" } ] }
     ]
   }
 }
 ```
+
+> `<npm-global>/agents-gitflow-guard/bin/...`은 자리표시자입니다 — `wire`는 실행 시점에 설치된 패키지 자체 runner의 절대 경로를 확인해 기록합니다(완전 자기 앵커형: 클라이언트 변수 확장·hook 프로세스 cwd·PATH 의존 없음, 대상 저장소에 배치할 것도 없음). ≤0.0.41에서 업그레이드한 경우 클라이언트별로 `wire`를 다시 실행하면 이전 형식 항목(변수 템플릿/상대 경로/PATH 형식)이 그 자리에서 마이그레이션됩니다.
 
 ### 2. 프로세스 내 플러그인 및 확장 (DSH · Pi)
 
@@ -498,7 +500,7 @@ npm link
 - **사전 이벤트만 인터셉트**: 명령어 실행 *전*에 차단이 완료되므로 사후 정리나 권한 토큰 회수 작업이 전혀 필요하지 않습니다.
 - **PATH 및 바이너리 확인**: 전역 설치 시 `gitflow-guard` 바이너리가 제공됩니다. 에이전트 자식 프로세스가 `PATH`를 상속받지 못하는 경우 `npm bin -g`가 반환하는 절대 경로를 지정하세요.
 - **기본 활성화**: 별도의 설정 파일 없이도 내장 기본값(`integration: ["develop"]`, `archive: ["main"]`)이 즉시 적용되며, 커스텀 설정은 딥 머지됩니다.
-- **안전한 배선**: `gitflow-guard wire`는 기존의 다른 Hook을 보존하며 멱등하게 병합하고, `--unwire`를 통해 해당 가드 항목만을 정확하게 제거합니다.
+- **안전한 배선**: `gitflow-guard wire`는 기존의 다른 Hook을 보존하며 멱등하게 병합하고(재실행 시 구버전 gitflow-guard 항목은 현재 형식으로 마이그레이션됨), `--unwire`를 통해 해당 가드 항목만을 정확하게 제거합니다.
 
 ---
 

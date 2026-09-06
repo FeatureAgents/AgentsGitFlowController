@@ -11,12 +11,14 @@ Registered in the project-root `.cursor/hooks.json` (project) or `~/.cursor/hook
   "hooks": {
     "beforeShellExecution": [
       {
-        "command": "node bin/gitflow-guard.mjs check --platform cursor"
+        "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform cursor"
       }
     ]
   }
 }
 ```
+
+> `<npm-global>/agents-gitflow-guard/bin/...` is a placeholder — `gitflow-guard wire` resolves it to the absolute path of the **installed package's own runner** at wire time. The written command is fully self-anchored: no client variable expansion, no hook-cwd assumption (the previous relative `node bin/...` form broke whenever the hook process cwd was not the repo root), no PATH dependency, and nothing needs to be deployed into the target repo. Re-running `wire` migrates legacy entries in place.
 
 ## Payload shape (stdin JSON)
 

@@ -1,15 +1,74 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync, statSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { isWired, WIRE_CLIENTS } from '../src/wire'
-import { applyWire } from '../src/wire'
+import { isWired, WIRE_CLIENTS, applyWire, guardCommand, resolveRunnerPath, wiringState } from '../src/wire'
+import type { WiringState } from '../src/wire'
 
 function tempDir(prefix = 'gfguard-wire-') {
   const dir = mkdtempSync(join(tmpdir(), prefix))
   mkdirSync(join(dir, '.git'), { recursive: true })
   return dir
 }
+
+const RUNNER = resolveRunnerPath()
+const cmdOf = guardCommand.bind(null, RUNNER) as (client: string) => string
+
+describe('wire: runner 自锚定(BUG-REPORT-wire-runner-deployment 回归)', () => {
+  it('resolveRunnerPath 指向真实存在的随包 runner(<pkg>/bin/gitflow-guard.mjs)', () => {
+    expect(statSync(RUNNER).isFile()).toBe(true)
+    expect(RUNNER.replace(/\\/g, '/')).toMatch(/\/bin\/gitflow-guard\.mjs$/)
+  })
+
+  it('六个 JSON 客户端命令均为绝对路径自锚定形态: node <runner> check --platform <client>', () => {
+    for (const client of ['claude', 'codex', 'antigravity', 'codebuddy', 'zcode', 'cursor'] as const) {
+      const cmd = cmdOf(client)
+      expect(cmd).toBe(`node ${RUNNER.replace(/\\/g, '/')} check --platform ${client}`)
+      expect(cmd).not.toContain('${') // 不依赖客户端变量展开
+      expect(cmd.startsWith('node /') || /^[a-z]:\//i.test(cmd.slice(5))).toBe(true) // 绝对路径, 非相对 bin/...
+      // 命令引用的 runner 真实存在 —— 旧实现的病灶正是"指针在、程序不在"的静默 MODULE_NOT_FOUND
+      const runnerRef = cmd.slice('node '.length, cmd.indexOf(' check')).replace(/"/g, '')
+      expect(existsSync(runnerRef)).toBe(true)
+    }
+  })
+
+  it('guardCommand: 含空格路径加双引号, 统一正斜杠', () => {
+    expect(guardCommand('C:\\a b\\bin\\gitflow-guard.mjs', 'claude')).toBe('node "C:/a b/bin/gitflow-guard.mjs" check --platform claude')
+    expect(guardCommand('/opt/tools/bin/gitflow-guard.mjs', 'codex')).toBe('node /opt/tools/bin/gitflow-guard.mjs check --platform codex')
+  })
+
+  it('干净仓库(无 bin/)wire 后命令引用的 runner 真实存在且非项目内路径', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.zcode/config.json')
+    try {
+      expect(await applyWire('zcode', path, false, false)).toBe('added')
+      const cmd = (JSON.parse(readFileSync(path, 'utf8')) as { hooks: { events: { PreToolUse: Array<{ hooks: Array<{ command: string }> }> } } })
+        .hooks.events.PreToolUse[0].hooks[0].command
+      const runnerRef = cmd.slice('node '.length, cmd.indexOf(' check')).replace(/"/g, '')
+      // 命令引用的 runner 真实存在 —— 旧实现的病灶正是"指针在、程序不在"的静默 MODULE_NOT_FOUND;
+      // 且 runner 不在目标项目内(自锚定执行包, 目标仓库零部署)。实弹执行验证在 verify:matrix(构建后)覆盖。
+      expect(existsSync(runnerRef)).toBe(true)
+      expect(runnerRef.replace(/\\/g, '/').toLowerCase()).not.toContain(dir.replace(/\\/g, '/').toLowerCase())
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('runner 缺失 → 真实写入拒绝并明确报错; dry-run 预览放行; unwire 不受影响; opencode 不依赖 runner', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.claude/settings.json')
+    try {
+      await expect(applyWire('claude', path, false, false, { runnerExists: () => false })).rejects.toThrow(/runner not found/)
+      expect(existsSync(path)).toBe(false)
+      expect(await applyWire('claude', path, false, true, { runnerExists: () => false })).toBe('added') // dry-run 只预览不写
+      expect(existsSync(path)).toBe(false)
+      expect(await applyWire('claude', path, true, false, { runnerExists: () => false })).toBe('absent') // unwire 无需 runner
+      expect(await applyWire('opencode', join(dir, '.opencode/plugins/gitflow-guard.ts'), false, false, { runnerExists: () => false })).toBe('added')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('wire: JSON 客户端(claude/codex/codebuddy)幂等落位与移除', () => {
   const clients = ['claude', 'codex', 'codebuddy'] as const
@@ -23,6 +82,7 @@ describe('wire: JSON 客户端(claude/codex/codebuddy)幂等落位与移除', ()
         await expect(isWired(client, path)).resolves.toBe(true)
         const first = JSON.parse(readFileSync(path, 'utf8'))
         expect(first.hooks.PreToolUse).toHaveLength(1)
+        expect(first.hooks.PreToolUse[0].hooks[0].command).toBe(cmdOf(client))
 
         expect(await applyWire(client, path, false, false)).toBe('exists')
         const second = JSON.parse(readFileSync(path, 'utf8'))
@@ -39,7 +99,7 @@ describe('wire: JSON 客户端(claude/codex/codebuddy)幂等落位与移除', ()
         expect(await applyWire(client, path, false, false)).toBe('added')
         const merged = JSON.parse(readFileSync(path, 'utf8'))
         expect(merged.extra).toBe(1)
-        expect(merged.hooks.PreToolUse.map((e: { hooks: Array<{ command: string }> }) => e.hooks[0].command)).toEqual(['other-guard', expect.stringContaining('gitflow-guard')])
+        expect(merged.hooks.PreToolUse.map((e: { hooks: Array<{ command: string }> }) => e.hooks[0].command)).toEqual(['other-guard', cmdOf(client)])
         expect(await applyWire(client, path, true, false)).toBe('removed')
         const after = JSON.parse(readFileSync(path, 'utf8'))
         expect(after.extra).toBe(1) // 非目标内容不动
@@ -71,9 +131,153 @@ describe('wire: JSON 客户端(claude/codex/codebuddy)幂等落位与移除', ()
       mkdirSync(join(dir, '.claude'), { recursive: true })
       writeFileSync(path, '{broken')
       await expect(isWired('claude', path)).resolves.toBe(false)
-      await expect(isWired('antigravity', path, dir)).resolves.toBe(false)
+      await expect(isWired('antigravity', path)).resolves.toBe(false)
       await expect(isWired('codebuddy', path)).resolves.toBe(false)
       await expect(isWired('zcode', path)).resolves.toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('wire: 旧条目迁移(任意历史形态 → 当前 canonical, 不双条并存)', () => {
+  const LEGACY: Record<string, string> = {
+    claude: 'node ${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform claude',
+    codex: 'node bin/gitflow-guard.mjs check --platform codex',
+    zcode: 'node ${ZCODE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform zcode',
+    cursor: 'node bin/gitflow-guard.mjs check --platform cursor',
+  }
+
+  it('claude: 旧变量模板条目 → wire 迁移为 canonical(用户条目保留); unwire 只清本插件条目', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.claude/settings.json')
+    mkdirSync(join(dir, '.claude'), { recursive: true })
+    writeFileSync(
+      path,
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            { matcher: 'Bash', hooks: [{ type: 'command', command: LEGACY.claude }] },
+            { matcher: 'Bash', hooks: [{ type: 'command', command: 'other-guard' }] },
+          ],
+        },
+      }),
+    )
+    try {
+      expect(await applyWire('claude', path, false, false)).toBe('migrated')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj.hooks.PreToolUse.map((e: { hooks: Array<{ command: string }> }) => e.hooks[0].command)).toEqual(['other-guard', cmdOf('claude')])
+      // 迁移后 canonical 在位: isWired true / wiringState current
+      await expect(isWired('claude', path)).resolves.toBe(true)
+      await expect(wiringState('claude', path)).resolves.toBe('current')
+      // unwire 移除全部本插件形态条目(含旧形态)
+      expect(await applyWire('claude', path, true, false)).toBe('removed')
+      const after = JSON.parse(readFileSync(path, 'utf8'))
+      expect(after.hooks.PreToolUse.map((e: { hooks: Array<{ command: string }> }) => e.hooks[0].command)).toEqual(['other-guard'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('canonical 与旧条目并存(异常态) → wire 归一为单条 canonical', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.claude/settings.json')
+    mkdirSync(join(dir, '.claude'), { recursive: true })
+    writeFileSync(
+      path,
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            { matcher: 'Bash', hooks: [{ type: 'command', command: LEGACY.claude }] },
+            { matcher: 'Bash', hooks: [{ type: 'command', command: cmdOf('claude') }] },
+          ],
+        },
+      }),
+    )
+    try {
+      expect(await applyWire('claude', path, false, false)).toBe('migrated')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj.hooks.PreToolUse).toHaveLength(1)
+      expect(obj.hooks.PreToolUse[0].hooks[0].command).toBe(cmdOf('claude'))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('codex: 旧相对路径条目 → wire 迁移为绝对路径', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.codex/hooks.json')
+    mkdirSync(join(dir, '.codex'), { recursive: true })
+    writeFileSync(path, JSON.stringify({ hooks: { PreToolUse: [{ matcher: '^Bash$', hooks: [{ type: 'command', command: LEGACY.codex }] }] } }))
+    try {
+      expect(await applyWire('codex', path, false, false)).toBe('migrated')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj.hooks.PreToolUse[0].hooks[0].command).toBe(cmdOf('codex'))
+      expect(await applyWire('codex', path, true, false)).toBe('removed')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('zcode: 旧模板条目(events 嵌套) → wire 迁移且 enabled 保持 true; 旧条目 unwire 移除', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.zcode/config.json')
+    mkdirSync(join(dir, '.zcode'), { recursive: true })
+    writeFileSync(
+      path,
+      JSON.stringify({ custom: 1, hooks: { enabled: true, events: { PreToolUse: [{ matcher: '^Bash$', hooks: [{ type: 'command', command: LEGACY.zcode }] }] } } }),
+    )
+    try {
+      await expect(wiringState('zcode', path)).resolves.toBe('legacy')
+      expect(await applyWire('zcode', path, false, false)).toBe('migrated')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj.custom).toBe(1)
+      expect(obj.hooks.enabled).toBe(true)
+      expect(obj.hooks.events.PreToolUse).toHaveLength(1)
+      expect(obj.hooks.events.PreToolUse[0].hooks[0].command).toBe(cmdOf('zcode'))
+      expect(await applyWire('zcode', path, true, false)).toBe('removed')
+      expect((JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>)['hooks']).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('cursor: 旧相对路径条目(beforeShellExecution 扁平形状) → wire 迁移', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.cursor/hooks.json')
+    mkdirSync(join(dir, '.cursor'), { recursive: true })
+    writeFileSync(path, JSON.stringify({ version: 1, hooks: { beforeShellExecution: [{ command: LEGACY.cursor }, { command: 'audit.sh' }] } }))
+    try {
+      expect(await applyWire('cursor', path, false, false)).toBe('migrated')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj.hooks.beforeShellExecution.map((e: { command: string }) => e.command)).toEqual(['audit.sh', cmdOf('cursor')])
+      expect(await applyWire('cursor', path, true, false)).toBe('removed')
+      const after = JSON.parse(readFileSync(path, 'utf8'))
+      expect(after.hooks.beforeShellExecution).toEqual([{ command: 'audit.sh' }])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('wiringState 三态: current / legacy / absent; 无效 JSON 视为 absent', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.claude/settings.json')
+    mkdirSync(join(dir, '.claude'), { recursive: true })
+    try {
+      await expect(wiringState('claude', join(dir, 'missing.json'))).resolves.toBe('absent')
+      writeFileSync(path, JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: cmdOf('claude') }] }] } }))
+      await expect(wiringState('claude', path)).resolves.toBe('current')
+      writeFileSync(path, JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: LEGACY.claude }] }] } }))
+      await expect(wiringState('claude', path)).resolves.toBe('legacy')
+      await expect(isWired('claude', path)).resolves.toBe(false) // 旧形态不算已接线 → status 引导重新 wire 完成迁移
+      writeFileSync(path, '{broken')
+      await expect(wiringState('claude', path)).resolves.toBe('absent')
+      // opencode 以插件文件存在性为准
+      const plugin = join(dir, '.opencode/plugins/gitflow-guard.ts')
+      await expect(wiringState('opencode', plugin)).resolves.toBe('absent')
+      mkdirSync(join(dir, '.opencode', 'plugins'), { recursive: true })
+      writeFileSync(plugin, '// wired')
+      await expect(wiringState('opencode', plugin)).resolves.toBe('current')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -91,7 +295,7 @@ describe('wire: zcode (events 嵌套与 enabled 开关)', () => {
       expect(first.hooks.enabled).toBe(true)
       expect(first.hooks.events.PreToolUse).toHaveLength(1)
       expect(first.hooks.events.PreToolUse[0].matcher).toBe('^Bash$')
-      expect(first.hooks.events.PreToolUse[0].hooks[0].command).toBe('node ${ZCODE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform zcode')
+      expect(first.hooks.events.PreToolUse[0].hooks[0].command).toBe(cmdOf('zcode'))
 
       expect(await applyWire('zcode', path, false, false)).toBe('exists')
       const second = JSON.parse(readFileSync(path, 'utf8'))
@@ -140,7 +344,7 @@ describe('wire: cursor (.cursor/hooks.json 与 hooks.beforeShellExecution)', () 
       const first = JSON.parse(readFileSync(path, 'utf8'))
       expect(first.version).toBe(1)
       expect(first.hooks.beforeShellExecution).toHaveLength(1)
-      expect(first.hooks.beforeShellExecution[0].command).toBe('node bin/gitflow-guard.mjs check --platform cursor')
+      expect(first.hooks.beforeShellExecution[0].command).toBe(cmdOf('cursor'))
 
       expect(await applyWire('cursor', path, false, false)).toBe('exists')
       const second = JSON.parse(readFileSync(path, 'utf8'))
@@ -174,23 +378,23 @@ describe('wire: cursor (.cursor/hooks.json 与 hooks.beforeShellExecution)', () 
   })
 })
 
-describe('wire: antigravity 对象形态(命令须绝对路径, AGY-D2)', () => {
-  it('落位为 gitflow-guard 顶层键, 命令含仓库根绝对路径; unwire 移除且不伤其他内容', async () => {
+describe('wire: antigravity 对象形态(命令绝对路径自锚定, AGY-D2)', () => {
+  it('落位为 gitflow-guard 顶层键, 命令为执行包 runner 绝对路径; unwire 移除且不伤其他内容', async () => {
     const dir = tempDir()
     const path = join(dir, '.agents/hooks.json')
     try {
-      expect(await applyWire('antigravity', path, false, false, dir)).toBe('added')
+      expect(await applyWire('antigravity', path, false, false)).toBe('added')
       const obj = JSON.parse(readFileSync(path, 'utf8'))
       expect(obj['gitflow-guard'].PreToolUse[0].matcher).toBe('run_command')
-      expect(obj['gitflow-guard'].PreToolUse[0].hooks[0].command).toBe(`node ${join(dir, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`)
-      await expect(isWired('antigravity', path, dir)).resolves.toBe(true)
-      expect(await applyWire('antigravity', path, false, false, dir)).toBe('exists')
+      expect(obj['gitflow-guard'].PreToolUse[0].hooks[0].command).toBe(cmdOf('antigravity'))
+      await expect(isWired('antigravity', path)).resolves.toBe(true)
+      expect(await applyWire('antigravity', path, false, false)).toBe('exists')
 
       writeFileSync(path, JSON.stringify({ keep: { x: 1 }, 'gitflow-guard': { PreToolUse: [] } }) + '\n')
-      expect(await applyWire('antigravity', path, false, false, dir)).toBe('added') // 已有键但空列表 → 补条目
+      expect(await applyWire('antigravity', path, false, false)).toBe('added') // 已有键但空列表 → 补条目
       const merged = JSON.parse(readFileSync(path, 'utf8'))
       expect(merged.keep.x).toBe(1)
-      expect(await applyWire('antigravity', path, true, false, dir)).toBe('removed')
+      expect(await applyWire('antigravity', path, true, false)).toBe('removed')
       const after = JSON.parse(readFileSync(path, 'utf8'))
       expect(after.keep.x).toBe(1)
       expect(after['gitflow-guard']).toBeUndefined()
@@ -199,29 +403,29 @@ describe('wire: antigravity 对象形态(命令须绝对路径, AGY-D2)', () => 
     }
   })
 
-  it('全局落位(无仓库根)命令回退 PATH 上的 gitflow-guard', async () => {
+  it('全局落位(无仓库根)同样锚定执行包 runner 绝对路径(不再依赖 PATH)', async () => {
     const dir = tempDir()
     const path = join(dir, '.gemini/config/hooks.json')
     try {
-      expect(await applyWire('antigravity', path, false, false, null)).toBe('added')
+      expect(await applyWire('antigravity', path, false, false)).toBe('added')
       const obj = JSON.parse(readFileSync(path, 'utf8'))
-      expect(obj['gitflow-guard'].PreToolUse[0].hooks[0].command).toBe('gitflow-guard check --platform antigravity')
+      expect(obj['gitflow-guard'].PreToolUse[0].hooks[0].command).toBe(cmdOf('antigravity'))
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   })
 
-  it('旧格式(AGY-D2 前相对 bin 命令)wire → 替换为新格式, 不双条并存', async () => {
+  it('旧格式(AGY-D2 仓库根形态)wire → 迁移为 canonical, 不双条并存', async () => {
     const dir = tempDir()
     const path = join(dir, '.agents/hooks.json')
     mkdirSync(join(dir, '.agents'), { recursive: true })
-    const old = { 'gitflow-guard': { PreToolUse: [{ matcher: 'run_command', hooks: [{ type: 'command', command: 'node bin/gitflow-guard.mjs check --platform antigravity' }] }] } }
+    const old = { 'gitflow-guard': { PreToolUse: [{ matcher: 'run_command', hooks: [{ type: 'command', command: `node ${join(dir, 'bin', 'gitflow-guard.mjs')} check --platform antigravity` }] }] } }
     writeFileSync(path, JSON.stringify(old) + '\n')
     try {
-      expect(await applyWire('antigravity', path, false, false, dir)).toBe('added')
+      expect(await applyWire('antigravity', path, false, false)).toBe('migrated')
       const obj = JSON.parse(readFileSync(path, 'utf8'))
       const commands = obj['gitflow-guard'].PreToolUse.map((e: { hooks: Array<{ command: string }> }) => e.hooks[0].command)
-      expect(commands).toEqual([`node ${join(dir, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`])
+      expect(commands).toEqual([cmdOf('antigravity')])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -231,11 +435,11 @@ describe('wire: antigravity 对象形态(命令须绝对路径, AGY-D2)', () => 
     const dir = tempDir()
     const path = join(dir, '.agents/hooks.json')
     mkdirSync(join(dir, '.agents'), { recursive: true })
-    const old = { 'gitflow-guard': { PreToolUse: [{ matcher: 'run_command', hooks: [{ type: 'command', command: 'node bin/gitflow-guard.mjs check --platform antigravity' }] }] } }
+    const old = { 'gitflow-guard': { PreToolUse: [{ matcher: 'run_command', hooks: [{ type: 'command', command: 'gitflow-guard check --platform antigravity' }] }] } }
     writeFileSync(path, JSON.stringify(old) + '\n')
     try {
-      await expect(isWired('antigravity', path, dir)).resolves.toBe(false)
-      expect(await applyWire('antigravity', path, true, false, dir)).toBe('removed')
+      await expect(isWired('antigravity', path)).resolves.toBe(false)
+      expect(await applyWire('antigravity', path, true, false)).toBe('removed')
       expect(JSON.parse(readFileSync(path, 'utf8'))['gitflow-guard']).toBeUndefined()
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -309,4 +513,3 @@ describe('wire: 客户端规格表', () => {
     expect(ag.experimental).toBeUndefined() // 真机核验闭环(AGY-D1..D4)后摘除实验标注
   })
 })
-

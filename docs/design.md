@@ -170,7 +170,7 @@ gitflow-guard check --platform <p>       # 各家 hook 调用的门禁入口(std
                  [--repo <path>] [--locale <l>]
 ```
 
-快路径: 非 git/gh/glab/gitflow-guard 命令零查询直接放行; 内部错误 fail-open(strict 下除外)。hook 子进程未必继承 PATH, 各平台配置示例统一用绝对路径指向 `bin/gitflow-guard.mjs`。
+快路径: 非 git/gh/glab/gitflow-guard 命令零查询直接放行; 内部错误 fail-open(strict 下除外)。hook 子进程未必继承 PATH, 也无法假设其 cwd 是仓库根: wire 落位的命令统一为 `node <随包 runner 绝对路径> check --platform <p>` —— 落位时解析**本机安装包自身**的 `bin/gitflow-guard.mjs` 绝对路径写死进配置(目标仓库零部署, 不依赖变量展开/cwd/PATH); 写入前自检 runner 在场, 存量旧形态条目由重跑 wire 原位迁移。
 
 ## 10. 运行时数据存储(**本版修订**: 迁出仓库)
 
@@ -198,7 +198,7 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 
 - **单元/集成**(vitest, 无需特定 agent 宿主环境): classify(对抗语料)、gate、config(校验/strict)、i18n(键一致性)、repo、index(evaluateCommand 编排/降级路径)、cli(status/audit/check/--locale)、platform(各平台 stdin-hook extract/detect/encode)、stateDir(确定性/隔离性/XDG 重定向)。
 - **accuracy-audit 语料**: §1.1 对抗样本(shell 包装、git 形态、组合旗标)固化为回归清单。
-- **复测矩阵** `npm run verify:matrix` 九节 A–I: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity / Pi 扩展 / CodeBuddy / ZCode——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段)。
+- **复测矩阵** `npm run verify:matrix` 十节 A–J: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity / Pi 扩展 / CodeBuddy / ZCode / Cursor——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段); wire 装配类断言进一步在**无 bin/ 的干净临时仓库**实弹执行生成的钩子命令(防「指针在、程序不在」的静默 MODULE_NOT_FOUND 回归)。
 - **铁律**: `npm run typecheck`(0 错)+ `npm test`(全绿)+ `npm run verify:matrix`(全绿)才算完成。CI 矩阵 ubuntu/macOS/Windows × Node 22/24。
 
 ## 13. 项目结构
