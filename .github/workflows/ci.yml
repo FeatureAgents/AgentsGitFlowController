@@ -31,5 +31,9 @@ jobs:
       # 多语种 README 100% 结构对称性: 11 种语言标题/表格/代码块/TOC 锚点必须全部对齐
       - run: npm run check:readmes
       - run: npm run build
+        # Node 20 档: tsdown 依赖 unrun 在 20 上无法加载(实证 PR #89), 构建链仅以 22/24 验证;
+        # 该档只验证低于 engines 下限的运行时与测试链兼容性
+        if: matrix.node != 20
       # 连续复测矩阵: DSH 逻辑 + Claude Code / Codex / OpenCode / antigravity hook 编码回归
       - run: npm run verify:matrix
+        if: matrix.node != 20
