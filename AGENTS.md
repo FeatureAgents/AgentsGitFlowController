@@ -123,6 +123,7 @@ AgentsGitFlowController/
 - DSH 插件包须在 package.json 声明 `dsh.bundle.patch`(`dsh plugin add` 才会自动挂载为 profile 层)。
 - 本仓库 dogfood:gitflow-guard.config.json 已启用,develop 为集成分支 / main 为归档分支;合入 develop 须经用户确认;main 仅用户亲手归档。
 - 会话工作区可能停在任意陈旧检出（实证：停在 0.0.6 时代的 main 而 develop 已到 0.0.13）：内容工作动手前必跑 start-work 技能核对基线；旧基线上产生的未提交改动 stash 存档后到新分支重放，禁止就地编辑或携带提交——否则开 PR 轻则大面积真冲突，重则无冲突却静默回退已合入功能。
+- 本仓库 `.agents/hooks.json`（antigravity dogfood 接线）不入库：antigravity 钩子命令必须写 runner 绝对路径（AGY-D2：agy hook 进程 cwd=配置目录，相对路径必然解析失败），而绝对路径绑定机器——曾把某台 macOS 的路径提交进仓库，导致异机上钩子静默失效。各自经 `gitflow-guard wire --client antigravity --project` 生成本机文件（0.0.42 起命令自锚定安装包自身路径）。
 
 ## 8. 客户端支持清单(新增 agent 平台时必须逐项同步)
 

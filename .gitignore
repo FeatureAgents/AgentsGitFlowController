@@ -24,3 +24,5 @@ docs/issues.md
 
 # 本地客户端设计底稿（私有工作文档, 非公开提交）
 docs/design/*.md
+# Antigravity dogfood 接线（必须写机器专属绝对路径, AGY-D2; 各自经 wire 生成本地文件）
+.agents/hooks.json
