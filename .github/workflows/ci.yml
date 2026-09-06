@@ -1,6 +1,7 @@
 name: CI
 
 # 全球用户正确性: ubuntu / macOS / Windows × Node 22/24 全矩阵回归
+# 内部验证超出对外宣称(engines >=22): ubuntu 附加 Node 20 实测档, 提前暴露工具链在旧版本上的兼容问题
 on:
   push:
     branches: [develop, main]
@@ -14,6 +15,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         node: [22, 24]
+        include:
+          - os: ubuntu-latest
+            node: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
