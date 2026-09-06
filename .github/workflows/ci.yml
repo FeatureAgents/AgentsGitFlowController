@@ -1,6 +1,9 @@
 name: CI
 
 # 全球用户正确性: ubuntu / macOS / Windows × Node 22/24 全矩阵回归
+# 超出对外宣称(engines >=22)的内部验证: ubuntu 附加其余全部已发布版本实测档(新版本发布即追加)
+# 实证不可用并移除: 20(构建链 tsdown/unrun 无法加载)、21(测试链 rolldown 无原生绑定, vitest 无法启动), 见 PR #89
+# 23: 仅运行时与测试链(vitest/tsdown engines 不含); 25/26: 全链含构建
 on:
   push:
     branches: [develop, main]
@@ -14,6 +17,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         node: [22, 24]
+        include:
+          - os: ubuntu-latest
+            node: 23
+          - os: ubuntu-latest
+            node: 25
+          - os: ubuntu-latest
+            node: 26
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,5 +37,8 @@ jobs:
       # 多语种 README 100% 结构对称性: 11 种语言标题/表格/代码块/TOC 锚点必须全部对齐
       - run: npm run check:readmes
       - run: npm run build
+        # 23 档: vitest/tsdown engines 均不含, 构建链仅以 22/24/25/26 验证; 该档只验证运行时与测试链
+        if: matrix.node != 23
       # 连续复测矩阵: DSH 逻辑 + Claude Code / Codex / OpenCode / antigravity hook 编码回归
       - run: npm run verify:matrix
+        if: matrix.node != 23
