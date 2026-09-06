@@ -16,7 +16,7 @@ Registered in the workspace `<repo>/.zcode/config.json` (or `zcode.json`) or glo
         {
           "matcher": "^Bash$",
           "hooks": [
-            { "type": "command", "command": "node ${ZCODE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform zcode" }
+            { "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform zcode" }
           ]
         }
       ]
@@ -24,6 +24,8 @@ Registered in the workspace `<repo>/.zcode/config.json` (or `zcode.json`) or glo
   }
 }
 ```
+
+> `<npm-global>/agents-gitflow-guard/bin/...` is a placeholder — `gitflow-guard wire` resolves it to the absolute path of the **installed package's own runner** at wire time. The written command is fully self-anchored: no client variable expansion (the legacy `${ZCODE_PROJECT_DIR}` form pointed at a runner that was never deployed into the target repo → silent `MODULE_NOT_FOUND` fail-open), no hook-cwd assumption, no PATH dependency. Re-running `wire` migrates legacy entries in place.
 
 ## Events & matcher
 

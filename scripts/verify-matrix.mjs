@@ -13,15 +13,17 @@
 
 // 用法: npm run verify:matrix (内含 npm run build + 本脚本)
 
-import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync, execSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createPiExtension, evaluateCommand } from '../lib/index.mjs'
+import { createPiExtension, evaluateCommand, guardCommand, resolveRunnerPath } from '../lib/index.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BIN = join(ROOT, 'bin', 'gitflow-guard.mjs')
+// wire canonical 命令锚定的随包 runner(自构建产物 lib/ 反解, 应与 BIN 同源)
+const RUNNER = resolveRunnerPath()
 
 let pass = 0
 let fail = 0
@@ -34,6 +36,27 @@ function check(name, cond, detail = '') {
     fail++
     lines.push(`  ❌ ${name}${detail ? ` — ${detail}` : ''}`)
   }
+}
+
+/** 实弹跑 wire 生成的钩子命令字符串(与客户端触发方式同构: shell 执行 + stdin payload)。 */
+function runHookCmd(cmd, payload, cwd) {
+  try {
+    const out = execSync(cmd, { input: payload, cwd, encoding: 'utf8' })
+    return { code: 0, stdout: out, stderr: '' }
+  } catch (e) {
+    return { code: typeof e.status === 'number' ? e.status : -1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }
+  }
+}
+
+/** 干净仓库实弹三连(BUG-REPORT-wire-runner-deployment 回归): 临时仓库无 bin/,
+ *  wire 生成的钩子命令必须直接可执行 —— 命令引用的 runner 在场 + deny 拦截 + allow 放行。 */
+function checkLiveCleanRepo(name, cmd, denyPayload, allowPayload, repo, denyAssert) {
+  const runnerRef = cmd.slice('node '.length, cmd.indexOf(' check')).replace(/"/g, '')
+  check(`${name}: 钩子命令引用的 runner 真实存在`, existsSync(runnerRef), runnerRef)
+  const deny = runHookCmd(cmd, denyPayload, repo)
+  check(`${name}: 实弹 deny → 拦截`, denyAssert(deny), `code=${deny.code} out=${deny.stdout} err=${deny.stderr}`)
+  const ok = runHookCmd(cmd, allowPayload, repo)
+  check(`${name}: 实弹 allow → exit 0`, ok.code === 0 && ok.stdout === '', `code=${ok.code} out=${ok.stdout}`)
 }
 
 /** 真实 git 仓库(develop + main) + 守卫配置; 供 evaluateCommand 与 CLI check 的 findRepoRoot 使用 */
@@ -78,6 +101,7 @@ const CONFIG = {
 const CONFIG_ZH = { ...CONFIG, locale: 'zh' }
 
 console.log('== GitFlow guard 连续复测矩阵 ==\n')
+check('resolveRunnerPath 与包内 bin 一致(自锚定前提)', RUNNER === BIN, `${RUNNER} vs ${BIN}`)
 
 console.log('[A] DSH plugin logic (evaluateCommand)')
 {
@@ -203,11 +227,21 @@ console.log('[E] antigravity encoding (真机 payload 形状: cwd 嵌套在 tool
     // toolCall.args.Cwd —— 旧实现取顶层 j.cwd(不存在)会 findRepoRoot 失败而静默放行, 本断言防回归
     const detached = runCheck('antigravity', payload('git push origin develop'), tmpdir())
     check('拦截(仓库外 cwd + payload.Cwd 定位, AGY-D3): exit 0 + decision=deny', detached.code === 0 && /"decision":"deny"/.test(detached.stdout), `code=${detached.code} out=${detached.stdout}`)
-    // wire 装配: 命令必须绝对路径(agy hook 进程 cwd=配置目录, 相对 bin 会 MODULE_NOT_FOUND)
+    // wire 装配: 命令必须为执行包 runner 绝对路径(agy hook 进程 cwd=配置目录, 相对 bin 会 MODULE_NOT_FOUND;
+    // 全局落位同理 —— 一切命令自锚定, 不依赖 PATH)
     execFileSync('node', [BIN, 'wire', '--client', 'antigravity', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
     const ag = JSON.parse(readFileSync(join(repo, '.agents', 'hooks.json'), 'utf8'))
     const agCmd = ag['gitflow-guard'].PreToolUse[0].hooks[0].command
-    check('wire 落位: antigravity 命令为仓库根绝对路径', agCmd === `node ${join(repo, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`, agCmd)
+    check('wire 落位: antigravity 命令为执行包 runner 绝对路径', agCmd === guardCommand(RUNNER, 'antigravity'), agCmd)
+    // 干净仓库实弹: 临时仓库无 bin/, 生成的钩子命令必须可直接执行并正确拦截/放行
+    checkLiveCleanRepo(
+      'antigravity',
+      agCmd,
+      payload('git push origin develop'),
+      payload('ls -la'),
+      repo,
+      (r) => r.code === 0 && /"decision":"deny"/.test(r.stdout),
+    )
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }
@@ -270,12 +304,21 @@ console.log('[H] CodeBuddy hook (--platform codebuddy + wire 装配)')
     check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
     const ok = runCheck('codebuddy', JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }), repo)
     check('放行: exit 0 且无输出', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
-    // wire 装配: 落位到 .codebuddy/settings.json
+    // wire 装配: 落位到 .codebuddy/settings.json; 命令为执行包 runner 绝对路径
     execFileSync('node', [BIN, 'wire', '--client', 'codebuddy', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
     const settings = JSON.parse(readFileSync(join(repo, '.codebuddy', 'settings.json'), 'utf8'))
     const cmd = settings.hooks.PreToolUse[0].hooks[0].command
-    check('wire 落位: CodeBuddy 命令含 check --platform codebuddy', cmd.includes('check --platform codebuddy'), cmd)
+    check('wire 落位: CodeBuddy 命令为执行包 runner 绝对路径', cmd === guardCommand(RUNNER, 'codebuddy'), cmd)
     check('wire 落位: matcher 为 ^Bash$', settings.hooks.PreToolUse[0].matcher === '^Bash$')
+    // 干净仓库实弹(临时仓库无 bin/)
+    checkLiveCleanRepo(
+      'codebuddy',
+      cmd,
+      JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: repo }),
+      JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }),
+      repo,
+      (r) => r.code === 2 && /blocked:/.test(r.stderr),
+    )
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }
@@ -290,13 +333,22 @@ console.log('[I] ZCode hook (--platform zcode + wire 装配)')
     check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
     const ok = runCheck('zcode', JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }), repo)
     check('放行: exit 0 且无输出', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
-    // wire 装配: 落位到 .zcode/config.json, 需 enabled: true 与 events 嵌套
+    // wire 装配: 落位到 .zcode/config.json, 需 enabled: true 与 events 嵌套; 命令为执行包 runner 绝对路径
     execFileSync('node', [BIN, 'wire', '--client', 'zcode', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
     const config = JSON.parse(readFileSync(join(repo, '.zcode', 'config.json'), 'utf8'))
     check('wire 落位: ZCode hooks.enabled 必须为 true', config.hooks.enabled === true)
     const cmd = config.hooks.events.PreToolUse[0].hooks[0].command
-    check('wire 落位: ZCode 命令含 check --platform zcode', cmd.includes('check --platform zcode'), cmd)
+    check('wire 落位: ZCode 命令为执行包 runner 绝对路径', cmd === guardCommand(RUNNER, 'zcode'), cmd)
     check('wire 落位: matcher 为 ^Bash$', config.hooks.events.PreToolUse[0].matcher === '^Bash$')
+    // 干净仓库实弹(临时仓库无 bin/)
+    checkLiveCleanRepo(
+      'zcode',
+      cmd,
+      JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: repo }),
+      JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }),
+      repo,
+      (r) => r.code === 2 && /blocked:/.test(r.stderr),
+    )
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }
@@ -312,12 +364,21 @@ console.log('[J] Cursor hook (--platform cursor + wire 装配)')
     check('拦截: stdout JSON 含 user_message 与 agent_message', /user_message/.test(deny.stdout) && /agent_message/.test(deny.stdout), deny.stdout)
     const ok = runCheck('cursor', JSON.stringify({ hook_event_name: 'beforeShellExecution', command: 'npm test', cwd: repo }), repo)
     check('放行: exit 0 且无输出', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
-    // wire 装配: 落位到 .cursor/hooks.json
+    // wire 装配: 落位到 .cursor/hooks.json; 命令为执行包 runner 绝对路径
     execFileSync('node', [BIN, 'wire', '--client', 'cursor', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
     const config = JSON.parse(readFileSync(join(repo, '.cursor', 'hooks.json'), 'utf8'))
     check('wire 落位: Cursor version 为 1', config.version === 1)
     const cmd = config.hooks.beforeShellExecution[0].command
-    check('wire 落位: Cursor 命令含 check --platform cursor', cmd.includes('check --platform cursor'), cmd)
+    check('wire 落位: Cursor 命令为执行包 runner 绝对路径', cmd === guardCommand(RUNNER, 'cursor'), cmd)
+    // 干净仓库实弹(临时仓库无 bin/)
+    checkLiveCleanRepo(
+      'cursor',
+      cmd,
+      JSON.stringify({ hook_event_name: 'beforeShellExecution', command: 'git push origin develop', cwd: repo, cursor_version: '0.45.0' }),
+      JSON.stringify({ hook_event_name: 'beforeShellExecution', command: 'npm test', cwd: repo }),
+      repo,
+      (r) => r.code === 0 && /"permission":"deny"/.test(r.stdout),
+    )
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }

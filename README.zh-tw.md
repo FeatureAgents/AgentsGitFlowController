@@ -81,7 +81,7 @@ gitflow-guard wire --client claude --unwire
 gitflow-guard setup
 ```
 
-`wire` 對現有配置**非破壞性合併**（已存在的 hook 保持不動），預設只寫入**當前專案目錄**；`--global`（本機所有倉庫）寫入前必先確認或需帶 `--yes`。各客戶端的檔案與格式見[安裝詳解](#安裝詳解)。
+`wire` 對現有配置**非破壞性合併**（已存在的 hook 保持不動；重跑 wire 會把舊版 gitflow-guard 條目原位遷移為當前自錨定形態），預設只寫入**當前專案目錄**；`--global`（本機所有倉庫）寫入前必先確認或需帶 `--yes`。各客戶端的檔案與格式見[安裝詳解](#安裝詳解)。
 
 > ⚠️ **main 預設受保護。** Trunk / 單分支工作流程（所有人直推同一條分支）的使用者，安裝後第一次直推 `main` 就會被攔截 —— 建立 `gitflow-guard.config.json` 寫入 `{ "enabled": false }`，或自行映射分支（見[設定參考](#設定參考)）。`gitflow-guard status` 在預設配置生效時也會反覆提示這一點。
 
@@ -393,7 +393,7 @@ gitflow-guard wire --client cursor --project --yes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform claude" }] }
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform claude" }] }
     ]
   }
 }
@@ -404,7 +404,7 @@ gitflow-guard wire --client cursor --project --yes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform codex" }] }
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform codex" }] }
     ]
   }
 }
@@ -424,11 +424,13 @@ gitflow-guard wire --client cursor --project --yes
 {
   "gitflow-guard": {
     "PreToolUse": [
-      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "gitflow-guard check --platform antigravity" } ] }
+      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform antigravity" } ] }
     ]
   }
 }
 ```
+
+> `<npm-global>/agents-gitflow-guard/bin/...` 僅為佔位 — `wire` 落位時解析為本機安裝套件自身 runner 的真實絕對路徑（完全自錨定：不依賴用戶端變數展開、不依賴 hook 行程 cwd、不依賴 PATH，目標儲存庫零部署）。從 ≤0.0.41 升級？對每個客戶端重跑一次 `wire`，舊形態條目（變數範本/相對路徑/PATH 形態）會被原位遷移。
 
 ### 2. 進程內外掛與擴充 (DSH · Pi)
 
@@ -498,7 +500,7 @@ npm link
 - **僅攔截前置事件**：門禁在指令執行*前*即完成攔截，無需事後清理或消耗特許權杖。
 - **PATH 與二進位解析**：全域安裝提供 `gitflow-guard` 執行檔；若 Agent 子進程環境未繼承使用者的 `PATH`，可配置 `npm bin -g` 所回傳的絕對路徑。
 - **開箱即用**：內建預設配置（`integration: ["develop"]`, `archive: ["main"]`）無需額外建立檔案即生效；自訂配置自動執行深度合併。
-- **安全接線**：`gitflow-guard wire` 具備冪等性，安全合併配置且不影響現有其他 Hook；`--unwire` 精準移除對應條目。
+- **安全接線**：`gitflow-guard wire` 具備冪等性，安全合併配置且不影響現有其他 Hook（重跑 wire 會把舊版 gitflow-guard 條目遷移為當前形態）；`--unwire` 精準移除對應條目。
 
 ---
 

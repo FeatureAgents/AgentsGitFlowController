@@ -25,6 +25,10 @@ export type { Dict } from './i18n'
 export { createPiExtension } from './pi'
 export type { PiExtensionAPI, PiExtensionContext, PiExtensionOptions, PiToolCallEvent, PiToolCallResult } from './pi'
 
+// 接线层再导出: resolveRunnerPath/guardCommand 供外部复算 wire 写出的 canonical 钩子命令(测试/矩阵/集成方)
+export { applyWire, guardCommand, isWireClient, isWired, resolveRunnerPath, wiringState, WIRE_CLIENTS } from './wire'
+export type { WireClientSpec, WiringState, WireResult, WireScope } from './wire'
+
 export const name = 'gitflow-guard'
 
 export interface PluginConfig {
