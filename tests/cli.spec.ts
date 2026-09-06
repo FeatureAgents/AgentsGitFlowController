@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { main } from '../src/cli'
 import { stateDir } from '../src/index'
+import { guardCommand, resolveRunnerPath } from '../src/wire'
 import { MESSAGE_KEYS, registerLocale } from '../src/i18n'
 import type { Dict } from '../src/i18n'
 import type { Runner } from '../src/repo'
@@ -434,7 +435,7 @@ describe('cli: wire(客户端默认 hook 落位)', () => {
     }
   })
 
-  it('antigravity --project 落位绝对路径命令(AGY-D2: agy hook 进程 cwd=配置目录)', async () => {
+  it('antigravity --project 落位执行包 runner 绝对路径命令(AGY-D2: agy hook 进程 cwd=配置目录)', async () => {
     const dir = tempRepo()
     const path = join(dir, '.agents', 'hooks.json')
     try {
@@ -442,7 +443,25 @@ describe('cli: wire(客户端默认 hook 落位)', () => {
       expect(code).toBe(0)
       expect(text).toContain('hook written')
       const obj = JSON.parse(readFileSync(path, 'utf8'))
-      expect(obj['gitflow-guard'].PreToolUse[0].hooks[0].command).toBe(`node ${join(dir, 'bin', 'gitflow-guard.mjs')} check --platform antigravity`)
+      expect(obj['gitflow-guard'].PreToolUse[0].hooks[0].command).toBe(guardCommand(resolveRunnerPath(), 'antigravity'))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('旧模板条目 → wire 输出 migrated(存量用户迁移路径)', async () => {
+    const dir = tempRepo()
+    const path = join(dir, '.claude', 'settings.json')
+    mkdirSync(join(dir, '.claude'), { recursive: true })
+    writeFileSync(
+      path,
+      JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'node ${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform claude' }] }] } }),
+    )
+    try {
+      const { code, text } = await captureStdout(() => main(['wire', '--client', 'claude', '--project', '--yes', '--repo', dir]))
+      expect(code).toBe(0)
+      expect(text).toContain('migrated')
+      expect(JSON.parse(readFileSync(path, 'utf8')).hooks.PreToolUse[0].hooks[0].command).toBe(guardCommand(resolveRunnerPath(), 'claude'))
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -535,7 +554,24 @@ describe('cli: status 内置默认与接线提示', () => {
     }
   })
 
-  it('已接线的仓库 → 不打印接线提示', async () => {
+  it('已接线的仓库(canonical 命令) → 不打印接线提示', async () => {
+    const dir = tempRepo()
+    mkdirSync(join(dir, '.claude'), { recursive: true })
+    writeFileSync(
+      join(dir, '.claude', 'settings.json'),
+      JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: guardCommand(resolveRunnerPath(), 'claude') }] }] } }),
+    )
+    try {
+      const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner: scriptedRunner() }))
+      expect(code).toBe(0)
+      // claude 已接线 → 不再提示 claude(其余未接线客户端仍会提示)
+      expect(text).not.toContain('wire --client claude')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('旧版接线形态(存量用户) → status 提示重新 wire 完成迁移', async () => {
     const dir = tempRepo()
     mkdirSync(join(dir, '.claude'), { recursive: true })
     writeFileSync(
@@ -545,8 +581,9 @@ describe('cli: status 内置默认与接线提示', () => {
     try {
       const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner: scriptedRunner() }))
       expect(code).toBe(0)
-      // claude 已接线 → 不再提示 claude(其余未接线客户端仍会提示)
-      expect(text).not.toContain('wire --client claude')
+      // 旧形态不算已接线: 给出迁移引导(重跑 wire 即归一为 runner 自锚定命令)
+      expect(text).toContain('legacy wiring')
+      expect(text).toContain('wire --client claude')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

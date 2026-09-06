@@ -9,13 +9,15 @@ Registered in the project-root `.claude/settings.json` (project) or `~/.claude/s
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform claude" }
+          { "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform claude" }
         ]
       }
     ]
   }
 }
 ```
+
+> `<npm-global>/agents-gitflow-guard/bin/...` is a placeholder — `gitflow-guard wire` resolves it to the absolute path of the **installed package's own runner** at wire time. The written command is fully self-anchored: no client variable expansion, no hook-cwd assumption, no PATH dependency, and nothing needs to be deployed into the target repo. Re-running `wire` migrates legacy `${CLAUDE_PROJECT_DIR}`-style entries in place.
 
 ## Payload shape (stdin JSON)
 

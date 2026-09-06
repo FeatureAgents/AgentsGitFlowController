@@ -82,7 +82,7 @@ gitflow-guard wire --client claude --unwire
 gitflow-guard setup
 ```
 
-`wire` merges into your existing config **non-destructively** (already-present hooks are left untouched), and writes to your **project dir by default** — `--global` (all repos on this machine) always asks first or needs `--yes`. Per-client files and formats are mirrored in [Installation in detail](#installation-in-detail).
+`wire` merges into your existing config **non-destructively** (already-present hooks are left untouched; legacy gitflow-guard entries are migrated to the current self-anchored form on re-run), and writes to your **project dir by default** — `--global` (all repos on this machine) always asks first or needs `--yes`. Per-client files and formats are mirrored in [Installation in detail](#installation-in-detail).
 
 > ⚠️ **main is protected by default.** Trunk / single-branch users (everyone pushes straight to one branch) will get blocked on direct `main` pushes until they opt out — create `gitflow-guard.config.json` with `{ "enabled": false }`, or map your own branches (see [Configuration Reference](#configuration-reference)). `gitflow-guard status` repeats this notice whenever the built-in defaults are in effect.
 
@@ -394,7 +394,7 @@ gitflow-guard wire --client cursor --project --yes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform claude" }] }
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform claude" }] }
     ]
   }
 }
@@ -405,7 +405,7 @@ gitflow-guard wire --client cursor --project --yes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform codex" }] }
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform codex" }] }
     ]
   }
 }
@@ -420,11 +420,13 @@ gitflow-guard wire --client cursor --project --yes
 {
   "gitflow-guard": {
     "PreToolUse": [
-      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "gitflow-guard check --platform antigravity" } ] }
+      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform antigravity" } ] }
     ]
   }
 }
 ```
+
+> `<npm-global>/agents-gitflow-guard/bin/...` is a placeholder — `wire` resolves the real absolute path of the installed package's own runner at wire time (fully self-anchored: no client variable expansion, no hook-cwd assumption, no PATH dependency, nothing deployed into the target repo). Upgrading from ≤ 0.0.41? Re-run `wire` once per client — legacy entries (variable-template / relative / PATH forms) are migrated in place.
 
 ### 2. In-Process Plugins and Extensions (DSH · Pi)
 
@@ -494,7 +496,7 @@ npm link
 - **Pre-tool execution**: Only the pre-tool event is intercepted; the guard blocks *before* commands execute, so no post-tool hooks or permit-cleanup steps are needed.
 - **Binary PATH resolution**: Global installation (`npm i -g`) provides the `gitflow-guard` binary. If your agent runner does not inherit your interactive `PATH`, use the full path from `npm bin -g`.
 - **Enabled by default**: Built-in defaults (`integration: ["develop"]`, `archive: ["main"]`) take effect without any config file. Custom configurations in `gitflow-guard.config.json` deep-merge on top of defaults.
-- **Non-destructive wiring**: `gitflow-guard wire` merges hook configurations idempotently without modifying existing hooks, and `wire --unwire` removes only the guard entry.
+- **Non-destructive wiring**: `gitflow-guard wire` merges hook configurations idempotently without modifying existing hooks (legacy gitflow-guard entries are migrated to the current form on re-run), and `wire --unwire` removes only the guard entry.
 
 ---
 

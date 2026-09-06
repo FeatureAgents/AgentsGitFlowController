@@ -81,7 +81,7 @@ gitflow-guard wire --client claude --unwire
 gitflow-guard setup
 ```
 
-`wire` コマンドは既存の設定に **非破壊的** にマージされ（既存のフックはそのまま保持されます）、デフォルトで **プロジェクトディレクトリ** に書き込まれます。`--global`（マシン内の全リポジトリに適用）を実行する場合は必ず事前に確認されます（`--yes` でスキップ可能）。クライアントごとのファイルと形式の詳細は [インストール詳細](#インストール詳細) を参照してください。
+`wire` コマンドは既存の設定に **非破壊的** にマージされ（既存のフックはそのまま保持されます。再実行すると旧形式の gitflow-guard エントリは現行の自己アンカー型にその場でマイグレーションされます）、デフォルトで **プロジェクトディレクトリ** に書き込まれます。`--global`（マシン内の全リポジトリに適用）を実行する場合は必ず事前に確認されます（`--yes` でスキップ可能）。クライアントごとのファイルと形式の詳細は [インストール詳細](#インストール詳細) を参照してください。
 
 > ⚠️ **デフォルトで main は保護されています。** トランクベース開発（全員が単一ブランチに直接プッシュする運用）を行っている場合、明示的に無効化するまで直接の `main` プッシュはブロックされます — 無効化するには `{ "enabled": false }` と書いた `gitflow-guard.config.json` を作成するか、独自のブランチマッピングを設定してください（[設定リファレンス](#設定リファレンス) 参照）。`gitflow-guard status` を実行すると、組み込みデフォルト設定が有効である旨の通知が表示されます。
 
@@ -393,7 +393,7 @@ gitflow-guard wire --client cursor --project --yes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform claude" }] }
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform claude" }] }
     ]
   }
 }
@@ -404,7 +404,7 @@ gitflow-guard wire --client cursor --project --yes
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "gitflow-guard check --platform codex" }] }
+      { "matcher": "^Bash$", "hooks": [{ "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform codex" }] }
     ]
   }
 }
@@ -424,11 +424,13 @@ gitflow-guard wire --client cursor --project --yes
 {
   "gitflow-guard": {
     "PreToolUse": [
-      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "gitflow-guard check --platform antigravity" } ] }
+      { "matcher": "run_command", "hooks": [ { "type": "command", "command": "node <npm-global>/agents-gitflow-guard/bin/gitflow-guard.mjs check --platform antigravity" } ] }
     ]
   }
 }
 ```
+
+> `<npm-global>/agents-gitflow-guard/bin/...` はプレースホルダーです — `wire` は実行時に、インストール済みパッケージ自身の runner の絶対パスを解決して書き込みます（完全自己アンカー型：クライアント変数展開・hook プロセスの cwd・PATH に依存せず、対象リポジトリへの配置も不要）。≤0.0.41 からのアップグレード時は、クライアントごとに `wire` を再実行すれば旧形式のエントリ（変数テンプレート／相対パス／PATH 形式）をその場でマイグレーションします。
 
 ### 2. プロセス内プラグイン・拡張機能 (DSH · Pi)
 
@@ -498,7 +500,7 @@ npm link
 - **事前イベントのみをインターセプト**: コマンド実行*前*にブロックを行うため、事後のクリーンアップやパーミットトークンの消費処理は一切不要です。
 - **PATH とバイナリの解決**: グローバルインストールにより `gitflow-guard` バイナリが提供されます。エージェントの子プロセスがユーザーの `PATH` を継承しない場合は、`npm bin -g` が返す絶対パスを設定してください。
 - **初期状態で有効**: 組み込みデフォルト設定（`integration: ["develop"]`, `archive: ["main"]`）により、設定ファイルなしで即座に機能します。カスタム設定は自動的にディープマージされます。
-- **非破壊的な配線**: `gitflow-guard wire` は既存のフックに影響を与えることなく安全にマージし、`--unwire` で正確に対象エントリのみを削除します。
+- **非破壊的な配線**: `gitflow-guard wire` は既存のフックに影響を与えることなく安全にマージし（再実行時、旧形式の gitflow-guard エントリは現行形式にマイグレーションされ）、`--unwire` で正確に対象エントリのみを削除します。
 
 ---
 
