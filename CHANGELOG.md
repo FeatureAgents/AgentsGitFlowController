@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.45
+
+- docs(readme): show npm download badges on the package page — shields.io `npm/dt` (cumulative, monotonic) and `npm/dw` (last week) badges added to the header of all 11 READMEs; npm renders the README on the package page, so these give it a total that never decreases and a live weekly figure, unlike the site's own counter (rolling 7 days, 1–3 day stat lag) —— 在包页面显示下载徽章：为全部 11 个 README 顶部加入 shields.io 的 `npm/dt`（累计，只增不减）与 `npm/dw`（最近一周）徽章；npm 包页面直接渲染 README，因此可展示不会回落的累计量与实时周量，弥补官网计数器（滚动 7 天 + 1–3 天统计延迟）的不足。
+
 ## 0.0.44
 
 - fix(ci): run the git decision matrix and the realflow suite in CI — the 135-case decision matrix (`test:git-matrix`) and the feature-lifecycle E2E (`test:realflow`) were only ever run by hand, so core correctness had no CI gate; a dedicated ubuntu job now runs both on every push and pull request, with an explicit git identity for the temporary test repositories —— 决策矩阵与真实流程套件接入 CI：135 项决策矩阵与 feature 生命周期 E2E 此前仅本地手动执行，核心正确性没有 CI 门禁；现由独立 ubuntu job 在每次 push 与 PR 上执行，并为临时测试仓库显式配置 git 身份。
