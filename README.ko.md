@@ -92,7 +92,7 @@ Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
 Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-메시지는 기본적으로 영문으로 출력됩니다. 프로젝트 설정에 `"locale": "zh"`를 추가하여 중국어로 전환할 수도 있습니다 (예: *已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……*, [설정 레퍼런스](#설정-레퍼런스) 참조).
+메시지는 기본적으로 영문으로 출력됩니다. 프로젝트 설정에 `"locale": "zh"`를 추가하여 중국어로 전환할 수도 있습니다 (예: *已拦截: 受保护分支「develop」禁止直推 / 下一步: 集成分支(develop)由 PR/MR 合入 feature……*, [설정 레퍼런스](#설정-레퍼런스) 참조).
 
 **완료되었습니다.** 내장 기본값을 통해 이 저장소의 가드가 활성화되었습니다. 더 많은 스테이지(`preview` / `production`)를 추가하거나 다른 브랜치 이름을 사용하고 싶으신가요? 변경하고자 하는 필드만 포함하여 `gitflow-guard.config.json`을 작성하면 되며, 작성되지 않은 나머지 항목은 기본값이 유지됩니다. 전체 판정 테이블은 [게이트 매트릭스](#게이트-매트릭스--차단-및-허용-규칙)를 확인하세요.
 
@@ -178,10 +178,10 @@ AI 코딩 에이전트는 사용자의 저장소 내에서 직접 작업합니�
 | 통제 대상 | 보호 브랜치에 푸시/머지할 수 있는 **사용자 권한** | 에이전트가 워크플로우의 어떤 **역할**에 합류하는지 (워크플로우 규약) |
 | 에이전트의 production/archive 머지 방지 | 불가능 (에이전트의 행위인지 구분 불가) | 가능 (에이전트의 production/archive 머지 기본 차단) |
 | 역할별 유연성 | 호스팅 서비스 측의 브랜치별 단일 규칙 | 단일 설정 파일 내에서 역할별 `update` (pr/flexible) + `mergeBy` (user/anyone) 구성 |
-| 적용 범위 | 저장소의 모든 사용자 (사람 포함) | 플러그인이 설정된 AI 에이전트 (사람의 직접 작업은 제한 없음) |
+| 적용 범위 | 저장소의 모든 사용자 (사람 포함) | hook 또는 플러그인이 설정된 에이전트 (사람의 직접 작업은 제한 없음) |
 | 강제 시점 | 서버 측, 푸시 / 머지 시점 | 로컬 측, 명령어 실행 전 |
 | 플랫폼 의존성 | 특정 코드 호스팅 서비스에 종속 | 순수 로컬 Git 기반, 플랫폼 무관 (`gh`/`glab`은 선택사항) |
-| 우회 가능 대상 | 관리자 권한을 가진 사용자 | 에이전트 외부에서 작업하는 사람 또는 의도적으로 난독화하는 악성 에이전트 |
+| 우회 가능 대상 | 관리자 권한을 가진 사용자 | 가드에 연결되지 않은 모든 에이전트 또는 우회를 결심한 악성 에이전트 |
 
 이것이 중요한 이유: 브랜치 보호는 "*이 푸시가 실행 가능한가?*"에 답합니다. 본 플러그인은 "*설정에 따라 이 에이전트가 해당 역할에 진입할 수 있는가?*"에 답합니다. 가장 강력한 구성은 **두 가지를 함께 사용하는 것**입니다 — 플러그인이 로컬에서 에이전트의 워크플로우 준수를 강제하고, 서버 측 브랜치 보호가 사람을 포함한 직접 푸시를 원천 차단합니다.
 
@@ -203,7 +203,7 @@ AI 코딩 에이전트는 사용자의 저장소 내에서 직접 작업합니�
 
 #### 2. 실행 후 탐지가 아닌 실행 전 사전 차단
 
-플러그인은 도구 파이프라인의 `tools/pre-execute` 단계(명령어가 디스패치되기 직전의 결정 지점)에 후킹됩니다. 여기서 `deny`된 명령어는 **절대 실행되지 않으며**, 에이전트는 거부 결과만을 수신합니다. 사후 탐지(로그 분석)는 이미 피해가 발생한 후이므로 진정한 강제 수단이 될 수 없습니다.
+가드는 각 플랫폼의 사전 도구(pre-tool) 이벤트 — DSH `tools/pre-execute`, Pi `tool_call`, CLI 클라이언트의 `PreToolUse` hook — (명령어가 디스패치되기 직전의 결정 지점)에 후킹됩니다. 여기서 `deny`된 명령어는 **절대 실행되지 않으며**, 에이전트는 거부 결과만을 수신합니다. 사후 탐지(로그 분석)는 이미 피해가 발생한 후이므로 진정한 강제 수단이 될 수 없습니다.
 
 #### 3. 민감한 머지는 위조 불가능한 사람의 손으로만 수행
 
@@ -415,6 +415,7 @@ gitflow-guard wire --client cursor --project --yes
 // OpenCode 1.18+에서는 hooks.yaml이 제거되고 확장 포인트가 plugins로 전환되었습니다 —
 // `tool.execute.before` 이벤트, 거부 시 에러 throw; `wire --client opencode`가 자동으로 복사합니다)
 ```
+`gitflow-guard wire --client opencode`가 이 파일을 패키지에서 작성합니다. 직접 작성하는 것은 권장하지 않습니다.
 
 ```json
 // Antigravity (Google) — .agents/hooks.json
@@ -429,6 +430,12 @@ gitflow-guard wire --client cursor --project --yes
   }
 }
 ```
+
+나머지 세 CLI 클라이언트도 동일한 hook 형식을 사용합니다 — `wire`가 해당 파일을 대신 작성합니다:
+
+- **CodeBuddy** — `.codebuddy/settings.json`
+- **ZCode** — `.zcode/config.json` (`hooks.enabled: true`도 설정)
+- **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...`은 자리표시자입니다 — `wire`는 실행 시점에 설치된 패키지 자체 runner의 절대 경로를 확인해 기록합니다(완전 자기 앵커형: 클라이언트 변수 확장·hook 프로세스 cwd·PATH 의존 없음, 대상 저장소에 배치할 것도 없음). ≤0.0.41에서 업그레이드한 경우 클라이언트별로 `wire`를 다시 실행하면 이전 형식 항목(변수 템플릿/상대 경로/PATH 형식)이 그 자리에서 마이그레이션됩니다.
 
@@ -498,7 +505,7 @@ npm link
   - **Pi**: 프로세스 내 확장이 `tool_call` 이벤트를 감지하고 `{ block: true, reason }` 반환.
 
 - **사전 이벤트만 인터셉트**: 명령어 실행 *전*에 차단이 완료되므로 사후 정리나 권한 토큰 회수 작업이 전혀 필요하지 않습니다.
-- **PATH 및 바이너리 확인**: 전역 설치 시 `gitflow-guard` 바이너리가 제공됩니다. 에이전트 자식 프로세스가 `PATH`를 상속받지 못하는 경우 `npm bin -g`가 반환하는 절대 경로를 지정하세요.
+- **PATH 및 바이너리 확인**: 전역 설치 시 `gitflow-guard` 바이너리가 제공됩니다. `wire`는 모든 hook을 설치된 패키지 자체 runner의 절대 경로에 고정하므로, 에이전트 러너가 대화형 `PATH`를 상속받지 못하더라도 hook이 계속 정상 작동합니다.
 - **기본 활성화**: 별도의 설정 파일 없이도 내장 기본값(`integration: ["develop"]`, `archive: ["main"]`)이 즉시 적용되며, 커스텀 설정은 딥 머지됩니다.
 - **안전한 배선**: `gitflow-guard wire`는 기존의 다른 Hook을 보존하며 멱등하게 병합하고(재실행 시 구버전 gitflow-guard 항목은 현재 형식으로 마이그레이션됨), `--unwire`를 통해 해당 가드 항목만을 정확하게 제거합니다.
 
@@ -560,7 +567,7 @@ npm link
 
 ### 로컬 저장소에서 정확히 어떤 항목을 검사하나요?
 
-현재 체크아웃된 브랜치(`git branch --show-current`), 그리고 `pr merge` / `mr merge` 실행 시 `gh pr view` / `glab mr view`를 통한 PR/MR 대상 브랜치만을 검사합니다. 모델이 순서 기반이 아니라 **역할 기반**(대상 브랜치가 어떤 역할인가)으로 동작하므로 커밋 히스토리의 조상 관계 분석은 필요하지 않습니다.
+현재 체크아웃된 브랜치(`git branch --show-current`), 그리고 `pr merge` / `mr merge` 실행 시 `gh pr view` / `glab mr view`를 통한 PR/MR 대상 브랜치만을 검사합니다. 선택적 `worktree` 가드가 활성화된 경우 `git status --porcelain` (더티/미추적 상태)도 읽고, `requireUpstreamSynced`가 설정된 경우 `git rev-list --left-right --count HEAD...@{upstream}`도 실행합니다. 모델이 순서 기반이 아니라 **역할 기반**(대상 브랜치가 어떤 역할인가)으로 동작하므로 커밋 히스토리의 조상 관계 분석은 필요하지 않습니다.
 
 디스크에 데이터를 쓰거나 원격 서버에 통신하지 않으며, 호스팅 서비스 기능이 필수로 요구되지 않습니다. 에이전트의 운영/아카이브 머지는 단순히 거부되며, 사람의 머지는 Web UI 상에서 이루어집니다.
 
@@ -593,7 +600,7 @@ MIT 라이선스로 배포되는 무료 오픈소스입니다. 아무런 조건 
 
 향후 계획 및 현재 활발히 탐색 중인 기능:
 
-- **신규 에이전트 플랫폼 지원**: Cursor, Windsurf, 차세대 CLI 에이전트 등 새로운 AI 도구의 Hook/확장 메커니즘 조사 및 연동.
+- **신규 에이전트 플랫폼 지원**: Windsurf, 차세대 CLI 에이전트 등 새로운 AI 도구의 Hook/확장 메커니즘 조사 및 연동.
 - **감사 로그 집계 및 내보내기**: 여러 머신 간 감사 로그 동기화 및 팀 수준의 보안 규정 준수용 내보내기 포맷 지원.
 - **워크플로우 프리셋**: 널리 사용되는 Git 브랜치 전략(트렁크 기반 단일 메인 브랜치, 다중 환경 엔터프라이즈 GitFlow)을 위한 즉시 사용 가능한 설정 프리셋 제공.
 - **CI 하드 게이트 연동**: 로컬 실행의 무의존성을 유지하면서 네이티브 CI 파이프라인 연동 및 PR 검사 지원 탐색.
@@ -606,11 +613,16 @@ MIT 라이선스로 배포되는 무료 오픈소스입니다. 아무런 조건 
 
 ```bash
 npm install
-npm test              # 단위 테스트: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
-npm run typecheck     # 타입 체크: tsc --noEmit, 0 Error
-npm run build         # 빌드: tsdown → lib/ (CLI 및 플러그인 공유)
-npm run check:pins    # package.json 버전과 CHANGELOG 제목 및 README 핀 일치 여부 확인
-npm run verify:matrix # 연속 회귀 매트릭스 테스트: DSH 로직 + zh 로케일 + 멀티 클라이언트 hook + Pi 확장
+npm test                # 단위 테스트: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
+npm run typecheck       # 타입 체크: tsc --noEmit, 0 Error
+npm run build           # 빌드: tsdown → lib/ (CLI 및 플러그인 공유)
+npm run check:pins      # package.json 버전과 CHANGELOG 제목 및 README 핀 일치 여부 확인
+npm run check:readmes   # 11개 README의 구조 대칭 유지 검증 (제목 44개 / 표 7개 / 목차 항목 17개)
+npm run verify:matrix   # 연속 회귀 매트릭스 테스트: DSH 로직 + zh 로케일 + 멀티 클라이언트 hook + Pi 확장
+npm run test:git-matrix # 실제 저장소 대상 135개 케이스 Git 판정 매트릭스
+npm run test:realflow   # 실제 원격 저장소 대상 feature 브랜치 라이프사이클 엔드투엔드
+npm run test:pi         # Pi 확장 엔드투엔드 (로컬 Pi 설치 필요)
+npm run test:all        # 타입 체크 + 단위 테스트 + 플랫폼 매트릭스 + Git 매트릭스 + realflow
 ```
 
 - **품질 규칙**: 모든 로직 변경은 타입 체크(0 에러), 단위 테스트 전체 통과 및 연속 회귀 매트릭스(`verify:matrix`) 통과가 필수입니다.
