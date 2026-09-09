@@ -418,7 +418,7 @@ O comando `wire` lê o arquivo de configuração existente (se houver), mescla a
 ```
 `gitflow-guard wire --client opencode` grava este arquivo a partir do pacote; não é recomendado escrevê-lo manualmente.
 
-```json
+```jsonc
 // Antigravity (Google) — .agents/hooks.json
 // (o processo do hook do agy roda com cwd = o diretório do arquivo de configuração do hook, então um bin/… relativo não pode ser resolvido;
 // o `wire` grava um caminho absoluto no escopo do projeto e, no escopo global, o gitflow-guard instalado no PATH.

@@ -418,7 +418,7 @@ gitflow-guard wire --client cursor --project --yes
 ```
 `gitflow-guard wire --client opencode` 会从包内写入此文件;非必要不建议手写。
 
-```json
+```jsonc
 // Antigravity (Google) — .agents/hooks.json
 // (agy hook 进程 cwd = hook 配置文件所在目录,相对 bin/… 会解析失败; `wire` 项目级写绝对路径、
 // 全局写 PATH 上的 gitflow-guard。此处展示全局安装形态。)

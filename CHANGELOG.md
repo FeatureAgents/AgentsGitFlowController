@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.46
+
+- docs(readme): tag the Antigravity example as `jsonc` instead of `json` — that block carries `//` comment lines, and a strict JSON highlighter treats them as invalid syntax and renders them with an error background; the sibling Claude Code and Codex blocks were already `jsonc`, so the Antigravity one was the odd one out. Fixed in all 11 languages —— Antigravity 示例块的语言标记由 `json` 改为 `jsonc`：该块含 `//` 注释行，严格 JSON 高亮器会把它们判为非法语法并渲染出错误背景；相邻的 Claude Code 与 Codex 块本就是 `jsonc`，只有这一处不一致。11 语言同步修正。
+
 ## 0.0.45
 
 - docs(readme): show npm download badges on the package page — shields.io `npm/dt` (cumulative, monotonic) and `npm/dw` (last week) badges added to the header of all 11 READMEs; npm renders the README on the package page, so these give it a total that never decreases and a live weekly figure, unlike the site's own counter (rolling 7 days, 1–3 day stat lag) —— 在包页面显示下载徽章：为全部 11 个 README 顶部加入 shields.io 的 `npm/dt`（累计，只增不减）与 `npm/dw`（最近一周）徽章；npm 包页面直接渲染 README，因此可展示不会回落的累计量与实时周量，弥补官网计数器（滚动 7 天 + 1–3 天统计延迟）的不足。
