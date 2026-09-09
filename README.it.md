@@ -418,7 +418,7 @@ gitflow-guard wire --client cursor --project --yes
 ```
 `gitflow-guard wire --client opencode` scrive questo file a partire dal pacchetto; la scrittura manuale non è consigliata.
 
-```json
+```jsonc
 // Antigravity (Google) — .agents/hooks.json
 // (il processo hook di agy viene eseguito con cwd = la directory del file di configurazione dell'hook,
 // quindi un bin/… relativo non può essere risolto; `wire` scrive un percorso assoluto a livello di progetto
