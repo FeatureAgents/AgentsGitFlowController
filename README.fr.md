@@ -9,6 +9,7 @@ Vous définissez vos propres branches —
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Licence](LICENSE)
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
+[![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
 ---
 
@@ -93,7 +94,7 @@ Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
 Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-Les messages sont en anglais par défaut ; créez une configuration avec `"locale": "zh"` pour passer en chinois — les messages apparaîtront alors ainsi : *已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……* (voir [Référence de configuration](#référence-de-configuration)).
+Les messages sont en anglais par défaut ; créez une configuration avec `"locale": "zh"` pour passer en chinois — les messages apparaîtront alors ainsi : *已拦截: 受保护分支「develop」禁止直推 / 下一步: 集成分支(develop)由 PR/MR 合入 feature……* (voir [Référence de configuration](#référence-de-configuration)).
 
 **Terminé.** Le garde est actif pour ce dépôt avec les réglages par défaut intégrés. Vous souhaitez d'autres étapes (`preview` / `production`) ou des noms de branches différents ? Rédigez un fichier `gitflow-guard.config.json` en ne spécifiant que les champs qui vous intéressent — tout le reste conservera les valeurs par défaut intégrées. Pour consulter la table de décision complète, voir la [Matrice de décision](#matrice-de-décision--ce-qui-est-bloqué-ce-qui-passe).
 
@@ -179,10 +180,10 @@ La protection de branches côté serveur (règles de branches GitHub, branches p
 | Ce qu'elle régit | *Qui* a le droit de pousser / fusionner sur les branches protégées (permissions) | *Comment* les agents peuvent s'insérer dans le flux (workflow) — dans quel rôle atterrit une fusion |
 | Empêche les agents de fusionner dans production/archive | Non — ne peut pas distinguer si « c'est l'agent qui l'a fait » | Oui — les fusions vers production/archive sont bloquées pour les agents par défaut |
 | Flexibilité par rôle | Une règle par branche sur l'hébergeur | Par rôle : `update` (`pr`/`flexible`) + `mergeBy` (`user`/`anyone`) dans un seul fichier de configuration |
-| Portée | Tous les utilisateurs du dépôt, humains compris | Agents avec plugin configuré (les humains ne sont pas restreints) |
+| Portée | Tous les utilisateurs du dépôt, humains compris | Agents avec le hook ou le plugin configuré (les humains ne sont pas restreints) |
 | Point d'application | Côté serveur, au moment du push / de la fusion | Localement, avant que la commande ne soit exécutée |
 | Plateforme | Lié au service d'hébergement distant | Git local pur, indépendant de la plateforme (`gh` / `glab` optionnels) |
-| Contournable par | Les utilisateurs disposant de droits administrateur | Quiconque travaille hors de l'environnement d'agent, ou un agent malveillant déterminé |
+| Contournable par | Les utilisateurs disposant de droits administrateur | Tout agent non lié au garde, ou un agent malveillant déterminé |
 
 Pourquoi cela compte : la protection de branches répond à la question *« Ce push peut-il avoir lieu ? »* ; ce plugin répond à la question *« Cet agent a-t-il le droit d'entrer dans ce rôle au vu de la configuration ? »*. La configuration la plus solide combine **les deux** — le plugin maintient la discipline du flux chez les agents, et la protection de branches serveur garantit que personne, humain ou agent, ne pousse directement sur une branche protégée.
 
@@ -204,7 +205,7 @@ Aucun nom de branche ni aucune règle n'est codé en dur. `integration` est four
 
 #### 2. Le blocage a lieu avant l'exécution, pas après
 
-Le plugin s'accroche au pipeline d'outils au niveau de `tools/pre-execute` — le point de décision exécuté *avant* la transmission de la commande. Un refus `deny` à cet endroit garantit que la commande **ne s'exécute jamais** ; l'agent ne reçoit que le message de rejet. Une détection a posteriori (analyse des logs après coup) ne peut pas servir de garde-fou — les dégâts seraient déjà causés.
+Le garde s'accroche à l'événement pré-outil de chaque plateforme — `tools/pre-execute` pour DSH, `tool_call` pour Pi et le hook `PreToolUse` des clients CLI — le point de décision exécuté *avant* la transmission de la commande. Un refus `deny` à cet endroit garantit que la commande **ne s'exécute jamais** ; l'agent ne reçoit que le message de rejet. Une détection a posteriori (analyse des logs après coup) ne peut pas servir de garde-fou — les dégâts seraient déjà causés.
 
 #### 3. Les fusions sensibles sont infalsifiablement humaines
 
@@ -412,11 +413,17 @@ gitflow-guard wire --client cursor --project --yes
 ```
 
 ```ts
-// OpenCode — `.opencode/plugins/gitflow-guard.ts`
+// OpenCode — `.opencode/plugins/gitflow-guard.ts` (une copie du `opencode/gitflow-guard.ts` fourni avec le paquet ;
+// OpenCode 1.18+ a supprimé hooks.yaml — le point d'extension est désormais le répertoire plugins, événement
+// `tool.execute.before`, où lever une exception = refus ; `wire --client opencode` copie ce fichier pour vous)
 ```
+`gitflow-guard wire --client opencode` écrit ce fichier à partir du paquet ; il n'est pas recommandé de l'écrire à la main.
 
-```json
+```jsonc
 // Antigravity (Google) — .agents/hooks.json
+// (le processus hook agy s'exécute avec cwd = le répertoire du fichier de configuration du hook, donc un chemin bin/… relatif ne peut pas être résolu ;
+// `wire` écrit un chemin absolu en portée projet et le gitflow-guard installé dans le PATH en portée globale.
+// La forme « installation globale » est présentée ici.)
 {
   "gitflow-guard": {
     "PreToolUse": [
@@ -425,6 +432,12 @@ gitflow-guard wire --client cursor --project --yes
   }
 }
 ```
+
+Les trois autres clients CLI utilisent la même forme de hook — `wire` écrit leur fichier pour vous :
+
+- **CodeBuddy** — `.codebuddy/settings.json`
+- **ZCode** — `.zcode/config.json` (définit également `hooks.enabled: true`)
+- **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...` est un espace réservé — `wire` le résout, au moment du câblage, vers le chemin absolu du runner du paquet installé (entièrement auto-ancré : aucune expansion de variable côté client, aucune hypothèse sur le répertoire courant du hook, aucune dépendance au PATH, rien à déposer dans le dépôt cible). Après une mise à niveau depuis ≤ 0.0.41, relancez `wire` une fois par client — les anciennes entrées (modèle de variable / chemin relatif / forme PATH) sont migrées sur place.
 
@@ -494,7 +507,7 @@ npm link
   - **Pi** : Extension en processus écoutant l'événement `tool_call` et rejetant via `{ block: true, reason }`.
 
 - **Exécution avant outil (Pre-tool)** : Seul l'événement précédant l'outil est intercepté ; le garde bloque *avant* l'exécution des commandes, éliminant le besoin de hooks postérieurs ou d'étapes de nettoyage de permissions.
-- **Résolution du binaire dans le PATH** : L'installation globale (`npm i -g`) fournit le binaire `gitflow-guard`. Si l'exécuteur de votre agent n'hérite pas de votre `PATH` interactif, utilisez le chemin absolu renvoyé par `npm bin -g`.
+- **Résolution du binaire dans le PATH** : L'installation globale (`npm i -g`) fournit le binaire `gitflow-guard`. `wire` ancre chaque hook au chemin absolu du runner du paquet installé, de sorte que le hook continue de fonctionner même lorsque l'exécuteur de l'agent n'hérite pas de votre `PATH` interactif.
 - **Activé par défaut** : Les valeurs par défaut intégrées (`integration: ["develop"]`, `archive: ["main"]`) prennent effet sans aucun fichier de configuration. Les configurations personnalisées dans `gitflow-guard.config.json` sont appliquées par fusion profonde sur ces valeurs.
 - **Liaison non destructive** : `gitflow-guard wire` fusionne les configurations de hooks de manière idempotente sans modifier les hooks existants (les anciennes entrées gitflow-guard sont migrées vers la forme actuelle lors d'une relance), et `wire --unwire` retire uniquement l'entrée du garde.
 
@@ -556,7 +569,7 @@ Erreurs fréquentes : redéfinir un rôle avec le même nom de branche qu'un rô
 
 ### Qu'est-ce qui est exactement vérifié dans le dépôt local ?
 
-La branche courante (`git branch --show-current`), et — uniquement lors d'un `pr merge` / `mr merge` — la cible de la PR/MR via `gh pr view` / `glab mr view`. Aucune analyse d'arborescence généalogique n'est nécessaire, le modèle étant **piloté par les rôles** (détermination de la branche cible) et non par l'ordre chronologique des commits.
+La branche courante (`git branch --show-current`), et — uniquement lors d'un `pr merge` / `mr merge` — la cible de la PR/MR via `gh pr view` / `glab mr view`. Lorsque le garde optionnel `worktree` est activé, il lit également `git status --porcelain` (état sale / non suivi) et, lorsque `requireUpstreamSynced` est défini, `git rev-list --left-right --count HEAD...@{upstream}`. Aucune analyse d'arborescence généalogique n'est nécessaire, le modèle étant **piloté par les rôles** (détermination de la branche cible) et non par l'ordre chronologique des commits.
 
 Aucune donnée n'est écrite, aucun serveur distant n'est contacté et aucune fonctionnalité spécifique de plateforme d'hébergement n'est requise pour les vérifications fondamentales. Les fusions vers production/archive sont simplement refusées aux agents ; la validation humaine se déroule dans votre interface utilisateur.
 
@@ -589,7 +602,7 @@ S'il vous évite un incident de production ou un raccourci malheureux, le bouton
 
 Fonctionnalités futures et axes de recherche actuellement explorés :
 
-- **Intégrations de nouveaux agents** : étude et adaptation aux nouveaux systèmes de hooks/extensions d'agents (ex. Cursor, Windsurf, nouveaux CLI d'agents).
+- **Intégrations de nouveaux agents** : étude et adaptation aux nouveaux systèmes de hooks/extensions d'agents (ex. Windsurf, nouveaux CLI d'agents).
 - **Agrégation d'audits** : synchronisation des journaux d'audit entre machines et formats d'export de conformité pour les équipes.
 - **Préréglages de flux** : préréglages de configuration prêts à l'emploi pour les modèles de branches courants (Trunk-based development, déploiements multi-environnements d'entreprise).
 - **Verrouillage strict en CI** : hooks natifs pour pipelines CI et intégration des vérifications de PR tout en conservant une exécution locale sans dépendance.
@@ -605,8 +618,13 @@ npm install
 npm test              # tests unitaires : classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
 npm run typecheck     # tsc --noEmit, 0 erreur
 npm run build         # tsdown → lib/ (la CLI et le plugin partagent le build)
-npm run check:pins    # vérifie la cohérence de version entre package.json, les titres de CHANGELOG et les exemples dans les README
+npm run check:pins    # vérifie la cohérence de version entre package.json, le titre du CHANGELOG et les exemples dans les README
+npm run check:readmes # vérifie que les 11 README restent structurellement symétriques (44 titres / 7 tableaux / 17 entrées de la table des matières)
 npm run verify:matrix # régression multi-agents continue : logique DSH + locale zh + hooks multi-clients + extension Pi
+npm run test:git-matrix # matrice de décision Git de 135 cas contre de vrais dépôts
+npm run test:realflow # cycle de vie d'une branche de fonctionnalité de bout en bout contre un vrai dépôt distant
+npm run test:pi       # extension Pi de bout en bout (nécessite une installation locale de Pi)
+npm run test:all      # vérification de types + tests unitaires + matrice de plateformes + matrice Git + realflow
 ```
 
 - **Règle de qualité** : toute modification logique exige une vérification de types sans erreur (0 erreur), l'ensemble des tests au vert et une validation complète de `verify:matrix`.

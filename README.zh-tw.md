@@ -8,6 +8,7 @@
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [授權條款](LICENSE)
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
+[![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
 ---
 
@@ -92,7 +93,7 @@ Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
 Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-**提示訊息預設為英文**（面向國際化）。要在你的專案中顯示中文，建立設定檔並加入 `"locale": "zh"`；中文效果為：*已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……*（見[設定參考](#設定參考)）。
+**提示訊息預設為英文**（面向國際化）。要在你的專案中顯示中文，建立設定檔並加入 `"locale": "zh"`；中文效果為：*已拦截: 受保护分支「develop」禁止直推 / 下一步: 集成分支(develop)由 PR/MR 合入 feature……*（見[設定參考](#設定參考)）。
 
 **完成。** 守衛已使用內建預設配置生效。想要更多關卡（`preview` / `production`）或修改分支名稱？撰寫一個 `gitflow-guard.config.json`，只寫入你在意的欄位，其餘保持內建預設。完整判定表見[門禁矩陣](#門禁矩陣--攔截什麼放行什麼)。
 
@@ -203,7 +204,7 @@ AI 寫碼 Agent 在你的程式碼倉庫裡工作。它透過系統提示詞、�
 
 #### 2. 攔截發生在執行前，不是執行後
 
-外掛掛載在工具管線的 `tools/pre-execute` —— 這是指令分派*之前*的決策點。在此處 `deny`，指令**根本不會被執行**，Agent 只會看到被拒絕的回應。事後偵測（掃描日誌）無法作為強制手段 —— 因為損害早已造成。
+守衛掛載在各平台的 pre-tool 事件上 —— DSH 的 `tools/pre-execute`、Pi 的 `tool_call`、CLI 用戶端的 `PreToolUse` —— 這是指令分派*之前*的決策點。在此處 `deny`，指令**根本不會被執行**，Agent 只會看到被拒絕的回應。事後偵測（掃描日誌）無法作為強制手段 —— 因為損害早已造成。
 
 #### 3. 敏感合併在機制上只能由人操作
 
@@ -417,7 +418,7 @@ gitflow-guard wire --client cursor --project --yes
 ```
 `gitflow-guard wire --client opencode` 會自動從套件內寫入此檔案；非必要不建議手動編寫。
 
-```json
+```jsonc
 // Antigravity (Google) — .agents/hooks.json
 // (agy hook 進程 cwd = hook 設定檔所在目錄，相對 bin/… 會解析失敗; `wire` 專案級寫絕對路徑、
 // 全域寫 PATH 上的 gitflow-guard。此處展示全域安裝形態。)
@@ -429,6 +430,12 @@ gitflow-guard wire --client cursor --project --yes
   }
 }
 ```
+
+其餘三個 CLI 用戶端使用相同的 hook 形態 —— `wire` 會替你寫入對應檔案：
+
+- **CodeBuddy** —— `.codebuddy/settings.json`
+- **ZCode** —— `.zcode/config.json`（同時設定 `hooks.enabled: true`）
+- **Cursor** —— `.cursor/hooks.json`（`hooks.beforeShellExecution`）
 
 > `<npm-global>/agents-gitflow-guard/bin/...` 僅為佔位 — `wire` 落位時解析為本機安裝套件自身 runner 的真實絕對路徑（完全自錨定：不依賴用戶端變數展開、不依賴 hook 行程 cwd、不依賴 PATH，目標儲存庫零部署）。從 ≤0.0.41 升級？對每個客戶端重跑一次 `wire`，舊形態條目（變數範本/相對路徑/PATH 形態）會被原位遷移。
 
@@ -498,7 +505,7 @@ npm link
   - **Pi**：進程內擴充監聽 `tool_call` 事件並回傳 `{ block: true, reason }`。
 
 - **僅攔截前置事件**：門禁在指令執行*前*即完成攔截，無需事後清理或消耗特許權杖。
-- **PATH 與二進位解析**：全域安裝提供 `gitflow-guard` 執行檔；若 Agent 子進程環境未繼承使用者的 `PATH`，可配置 `npm bin -g` 所回傳的絕對路徑。
+- **PATH 與二進位解析**：全域安裝提供 `gitflow-guard` 執行檔。`wire` 會將每個 hook 錨定到安裝套件自身 runner 的絕對路徑，因此即使 Agent 子進程未繼承你的互動式 `PATH`，hook 依然可用。
 - **開箱即用**：內建預設配置（`integration: ["develop"]`, `archive: ["main"]`）無需額外建立檔案即生效；自訂配置自動執行深度合併。
 - **安全接線**：`gitflow-guard wire` 具備冪等性，安全合併配置且不影響現有其他 Hook（重跑 wire 會把舊版 gitflow-guard 條目遷移為當前形態）；`--unwire` 精準移除對應條目。
 
@@ -560,7 +567,7 @@ npm link
 
 ### 外掛到底檢查了本地倉庫的什麼？
 
-當前檢出的分支（`git branch --show-current`），以及 —— 僅在執行 `pr merge` / `mr merge` 時 —— 透過 `gh pr view` / `glab mr view` 查詢 PR/MR 的目標分支。不需要進行任何提交祖先關係判斷，因為模型是**角色驅動**（目標屬於哪個角色分支），而非順序驅動。
+當前檢出的分支（`git branch --show-current`），以及 —— 僅在執行 `pr merge` / `mr merge` 時 —— 透過 `gh pr view` / `glab mr view` 查詢 PR/MR 的目標分支。開啟可選的 `worktree` 守衛後，還會讀取 `git status --porcelain`（髒/未追蹤狀態），並在設定 `requireUpstreamSynced` 時執行 `git rev-list --left-right --count HEAD...@{upstream}`。不需要進行任何提交祖先關係判斷，因為模型是**角色驅動**（目標屬於哪個角色分支），而非順序驅動。
 
 核心校驗不寫入任何資料、不連接遠端伺服器、亦不需要程式碼託管平台功能。生產與歸檔的合併直接對 Agent 拒絕；人工合併則在你的 Web UI 介面中完成。
 
@@ -593,7 +600,7 @@ MIT 授權，免費開源，無任何附加條件。隨意使用、修改、分�
 
 未來規劃與正在積極探索的方向：
 
-- **更多 Agent 平台整合**：調研並適配新興的 AI Coding Agent 工具（例如 Cursor、Windsurf、新一代 CLI Agent）。
+- **更多 Agent 平台整合**：調研並適配新興的 AI Coding Agent 工具（例如 Windsurf、新一代 CLI Agent）。
 - **稽核記錄彙整與匯出**：跨機器稽核日誌同步機制及團隊級安全合規性匯出格式。
 - **情境化工作流程預設檔**：針對常見 Git 分支模式（Trunk-based 單主幹模式、多環境企業級 GitFlow）提供開箱即用的配置預設。
 - **CI 門禁與 PR 校驗聯動**：探索原生 CI 流水線整合與 PR 檢查聯動機制，同時保有本地端零依賴執行的優勢。
@@ -606,11 +613,16 @@ MIT 授權，免費開源，無任何附加條件。隨意使用、修改、分�
 
 ```bash
 npm install
-npm test              # 單元測試: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
-npm run typecheck     # 型別檢查: tsc --noEmit, 0 Error
-npm run build         # 建置構建: tsdown → lib/ (CLI 與外掛共享)
-npm run check:pins    # 校驗 package.json 版本與 CHANGELOG 標題及版本範例一致
-npm run verify:matrix # 連續回歸矩陣測試: DSH 邏輯 + zh 文案回歸 + 多平台 hook 編碼 + Pi 擴充
+npm test                # 單元測試: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
+npm run typecheck       # 型別檢查: tsc --noEmit, 0 Error
+npm run build           # 建置構建: tsdown → lib/ (CLI 與外掛共享)
+npm run check:pins      # 校驗 package.json 版本與 CHANGELOG 標題及版本範例一致
+npm run check:readmes   # 校驗 11 語系 README 結構對稱（44 標題 / 7 表格 / 17 TOC 項）
+npm run verify:matrix   # 連續回歸矩陣測試: DSH 邏輯 + zh 文案回歸 + 多平台 hook 編碼 + Pi 擴充
+npm run test:git-matrix # 135 項 git 決策矩陣（對真實儲存庫執行）
+npm run test:realflow   # feature 分支生命週期端到端（對真實遠端執行）
+npm run test:pi         # Pi 擴充端到端（需本機安裝 Pi）
+npm run test:all        # 型別檢查 + 單元測試 + 平台矩陣 + git 矩陣 + realflow
 ```
 
 - **品質鐵律**：任何邏輯改動必須通過型別檢查（0 錯誤）、單元測試全數通過，並通過連續回歸矩陣測試（`verify:matrix`）。

@@ -8,6 +8,7 @@
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [许可证](LICENSE)
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
+[![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
 ---
 
@@ -92,7 +93,7 @@ Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
 Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-**文案默认是英文**(面向国际化)。要在你的项目里看中文,创建配置并加 `"locale": "zh"`;中文效果是:*已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……*(见[配置参考](#配置参考))。
+**文案默认是英文**(面向国际化)。要在你的项目里看中文,创建配置并加 `"locale": "zh"`;中文效果是:*已拦截: 受保护分支「develop」禁止直推 / 下一步: 集成分支(develop)由 PR/MR 合入 feature……*(见[配置参考](#配置参考))。
 
 **完成。** 守卫已用内置默认配置生效。想要更多关卡(`preview` / `production`)或改分支名?写一个 `gitflow-guard.config.json`,只写你在意的字段,其余保持内置默认。完整判定表见[门禁矩阵](#门禁矩阵拦什么放什么)。
 
@@ -178,10 +179,10 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 | 管什么 | *谁*能推/合并到受保护分支(权限) | *agent 怎么*进入流程(工作流)——这个合并落在哪个角色 |
 | 防止 agent 合入生产/归档 | 不能——无法区分"是 agent 干的" | 能——生产/归档合并默认对 agent 禁用 |
 | 按角色灵活 | 每个分支一条规则 | 一个配置文件里每角色 `update`(pr/flexible)+ `mergeBy`(user/anyone) |
-| 范围 | 仓库所有用户,包括人 | 配置了插件的 DSH agent(人类不受限) |
+| 范围 | 仓库所有用户,包括人 | 配置了 hook 或插件的 agent(人类不受限) |
 | 执行点 | 服务端,推送/合并时 | 本地,命令执行前 |
 | 平台 | 绑定托管服务 | 纯本地 git,平台无关(`gh`/`glab` 可选) |
-| 谁能绕过 | 有管理员权限的人 | 在 DSH 之外干活的人,或铁了心的恶意 agent |
+| 谁能绕过 | 有管理员权限的人 | 未接入守卫的 agent,或铁了心的恶意 agent |
 
 为什么重要: 分支保护回答"这次推送到底能不能发生";本插件回答"这个 agent 按配置能不能进这个角色"。最强的方案**两者都用**——插件让 agent 守流程,分支保护保证任何人(agent 或人)都不能直推受保护分支。
 
@@ -203,7 +204,7 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 
 #### 2. 拦截发生在执行前,不是执行后
 
-插件挂在工具管线的 `tools/pre-execute`——命令分派*之前*的决策点。在那里 `deny`,命令**根本不会运行**,agent 只看到拒绝。事后检测(扫日志)无法作为强制手段——伤害早就造成了。
+守卫挂在各平台的 pre-tool 事件上——DSH 的 `tools/pre-execute`、Pi 的 `tool_call`、CLI 客户端的 `PreToolUse`——命令分派*之前*的决策点。在那里 `deny`,命令**根本不会运行**,agent 只看到拒绝。事后检测(扫日志)无法作为强制手段——伤害早就造成了。
 
 #### 3. 敏感合并在机制上只能由人
 
@@ -417,7 +418,7 @@ gitflow-guard wire --client cursor --project --yes
 ```
 `gitflow-guard wire --client opencode` 会从包内写入此文件;非必要不建议手写。
 
-```json
+```jsonc
 // Antigravity (Google) — .agents/hooks.json
 // (agy hook 进程 cwd = hook 配置文件所在目录,相对 bin/… 会解析失败; `wire` 项目级写绝对路径、
 // 全局写 PATH 上的 gitflow-guard。此处展示全局安装形态。)
@@ -429,6 +430,12 @@ gitflow-guard wire --client cursor --project --yes
   }
 }
 ```
+
+其余三个 CLI 客户端使用相同的 hook 形态 —— `wire` 会替你写入对应文件：
+
+- **CodeBuddy** —— `.codebuddy/settings.json`
+- **ZCode** —— `.zcode/config.json`(同时设置 `hooks.enabled: true`)
+- **Cursor** —— `.cursor/hooks.json`(`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...` 仅为占位 — `wire` 落位时解析为本机安装包自身 runner 的真实绝对路径（完全自锚定：不依赖客户端变量展开、不依赖 hook 进程 cwd、不依赖 PATH，目标仓库零部署）。从 ≤0.0.41 升级？对每个客户端重跑一次 `wire`，旧形态条目（变量模板/相对路径/PATH 形态）会被原位迁移。
 
@@ -498,7 +505,7 @@ npm link
   - **Pi**：进程内扩展监听 `tool_call` 事件并返回 `{ block: true, reason }`。
 
 - **仅拦截前置事件**: 门禁在命令执行*前*完成拦截，无需后置清理或消耗特许令牌。
-- **PATH 与二进制解析**: 全局安装提供 `gitflow-guard` 二进制；若 Agent 子进程环境未继承 `PATH`，可配置 `npm bin -g` 返回的绝对路径。
+- **PATH 与二进制解析**: 全局安装提供 `gitflow-guard` 二进制。`wire` 会把每个 hook 锚定到安装包自身 runner 的绝对路径，因此即使 Agent 子进程未继承你的交互式 `PATH`，hook 依然可用。
 - **开箱即用**: 内置默认配置（`integration: ["develop"]`, `archive: ["main"]`）无需额外文件即生效；自定义配置自动深度合并。
 - **安全接线**: `gitflow-guard wire` 幂等合并配置且不影响已有 Hook（重跑 wire 会把旧版 gitflow-guard 条目迁移为当前形态）；`--unwire` 精确移除对应条目。
 
@@ -560,7 +567,7 @@ npm link
 
 ### 插件到底查了本地仓库的什么?
 
-当前分支(`git branch --show-current`),以及——只在 `pr merge` / `mr merge` 时——通过 `gh pr view` / `glab mr view` 查 PR/MR 目标。不需要任何祖先关系判断,因为模型是**角色驱动**(目标是哪个分支),而不是顺序驱动。
+当前分支(`git branch --show-current`),以及——只在 `pr merge` / `mr merge` 时——通过 `gh pr view` / `glab mr view` 查 PR/MR 目标。开启可选的 `worktree` 守卫后,还会读取 `git status --porcelain`(脏/未追踪状态),并在设置 `requireUpstreamSynced` 时执行 `git rev-list --left-right --count HEAD...@{upstream}`。不需要任何祖先关系判断,因为模型是**角色驱动**(目标是哪个分支),而不是顺序驱动。
 
 核心校验不写任何东西、不碰远端、不需要托管服务功能。生产/归档合并直接对 agent 拒绝;人工合并发生在你的 UI 里。
 
@@ -593,7 +600,7 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 未来规划与正在探索的方向:
 
-- **更多 Agent 平台接入**: 调研并适配新兴 Coding Agent 工具(如 Cursor、Windsurf、新一代 CLI Agent)。
+- **更多 Agent 平台接入**: 调研并适配新兴 Coding Agent 工具(如 Windsurf、新一代 CLI Agent)。
 - **审计汇总与导出**: 跨机器审计日志同步及团队级安全合规导出格式。
 - **场景化流程预设**: 针对常见 Git 分支模式(Trunk-based 单主干模式、多环境企业级 GitFlow)的现成配置预设。
 - **CI 门禁与 PR 校验**: 探索原生 CI 管道集成与 PR 检查联动机制, 同时保持本地执行零依赖。
@@ -606,11 +613,16 @@ MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留�
 
 ```bash
 npm install
-npm test              # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
-npm run typecheck     # tsc --noEmit, 0 Error
-npm run build         # tsdown → lib/(CLI 与插件共用)
-npm run check:pins    # 校验 package.json 版本与 CHANGELOG 标题及版本示例一致
-npm run verify:matrix # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + 多平台 hook 编码 + Pi 扩展
+npm test                # 单测: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
+npm run typecheck       # tsc --noEmit, 0 Error
+npm run build           # tsdown → lib/(CLI 与插件共用)
+npm run check:pins      # 校验 package.json 版本与 CHANGELOG 标题及版本示例一致
+npm run check:readmes   # 校验 11 语言 README 结构对称(44 标题 / 7 表格 / 17 TOC 项)
+npm run verify:matrix   # 连续复测矩阵: DSH 逻辑 + zh 文案回归 + 多平台 hook 编码 + Pi 扩展
+npm run test:git-matrix # 135 项 git 决策矩阵(对真实仓库执行)
+npm run test:realflow   # feature 分支生命周期端到端(对真实远端执行)
+npm run test:pi         # Pi 扩展端到端(需本机安装 Pi)
+npm run test:all        # 类型检查 + 单测 + 平台矩阵 + git 矩阵 + realflow
 ```
 
 - **质量铁律**: 任何逻辑改动必须通过类型检查（0 错误）、单测全绿及连续复测矩阵（`verify:matrix`）。

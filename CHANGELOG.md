@@ -3,6 +3,22 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.46
+
+- docs(readme): tag the Antigravity example as `jsonc` instead of `json` — that block carries `//` comment lines, and a strict JSON highlighter treats them as invalid syntax and renders them with an error background; the sibling Claude Code and Codex blocks were already `jsonc`, so the Antigravity one was the odd one out. Fixed in all 11 languages —— Antigravity 示例块的语言标记由 `json` 改为 `jsonc`：该块含 `//` 注释行，严格 JSON 高亮器会把它们判为非法语法并渲染出错误背景；相邻的 Claude Code 与 Codex 块本就是 `jsonc`，只有这一处不一致。11 语言同步修正。
+
+## 0.0.45
+
+- docs(readme): show npm download badges on the package page — shields.io `npm/dt` (cumulative, monotonic) and `npm/dw` (last week) badges added to the header of all 11 READMEs; npm renders the README on the package page, so these give it a total that never decreases and a live weekly figure, unlike the site's own counter (rolling 7 days, 1–3 day stat lag) —— 在包页面显示下载徽章：为全部 11 个 README 顶部加入 shields.io 的 `npm/dt`（累计，只增不减）与 `npm/dw`（最近一周）徽章；npm 包页面直接渲染 README，因此可展示不会回落的累计量与实时周量，弥补官网计数器（滚动 7 天 + 1–3 天统计延迟）的不足。
+
+## 0.0.44
+
+- fix(ci): run the git decision matrix and the realflow suite in CI — the 135-case decision matrix (`test:git-matrix`) and the feature-lifecycle E2E (`test:realflow`) were only ever run by hand, so core correctness had no CI gate; a dedicated ubuntu job now runs both on every push and pull request, with an explicit git identity for the temporary test repositories —— 决策矩阵与真实流程套件接入 CI：135 项决策矩阵与 feature 生命周期 E2E 此前仅本地手动执行，核心正确性没有 CI 门禁；现由独立 ubuntu job 在每次 push 与 PR 上执行，并为临时测试仓库显式配置 git 身份。
+- fix(release): decide release eligibility from npm instead of the tag — the tag is created before `npm publish`, so a failed publish left the tag behind and that version was skipped silently forever; eligibility now asks whether the version exists on npm (distinguishing a 404 from a registry/network error, which fails loudly instead of publishing a duplicate) and backfills a missing tag —— 发版判据改为看 npm 而非 tag：tag 先于 publish 产生，一旦发布失败该版本会被永久静默跳过；现改为「npm 上不存在该版本才发布」（区分 404 与网络/registry 故障，故障时响亮报错而非重复发布），并补打缺失的 tag。
+- fix(scripts): guard `check-version-pins` main() — importing the script (as `tests/version-pins.spec.ts` does) also ran the full repo-wide check, whose `process.exit(1)` could kill the vitest worker with an error unrelated to the test assertions; the call is now gated on being run directly, matching the two sibling scripts —— 为 `check-version-pins` 的 main() 加守卫：被测试文件 import 时不再触发全仓检查，避免仓库状态暂时不一致时 `process.exit(1)` 杀掉 vitest worker、报出与断言无关的错误；现仅在被直接运行时执行，与另两个同类脚本一致。
+- docs(agents): correct the release prerequisite from `NPM_TOKEN` to OIDC trusted publishing — the workflow has published via OIDC since 0.0.35/0.0.36 and injects no static token; the stale line sent maintainers to configure an unused secret —— 订正发版前提：工作流自 0.0.35/0.0.36 起已走 OIDC 可信发布且不注入任何静态 token，原「需配 `NPM_TOKEN`」一句会误导维护者去配置无用密钥。
+- docs(readme): align all 11 languages with the actual implementation — removed the `npm bin -g` advice (that command was removed in npm 9); replaced the DSH-only wording in the comparison table and design principles with the real per-platform hook mechanisms (DSH `tools/pre-execute` / Pi `tool_call` / CLI clients' `PreToolUse`); added the CodeBuddy / ZCode / Cursor config files, the optional `worktree` queries, the missing development commands, and dropped Cursor from the roadmap (shipped in 0.0.41) —— 11 语言 README 与实现对齐：移除已失效的 `npm bin -g` 提示；对比表与设计原则中「仅 DSH」的表述改为各平台真实 hook 机制（DSH `tools/pre-execute` / Pi `tool_call` / CLI 客户端 `PreToolUse`）；补齐 CodeBuddy / ZCode / Cursor 配置文件、可选 `worktree` 的查询说明与缺失的开发命令；Roadmap 移除已于 0.0.41 发布的 Cursor。
+
 ## 0.0.43
 
 - chore(dogfood): stop committing the machine-bound Antigravity hook config — `.agents/hooks.json` must carry an absolute runner path (AGY-D2: the agy hook process cwd is the config directory, so relative paths can never resolve), and the committed file had baked in one machine's macOS path, silently failing open everywhere else; it is now gitignored and each contributor generates their own via `gitflow-guard wire --client antigravity --project` (self-anchored since 0.0.42); pitfall recorded in AGENTS.md §7 —— 停止提交绑定机器的 Antigravity 钩子配置：`.agents/hooks.json` 必须写 runner 绝对路径（AGY-D2：agy hook 进程 cwd=配置目录，相对路径必然失效），已提交的文件固化了某台 macOS 机器的路径，在其他机器上静默失效；现将其加入 .gitignore 并从版本库移除跟踪，各贡献者经 `gitflow-guard wire --client antigravity --project` 生成本机配置（0.0.42 起命令自锚定安装包自身路径）；陷阱记入 AGENTS.md §7。

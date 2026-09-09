@@ -36,4 +36,8 @@ function main() {
   console.log('[check-version-pins] OK: version pins consistent with ' + version + ', CHANGELOG has section ' + version)
 }
 
-main()
+// 仅在被直接运行时执行完整仓库检查: 被 tests/version-pins.spec.ts import 时不得触发,
+// 否则仓库状态不一致会让 process.exit(1) 直接杀掉 vitest worker(报错与断言无关, 极难排查)
+if (process.argv[1] && process.argv[1].endsWith('check-version-pins.mjs')) {
+  main()
+}
