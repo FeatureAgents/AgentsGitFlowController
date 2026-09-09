@@ -67,6 +67,9 @@ export function decide(classified: Classified, facts: GateFacts, config: GuardCo
       return isProtected(roleOfBranch(facts.currentBranch, config))
         ? deny(t('refMoveProtected.why'), t('refMoveProtected.next'))
         : { kind: 'allow' }
+    case 'alias-smuggle':
+      // 带外别名通道(--config-env / GIT_CONFIG_KEY_n)的别名值不可见, 无法展开判定 —— 保守拒绝
+      return deny(t('aliasSmuggle.why'), t('aliasSmuggle.next'))
     case 'guard-cli':
       // status/audit 只读, 放行
       return { kind: 'allow' }

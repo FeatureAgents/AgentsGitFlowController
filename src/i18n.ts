@@ -81,6 +81,9 @@ const en: Dict = {
   'next.unspecified': () => 'Retry once the target branch is clear.',
 
   // —— 拦截封装 ——
+  'aliasSmuggle.why': () => 'Alias defined through an out-of-band channel (--config-env / GIT_CONFIG_KEY_*)',
+  'aliasSmuggle.next': () =>
+    'Define it with `-c alias.<name>=<value>` so the guard can classify it, or run the underlying command directly.',
   'deny.header': (v) => `[gitflow-guard] blocked: ${v.why}`,
   'deny.next': (v) => `Next: ${v.next}`,
 
@@ -211,6 +214,9 @@ const zh: Dict = {
   'next.archive': (v) => `归档分支(${v.branch})仅用户亲手操作`,
   'next.unspecified': () => '请明确目标分支后重试',
 
+  'aliasSmuggle.why': () => '别名经带外通道定义(--config-env / GIT_CONFIG_KEY_*)',
+  'aliasSmuggle.next': () =>
+    '请改用 `-c alias.<名>=<值>` 定义别名以便守卫识别, 或直接运行底层命令',
   'deny.header': (v) => `[gitflow-guard] 已拦截: ${v.why}`,
   'deny.next': (v) => `下一步: ${v.next}`,
 

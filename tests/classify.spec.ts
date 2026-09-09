@@ -228,3 +228,174 @@ describe('classify: 嵌套展开深度上限(🟡-7)', () => {
     expect(r.some((c) => c.kind === 'push')).toBe(false)
   })
 })
+
+describe('classify: git -c 别名展开', () => {
+  // 别名双解释(字面 + 展开)下任一解释命中即拦, 故按「结果中存在匹配项」断言
+  const allOf = (command: string) => classify(command, { currentBranch: 'feature/dev-x-01' })
+  const contains = (command: string, matcher: Record<string, unknown>) =>
+    expect(allOf(command)).toContainEqual(expect.objectContaining(matcher))
+
+  it('同命令内定义并使用别名 → 展开为真实子命令', () => {
+    contains('git -c alias.z=push z origin main', { kind: 'push', dst: 'main' })
+    contains('git -c alias.z=push z origin develop', { kind: 'push', dst: 'develop' })
+    contains('git -c alias.z=push z -f origin main', { kind: 'push', dst: 'main', force: true })
+  })
+
+  it('别名值含空格(整段引号) → 展开后按真实命令分类', () => {
+    contains('git -c "alias.p=push --force origin main" p', { kind: 'push', dst: 'main', force: true })
+    contains("git -c 'alias.m=merge origin/develop' m", { kind: 'local-merge', source: 'origin/develop' })
+  })
+
+  it('别名值内的引号被剥离 → 目标分支可与配置精确比对', () => {
+    contains('git -c \'alias.z=push origin "master"\' z', { kind: 'push', dst: 'master' })
+    contains('git config alias.z \'push origin "master"\'', { kind: 'push', dst: 'master' })
+  })
+
+  it('无害别名 → 按真实子命令分类(断言可区分是否展开)', () => {
+    // 若别名未展开则落纯 other(无 cleanWorktree / 无 branch), 以下断言即转红
+    contains('git -c alias.c=commit c -m x', { kind: 'other', cleanWorktree: true })
+    contains('git -c alias.co=checkout co develop', { kind: 'checkout', branch: 'develop' })
+  })
+
+  it('别名值以 ! 开头(shell 别名) → 递归分类内部命令', () => {
+    contains('git -c "alias.z=!git push origin main" z', { kind: 'push', dst: 'main' })
+  })
+
+  it('shell 别名携带调用点参数 → 参数参与分类(对齐 git 的 "$@" 追加语义)', () => {
+    contains('git -c "alias.z=!git push" z origin main', { kind: 'push', dst: 'main' })
+    contains('git -c "alias.z=!git push $@" z origin main', { kind: 'push', dst: 'main' })
+  })
+
+  it('shell 别名内层 git 调用继承 -c 定义(GIT_CONFIG_PARAMETERS 传子进程)', () => {
+    contains('git -c "alias.a=!git z" -c alias.z=push a origin main', { kind: 'push', dst: 'main' })
+  })
+
+  it('别名遮蔽内置命令 → 字面解释同样送门禁(内置优先, 任一 deny 即拦)', () => {
+    contains('git -c alias.push=status push origin master', { kind: 'push', dst: 'master' })
+  })
+
+  it('无环长链正常展开(不因深度上限误伤)', () => {
+    const chain = (n: number) => {
+      const parts = ['git', '-c', 'alias.a1=push']
+      for (let i = 2; i <= n; i++) parts.push('-c', `alias.a${i}=a${i - 1}`)
+      parts.push(`a${n}`, 'origin', 'main')
+      return parts.join(' ')
+    }
+    contains(chain(10), { kind: 'push', dst: 'main' })
+    contains(chain(30), { kind: 'push', dst: 'main' })
+  })
+
+  it('别名循环引用 → 不崩溃, 环被截断, 同命令内其他别名照常展开', () => {
+    contains('git -c alias.a=a a', { kind: 'other' })
+    contains('git -c alias.a=b -c alias.b=a a', { kind: 'other' })
+    contains('git -c alias.a=a -c alias.z=push z origin main', { kind: 'push', dst: 'main' })
+  })
+
+  it('配置键大小写不敏感(git 语义) → 同样识别', () => {
+    contains('git -c ALIAS.z=push z origin main', { kind: 'push', dst: 'main' })
+    contains('git -c alias.Z=push Z origin main', { kind: 'push', dst: 'main' })
+    contains('git config ALIAS.z "push origin main"', { kind: 'push', dst: 'main' })
+  })
+
+  it('ANSI-C 引号($\'...\') 形态 → 同样识别', () => {
+    contains("git -c $'alias.z=push origin main' z", { kind: 'push', dst: 'main' })
+  })
+
+  it('别名值两侧加引号(最常见的 shell 写法) → 同样展开', () => {
+    // `git config alias.z="push origin master"` 是单个参数, git 报 invalid key 不写入别名, 故不适用
+    contains('git -c alias.z="push origin master" z', { kind: 'push', dst: 'master' })
+    contains('git -c alias.p="push --force" p origin master', { kind: 'push', dst: 'master', force: true })
+  })
+
+  it('别名链遮蔽内置命令 → 展开到内置命令即停, 且已得分类不丢失', () => {
+    contains('git -c alias.a=push -c alias.push=status a origin master', { kind: 'push', dst: 'master' })
+  })
+
+  it('白名单外的 = 值长选项不击穿别名收集', () => {
+    contains('git -c alias.z=push --exec-path=/x z origin main', { kind: 'push', dst: 'main' })
+  })
+
+  it('非 alias 的 -c 配置 → 原行为不变', () => {
+    contains('git -c core.pager=cat push origin main', { kind: 'push', dst: 'main' })
+  })
+
+  it('别名值自身带全局选项(-c) → 继续解析而非落 other', () => {
+    contains("git -c 'alias.z=-c alias.q=push q' z origin master", { kind: 'push', dst: 'master' })
+  })
+
+  it('ANSI-C 转义序列被解码 → 别名值判定与 shell 一致', () => {
+    contains("git -c alias.z=$'push\\x20origin\\x20master' z", { kind: 'push', dst: 'master' })
+  })
+
+  it('--config-env 空格形态不遮蔽其后的子命令', () => {
+    contains('git --config-env core.pager=PAGER push origin main', { kind: 'push', dst: 'main' })
+  })
+})
+
+describe('classify: git config 写入别名', () => {
+  it('写入危险别名 → 按别名值分类', () => {
+    expect(first("git config alias.p 'push --force origin main'")).toMatchObject({ kind: 'push', dst: 'main', force: true })
+    expect(first('git config --global alias.z "push origin develop"')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first("git config alias.z '!git push origin main'")).toMatchObject({ kind: 'push', dst: 'main' })
+    expect(first('git config alias.m "merge origin/develop"')).toMatchObject({ kind: 'local-merge', source: 'origin/develop' })
+  })
+
+  it('取值旗标(-f / --type)不使键位错位', () => {
+    expect(first('git config -f .git/config alias.z "push --force origin master"')).toMatchObject({ kind: 'push', dst: 'master', force: true })
+    expect(first('git config --type bool alias.st status')).toMatchObject({ kind: 'other' })
+  })
+
+  it('无害别名按真实子命令分类, 查询 / 删除 / 非 alias 键 → other', () => {
+    // 写入别名不切换分支, branch 被剥离以防后续段按被篡改的分支判定
+    expect(first('git config alias.co "checkout develop"')).toMatchObject({ kind: 'checkout', branch: null })
+    expect(first('git config alias.st status')).toMatchObject({ kind: 'other' })
+    expect(first('git config alias.p')).toMatchObject({ kind: 'other' })
+    expect(first('git config --unset alias.p')).toMatchObject({ kind: 'other' })
+    expect(first('git config user.email a@b.c')).toMatchObject({ kind: 'other' })
+    expect(first('git config --list')).toMatchObject({ kind: 'other' })
+  })
+})
+
+describe('classify: 带外别名通道', () => {
+  it('--config-env / GIT_CONFIG_KEY_n 定义别名 → 拒绝分类', () => {
+    expect(first('FOO=push git --config-env=alias.z=FOO z')).toMatchObject({ kind: 'alias-smuggle' })
+    expect(first('git --config-env alias.z=FOO z')).toMatchObject({ kind: 'alias-smuggle' })
+    expect(first('GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.z GIT_CONFIG_VALUE_0=push git z origin main'))
+      .toMatchObject({ kind: 'alias-smuggle' })
+  })
+
+  it('非 alias 的 --config-env → 不受影响', () => {
+    expect(first('git --config-env=core.pager=FOO push origin main')).toMatchObject({ kind: 'push', dst: 'main' })
+  })
+
+  it('引号形态与 GIT_CONFIG_PARAMETERS → 同样拒绝', () => {
+    expect(first("git --config-env='alias.z=FOO' z")).toMatchObject({ kind: 'alias-smuggle' })
+    expect(first('GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="alias.z" GIT_CONFIG_VALUE_0=push git z')).toMatchObject({ kind: 'alias-smuggle' })
+    expect(first('GIT_CONFIG_PARAMETERS="\'alias.z=push origin master\'" git z')).toMatchObject({ kind: 'alias-smuggle' })
+  })
+
+  it('超长 config 别名值 → 拒绝, 不因递归爆栈而 fail-open', () => {
+    const chain = Array.from({ length: 5000 }, (_, i) => `config alias.a${i}`).join(' ')
+    expect(first(`git config alias.a0 ${chain} version`)).toMatchObject({ kind: 'alias-smuggle' })
+  })
+
+  it('包装器前缀(env / sudo)下的带外通道 → 同样拒绝', () => {
+    expect(first("env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.z GIT_CONFIG_VALUE_0='push origin master' git z"))
+      .toMatchObject({ kind: 'alias-smuggle' })
+    expect(first('sudo GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.z GIT_CONFIG_VALUE_0=push git z'))
+      .toMatchObject({ kind: 'alias-smuggle' })
+  })
+
+  it('无 COUNT 的 GIT_CONFIG_KEY_n / 键位非 alias 的 PARAMETERS → 不误拦', () => {
+    expect(first('GIT_CONFIG_KEY_0=alias.z git status')).toMatchObject({ kind: 'other' })
+    expect(first("GIT_CONFIG_PARAMETERS=\"'core.excludesfile=/tmp/alias.txt'\" git status")).toMatchObject({ kind: 'other' })
+  })
+
+  it('shell 别名深链 → 不爆栈, 按带外通道拒绝', () => {
+    const parts = ['git']
+    for (let i = 0; i < 200; i++) parts.push('-c', `"alias.a${i}=!git a${i + 1}"`)
+    parts.push('-c', '"alias.a200=push"', 'a0', 'origin', 'master')
+    expect(classify(parts.join(' '), { currentBranch: 'feature/x' }))
+      .toContainEqual(expect.objectContaining({ kind: 'alias-smuggle' }))
+  })
+})

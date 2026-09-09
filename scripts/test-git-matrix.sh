@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GitFlow guard: 135 项 Git 命令决策穷举矩阵
+# GitFlow guard: 169 项 Git 命令决策穷举矩阵
 # 自动在临时目录创建自包含测试仓库, 针对真实 git 分支结构验证命令 allow/deny 判定。
 set -u
 
@@ -204,9 +204,48 @@ master	git tag -f v1 master	allow
 master	git worktree add ../wt master	allow
 master	git svn dcommit	allow
 master	gitflow-guard status	allow
+# ============ K. git 别名绕过 ============
+master	git -c alias.z=push z origin master	deny
+master	git -c alias.z=push z origin beta	deny
+master	git -c alias.z=push z -f origin master	deny
+master	git -c "alias.z=push origin master" z	deny
+master	git -c "alias.z=!git push origin master" z	deny
+master	git -c alias.a1=push -c alias.a2=a1 a2 origin master	deny
+master	git -c alias.a=a a	allow
+master	git -c alias.st=status st	allow
+master	git -c core.pager=cat push origin master	deny
+fix/verify-01	git -c alias.z=push z origin fix/verify-01	allow
+fix/verify-01	git -c alias.z=push z origin master	deny
+master	git config alias.p "push --force origin master"	deny
+master	git config alias.z "push origin beta"	deny
+master	git config alias.st status	allow
+master	git config alias.p	allow
+master	git config --unset alias.p	allow
+fix/verify-01	git config alias.z "push origin fix/verify-01"	allow
+# 第二轮: 内置命令优先 / 配置键大小写 / ! 别名参数 / 取值旗标
+master	git -c ALIAS.z=push z origin master	deny
+master	git -c alias.Z=push Z origin master	deny
+master	git -c alias.push=status push origin master	deny
+master	git config -f .git/config alias.z "push origin master"	deny
+master	git config ALIAS.z "push origin master"	deny
+fix/verify-01	git -c "alias.z=!git push" z origin master	deny
+# 带外别名通道(--config-env / GIT_CONFIG_KEY_n): 值不可见, 保守拒绝
+master	FOO=push git --config-env=alias.z=FOO z	deny
+master	git --config-env alias.z=FOO z	deny
+master	GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.z GIT_CONFIG_VALUE_0=push git z origin master	deny
+master	GIT_CONFIG_PARAMETERS="'alias.z=push origin master'" git z	deny
+# 第三轮: 引号形态 / 内置优先链 / 带外通道引号变体
+master	git -c alias.z="push origin master" z	deny
+master	git -c alias.a=push -c alias.push=status a origin master	deny
+master	git --config-env='alias.z=FOO' z	deny
+# 第三轮补: 别名值带全局选项 / ANSI-C 转义 / 包装器前缀带外通道 / --config-env 空格形态
+master	git -c 'alias.z=-c alias.q=push q' z origin master	deny
+master	git -c alias.z=$'push\x20origin\x20master' z	deny
+master	env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.z GIT_CONFIG_VALUE_0=push git z	deny
+master	git --config-env core.pager=PAGER push origin master	deny
 EOF
 
 printf '%b' "$FAILED_CASES"
 echo ""
-echo "=== GitFlow Guard 135 决策矩阵: $PASS PASS / $FAIL FAIL ==="
+echo "=== GitFlow Guard 169 决策矩阵: $PASS PASS / $FAIL FAIL ==="
 [ "$FAIL" -eq 0 ]
