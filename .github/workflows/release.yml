@@ -46,15 +46,30 @@ jobs:
             echo "Release triggered by manual tag push: ${TARGET_TAG}"
           else
             # develop 分支 push 事件
-            if git rev-parse "$TARGET_TAG" >/dev/null 2>&1; then
+            # 发布判据用「npm 上是否已有该版本」, 而不是「tag 是否存在」:
+            # 打 tag 发生在 npm publish 之前, 一旦 publish 失败(如 OIDC 未授权 / registry 5xx),
+            # tag 已落在远端; 按 tag 判据会永久静默跳过该版本, 且不会再重试。
+            # 改用 npm 判据后, 发布失败的下一次 develop push 会自动重试。
+            PKG_NAME="$(node -p "require('./package.json').name")"
+            # 必须区分「未发布」(404, 预期) 与「查询失败」(网络/registry 故障):
+            # 后者若按未发布处理, 会去 publish 一个已存在的版本, 以难懂的重复版本错误失败
+            if NPM_VIEW_OUT="$(npm view "${PKG_NAME}@${PKG_VERSION}" version 2>&1)"; then
               echo "should_release=false" >> "$GITHUB_OUTPUT"
-              echo "Tag ${TARGET_TAG} already exists, skipping release."
-            else
+              echo "Version ${PKG_VERSION} already published to npm, skipping release."
+            elif printf '%s' "$NPM_VIEW_OUT" | grep -q 'E404'; then
               echo "should_release=true" >> "$GITHUB_OUTPUT"
-              echo "need_tag=true" >> "$GITHUB_OUTPUT"
-              echo "tag=${TARGET_TAG}" >> "$GITHUB_OUTPUT"
-              echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
               echo "New version detected on develop: ${TARGET_TAG}, proceeding to release."
+            else
+              echo "::error::cannot determine npm release state for ${PKG_NAME}@${PKG_VERSION}: ${NPM_VIEW_OUT}"
+              exit 1
+            fi
+            echo "tag=${TARGET_TAG}" >> "$GITHUB_OUTPUT"
+            echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+            # tag 缺失即补打: 覆盖首次发布, 以及「已发布但 tag 丢失」的修复路径
+            if git rev-parse "$TARGET_TAG" >/dev/null 2>&1; then
+              echo "need_tag=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "need_tag=true" >> "$GITHUB_OUTPUT"
             fi
           fi
 
@@ -73,7 +88,8 @@ jobs:
           npm run verify:matrix
 
       - name: Create and push Git tag
-        if: steps.check_release.outputs.should_release == 'true' && steps.check_release.outputs.need_tag == 'true'
+        # 只由 need_tag 决定: 「已发布但 tag 丢失」时也需要补打(此时 should_release=false)
+        if: steps.check_release.outputs.need_tag == 'true'
         run: |
           TAG="${{ steps.check_release.outputs.tag }}"
           git config user.name "github-actions[bot]"

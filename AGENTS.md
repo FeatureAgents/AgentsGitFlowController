@@ -26,7 +26,7 @@
   —— 仅当内容已合入后的纯补发(如版本同步)才开独立 `feature/release-<版本>` PR
   —— 本地 develop 永不直接变更(§4); develop 的一切演进只经 GitHub 的 PR 合并产生
   —— CI 自动: 校验 package.json 与 CHANGELOG → 完整矩阵测试 → 自动打 tag → npm publish (--provenance) → GitHub Release (带 CHANGELOG 提取说明)
-  —— 前提: GitHub 仓库 Secrets 已配 `NPM_TOKEN`(Publish 类型 access token)
+  —— 前提: 已在 npmjs.com 为该包注册 trusted publisher(org=FeatureAgents, repo=AgentsGitFlowController, workflow=release.yml); 认证由 GitHub Actions 的 OIDC 短命身份提供, **无需 `NPM_TOKEN`**(见 .github/workflows/release.yml 注释)
 
 ## 3. 目录结构
 

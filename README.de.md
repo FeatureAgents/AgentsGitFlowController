@@ -93,7 +93,7 @@ Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
 Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-Nachrichten sind standardmäßig auf Englisch; erstellen Sie eine Konfiguration mit `"locale": "zh"`, um auf Chinesisch umzuschalten — Nachrichten lauten dann etwa wie folgt: *已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……* (siehe [Konfigurationsreferenz](#konfigurationsreferenz)).
+Nachrichten sind standardmäßig auf Englisch; erstellen Sie eine Konfiguration mit `"locale": "zh"`, um auf Chinesisch umzuschalten — Nachrichten lauten dann etwa wie folgt: *已拦截: 受保护分支「develop」禁止直推 / 下一步: 集成分支(develop)由 PR/MR 合入 feature……* (siehe [Konfigurationsreferenz](#konfigurationsreferenz)).
 
 **Fertig.** Der Guard ist für dieses Repository mit den integrierten Standardeinstellungen aktiv. Möchten Sie weitere Stufen (`preview` / `production`) oder andere Branch-Namen? Erstellen Sie eine `gitflow-guard.config.json` und definieren Sie nur die Felder, die Sie anpassen möchten — alles andere behält die integrierten Standardwerte bei. Die vollständige Entscheidungstabelle finden Sie in der [Gate-Matrix](#gate-matrix--was-blockiert-wird-was-passiert).
 
@@ -179,10 +179,10 @@ Serverseitiger Branch-Schutz (GitHub Branch Rules, geschützte GitLab Branches) 
 | Was geregelt wird | *Wer* auf geschützte Branches pushen / mergen darf (Berechtigungen) | *Wie* Agenten in den Flow eintreten dürfen (Workflow) — in welcher Rolle ein Merge landet |
 | Verhindert Agenten-Merges in Production/Archive | Nein — kann nicht unterscheiden, ob „der Agent es getan hat“ | Ja — Production-/Archive-Merges sind für Agenten standardmäßig blockiert |
 | Flexibilität pro Rolle | Eine Regel pro Branch auf dem Host | Pro-Rolle `update` (`pr`/`flexible`) + `mergeBy` (`user`/`anyone`) in einer Konfigurationsdatei |
-| Geltungsbereich | Jeder Benutzer des Repositories, einschließlich Menschen | DSH-/Hook-Agenten mit konfiguriertem Plugin (Menschen werden nicht eingeschränkt) |
+| Geltungsbereich | Jeder Benutzer des Repositories, einschließlich Menschen | Agenten mit konfiguriertem Hook oder Plugin (Menschen werden nicht eingeschränkt) |
 | Durchsetzungspunkt | Serverseitig, zum Push- / Merge-Zeitpunkt | Lokal, vor der Ausführung des Befehls |
 | Plattform | An den Hosting-Dienst gebunden | Reines lokales Git, plattformunabhängig (`gh` / `glab` optional) |
-| Umgehbar durch | Benutzer mit Administratorrechten | Jeden, der außerhalb der Agenten-Umgebung arbeitet, oder einen gezielt bösartigen Agenten |
+| Umgehbar durch | Benutzer mit Administratorrechten | Jeden Agenten, der nicht mit dem Guard verdrahtet ist, oder einen gezielt bösartigen Agenten |
 
 Warum dies wichtig ist: Branch-Schutz beantwortet die Frage: *„Darf dieser Push überhaupt stattfinden?“*; dieses Plugin beantwortet: *„Darf dieser Agent unter der gegebenen Konfiguration diese Rolle betreten?“*. Das robusteste Setup nutzt **beides** — das Plugin sorgt dafür, dass Agenten den Workflow einhalten, und der serverseitige Branch-Schutz garantiert, dass niemand (weder Agent noch Mensch) direkt auf geschützte Branches pusht.
 
@@ -204,7 +204,7 @@ Nichts an Branch-Namen oder Regeln ist fest im Code verdrahtet. `integration` wi
 
 #### 2. Das Blockieren erfolgt vor der Ausführung, nicht danach
 
-Das Plugin klinkt sich an der Stelle `tools/pre-execute` in die Tool-Pipeline ein — dem Entscheidungspunkt, der abläuft, *bevor* der Befehl abgeschickt wird. Ein dortiges `deny` bedeutet, dass der Befehl **niemals ausgeführt wird**; der Agent sieht ausschließlich die Ablehnung. Eine nachträgliche Erkennung (Log-Scans im Nachhinein) kann keine Durchsetzung bieten — der Schaden wäre bereits entstanden.
+Der Guard klinkt sich in das Pre-Tool-Ereignis jeder Plattform ein — DSH `tools/pre-execute`, Pi `tool_call` und den `PreToolUse`-Hook der CLI-Clients — den Entscheidungspunkt, der abläuft, *bevor* der Befehl abgeschickt wird. Ein dortiges `deny` bedeutet, dass der Befehl **niemals ausgeführt wird**; der Agent sieht ausschließlich die Ablehnung. Eine nachträgliche Erkennung (Log-Scans im Nachhinein) kann keine Durchsetzung bieten — der Schaden wäre bereits entstanden.
 
 #### 3. Sensible Merges sind unfälschbar menschlich
 
@@ -412,11 +412,17 @@ gitflow-guard wire --client cursor --project --yes
 ```
 
 ```ts
-// OpenCode — `.opencode/plugins/gitflow-guard.ts`
+// OpenCode — `.opencode/plugins/gitflow-guard.ts` (eine Kopie der mitgelieferten `opencode/gitflow-guard.ts`;
+// OpenCode 1.18+ hat hooks.yaml entfernt — der Erweiterungspunkt ist jetzt das Plugins-Verzeichnis, Event
+// `tool.execute.before`, bei dem das Werfen einer Exception = Ablehnung bedeutet; `wire --client opencode` kopiert diese Datei für Sie)
 ```
+`gitflow-guard wire --client opencode` schreibt diese Datei aus dem Paket; vom manuellen Erstellen wird abgeraten.
 
 ```json
 // Antigravity (Google) — .agents/hooks.json
+// (der agy-Hook-Prozess läuft mit Arbeitsverzeichnis = dem Verzeichnis der Hook-Konfigurationsdatei, sodass ein relatives bin/... nicht aufgelöst werden kann;
+// `wire` schreibt auf Projektebene einen absoluten Pfad und auf globaler Ebene das über PATH installierte gitflow-guard.
+// Hier wird die Form der globalen Installation gezeigt.)
 {
   "gitflow-guard": {
     "PreToolUse": [
@@ -425,6 +431,12 @@ gitflow-guard wire --client cursor --project --yes
   }
 }
 ```
+
+Die anderen drei CLI-Clients verwenden dieselbe Hook-Form — `wire` schreibt ihre Datei für Sie:
+
+- **CodeBuddy** — `.codebuddy/settings.json`
+- **ZCode** — `.zcode/config.json` (setzt außerdem `hooks.enabled: true`)
+- **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...` ist ein Platzhalter — `wire` löst ihn beim Verdrahten zum absoluten Pfad des Runners des installierten Pakets auf (vollständig selbstverankert: keine clientseitige Variablenexpansion, keine Annahme über das Arbeitsverzeichnis des Hook-Prozesses, keine PATH-Abhängigkeit, nichts im Ziel-Repository abzulegen). Nach einem Upgrade von ≤ 0.0.41 genügt ein erneuter `wire` pro Client — Alt-Einträge (Variablenvorlage / relativer Pfad / PATH-Form) werden direkt migriert.
 
@@ -494,7 +506,7 @@ npm link
   - **Pi**: In-Process-Erweiterung, die auf das `tool_call`-Event lauscht und über `{ block: true, reason }` ablehnt.
 
 - **Pre-Tool-Ausführung**: Nur das Pre-Tool-Ereignis wird abgefangen; der Guard blockiert, *bevor* Befehle ausgeführt werden, sodass keine Post-Tool-Hooks oder Permit-Bereinigungsschritte erforderlich sind.
-- **Binary PATH-Auflösung**: Die globale Installation (`npm i -g`) stellt das Binary `gitflow-guard` bereit. Falls Ihr Agent-Runner Ihren interaktiven `PATH` nicht erbt, verwenden Sie den vollständigen Pfad aus `npm bin -g`.
+- **Binary PATH-Auflösung**: Die globale Installation (`npm i -g`) stellt das Binary `gitflow-guard` bereit. `wire` verankert jeden Hook am absoluten Pfad des Runners des installierten Pakets selbst, sodass der Hook auch dann weiterhin funktioniert, wenn der Agent-Runner Ihren interaktiven `PATH` nicht erbt.
 - **Standardmäßig aktiviert**: Die integrierten Standardwerte (`integration: ["develop"]`, `archive: ["main"]`) greifen ohne jede Konfigurationsdatei. Eigene Konfigurationen in `gitflow-guard.config.json` werden per Deep-Merge über die Standardwerte gelegt.
 - **Zerstörungsfreie Verdrahtung**: `gitflow-guard wire` führt Hook-Konfigurationen idempotent zusammen, ohne bestehende Hooks zu verändern (veraltete gitflow-guard-Einträge werden bei erneuter Ausführung zur aktuellen Form migriert), und `wire --unwire` entfernt ausschließlich den Guard-Eintrag.
 
@@ -556,7 +568,7 @@ Häufige Fehler: Das Überschreiben einer Rolle mit demselben Branch-Namen wie e
 
 ### Was genau wird im lokalen Repository geprüft?
 
-Der aktuelle Branch (`git branch --show-current`) und — nur für `pr merge` / `mr merge` — das PR/MR-Ziel über `gh pr view` / `glab mr view`. Es werden keine Angaben über die Abstammung benötigt, da das Modell rollengetrieben ist (welcher Branch *ist* das Ziel) und nicht reihenfolgegetrieben.
+Der aktuelle Branch (`git branch --show-current`) und — nur für `pr merge` / `mr merge` — das PR/MR-Ziel über `gh pr view` / `glab mr view`. Mit aktiviertem optionalem `worktree`-Guard werden außerdem `git status --porcelain` (unsauberer / nicht nachverfolgter Zustand) und, wenn `requireUpstreamSynced` gesetzt ist, `git rev-list --left-right --count HEAD...@{upstream}` gelesen. Es werden keine Angaben über die Abstammung benötigt, da das Modell rollengetrieben ist (welcher Branch *ist* das Ziel) und nicht reihenfolgegetrieben.
 
 Es wird nichts geschrieben, kein Remote kontaktiert und keine Funktion des Hosting-Dienstes für die Kernprüfungen benötigt. Production-/Archive-Merges werden für Agenten schlicht verweigert; der menschliche Merge erfolgt in Ihrer UI.
 
@@ -589,7 +601,7 @@ Wenn es Ihrem Team eine schiefgegangene Abkürzung erspart, wird der Kaffee-Butt
 
 Zukünftige Funktionen und Bereiche unter aktiver Evaluierung:
 
-- **Neue Agenten-Integrationen**: Erforschung und Anpassung an neue Agenten-Hooks/Erweiterungen (z. B. Cursor, Windsurf, neu entstehende Agenten-CLIs).
+- **Neue Agenten-Integrationen**: Erforschung und Anpassung an neue Agenten-Hooks/Erweiterungen (z. B. Windsurf, neu entstehende Agenten-CLIs).
 - **Audit-Aggregation**: Rechnerübergreifende Synchronisierung von Audit-Trails und Exportformate für Compliance auf Teamebene.
 - **Workflow-Presets**: Gebrauchsfertige Konfigurations-Presets für gängige Git-Branching-Modelle (Trunk-Based Development, Multi-Umgebungs-Enterprise-Setups).
 - **CI-Hard-Gating**: Native CI-Pipeline-Hooks und PR-Check-Integration unter Beibehaltung der abhängigkeitsfreien lokalen Ausführung.
@@ -602,11 +614,16 @@ Für bereits veröffentlichte Funktionen und die Versionshistorie siehe [CHANGEL
 
 ```bash
 npm install
-npm test              # Unit-Tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
-npm run typecheck     # tsc --noEmit, 0 Fehler
-npm run build         # tsdown → lib/ (CLI und Plugin teilen sich den Build)
-npm run check:pins    # prüft, ob die package.json-Version mit dem CHANGELOG-Titel und Version-Pins in READMEs übereinstimmt
-npm run verify:matrix # kontinuierliche agentenübergreifende Regression: DSH-Logik + zh-Locale + Multi-Client-Hooks + Pi-Erweiterung
+npm test                # Unit-Tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
+npm run typecheck       # tsc --noEmit, 0 Fehler
+npm run build           # tsdown → lib/ (CLI und Plugin teilen sich den Build)
+npm run check:pins      # prüft, ob die package.json-Version mit der CHANGELOG-Überschrift und Version-Pins in READMEs übereinstimmt
+npm run check:readmes   # prüft, ob alle 11 READMEs strukturell symmetrisch bleiben (44 Überschriften / 7 Tabellen / 17 Inhaltsverzeichnis-Einträge)
+npm run verify:matrix   # kontinuierliche agentenübergreifende Regression: DSH-Logik + zh-Locale + Multi-Client-Hooks + Pi-Erweiterung
+npm run test:git-matrix # Git-Entscheidungsmatrix mit 135 Fällen gegen echte Repositories
+npm run test:realflow   # Feature-Branch-Lebenszyklus End-to-End gegen ein echtes Remote
+npm run test:pi         # Pi-Erweiterung End-to-End (erfordert eine lokale Pi-Installation)
+npm run test:all        # Typecheck + Unit-Tests + Plattform-Matrix + Git-Matrix + Realflow
 ```
 
 - **Qualitätsregel**: Jede Logikänderung erfordert einen fehlerfreien Typecheck (0 Fehler), alle Tests im grünen Bereich und ein erfolgreiches `verify:matrix`.

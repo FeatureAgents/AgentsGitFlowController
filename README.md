@@ -93,7 +93,7 @@ Error: [gitflow-guard] blocked: Protected branch "develop" forbids direct push
 Next: Integration branch (develop) is updated via PR/MR from a feature branch: push the feature first, then `gh pr create --base develop` / `glab mr create --target-branch develop`.
 ```
 
-Messages are English by default; create a config with `"locale": "zh"` to switch to Chinese — messages then read like: *已拦截:受保护分支「develop」禁止直推 / 下一步:集成分支(develop)由 PR/MR 合入 feature……* (see [Configuration Reference](#configuration-reference)).
+Messages are English by default; create a config with `"locale": "zh"` to switch to Chinese — messages then read like: *已拦截: 受保护分支「develop」禁止直推 / 下一步: 集成分支(develop)由 PR/MR 合入 feature……* (see [Configuration Reference](#configuration-reference)).
 
 **Done.** The guard is live for this repo with the built-in defaults. Want more stages (`preview` / `production`) or different branch names? Write a `gitflow-guard.config.json` and only the fields you care about — everything else keeps the built-in defaults. For the full decision table, see the [Gate Matrix](#gate-matrix--what-gets-blocked-what-passes).
 
@@ -179,10 +179,10 @@ Server-side branch protection (GitHub branch rules, GitLab protected branches) a
 | what it governs | *who* may push / merge to protected branches (permissions) | *how* agents may enter the flow (workflow) — which role a merge lands in |
 | keeps agents from merging into production/archive | no — it can't tell "agent did it" | yes — production/archive merges are blocked for agents by default |
 | per-role flexibility | one rule per branch on the host | per-role `update` (`pr`/`flexible`) + `mergeBy` (`user`/`anyone`) in one config file |
-| scope | every user of the repository, humans included | DSH agents with the plugin configured (humans are not restricted) |
+| scope | every user of the repository, humans included | agents with the hook or plugin configured (humans are not restricted) |
 | enforcement point | server-side, at push / merge time | local, before the command runs |
 | platform | tied to the hosting service | pure local git, platform-agnostic (`gh` / `glab` optional) |
-| bypassable by | users with admin rights | anyone working outside DSH, or a determined malicious agent |
+| bypassable by | users with admin rights | any agent not wired to the guard, or a determined malicious agent |
 
 Why this matters: branch protection answers *"can this push happen at all?"*; this plugin answers *"may this agent enter this role, given the config?"*. The strongest setup uses **both** — the plugin keeps agents honest about the workflow, and branch protection guarantees that no one, agent or human, pushes straight to a protected branch.
 
@@ -204,7 +204,7 @@ Nothing about branch names or rules is hard-coded. `integration` ships as a buil
 
 #### 2. Blocking happens before execution, not after
 
-The plugin hooks the tool pipeline at `tools/pre-execute` — the decision point that runs *before* the command is dispatched. A `deny` there means the command **never runs**; the agent only ever sees the rejection. Post-hoc detection (scanning logs after the fact) can't work as enforcement — the damage would already be done.
+The guard hooks each platform's pre-tool event — DSH `tools/pre-execute`, Pi `tool_call`, and the CLI clients' `PreToolUse` hook — the decision point that runs *before* the command is dispatched. A `deny` there means the command **never runs**; the agent only ever sees the rejection. Post-hoc detection (scanning logs after the fact) can't work as enforcement — the damage would already be done.
 
 #### 3. The sensitive merges are unforgeably human
 
@@ -412,11 +412,17 @@ gitflow-guard wire --client cursor --project --yes
 ```
 
 ```ts
-// OpenCode — `.opencode/plugins/gitflow-guard.ts`
+// OpenCode — `.opencode/plugins/gitflow-guard.ts` (a copy of the bundled `opencode/gitflow-guard.ts`;
+// OpenCode 1.18+ removed hooks.yaml — the extension point is now the plugins directory, event
+// `tool.execute.before`, where throwing = deny; `wire --client opencode` copies this file for you)
 ```
+`gitflow-guard wire --client opencode` writes this file from the package; hand-writing it is not recommended.
 
 ```json
 // Antigravity (Google) — .agents/hooks.json
+// (the agy hook process runs with cwd = the hook config file's directory, so a relative bin/… cannot resolve;
+// `wire` writes an absolute path at project scope and the PATH-installed gitflow-guard at global scope.
+// The global-install form is shown here.)
 {
   "gitflow-guard": {
     "PreToolUse": [
@@ -425,6 +431,12 @@ gitflow-guard wire --client cursor --project --yes
   }
 }
 ```
+
+The other three CLI clients use the same hook shape — `wire` writes their file for you:
+
+- **CodeBuddy** — `.codebuddy/settings.json`
+- **ZCode** — `.zcode/config.json` (also sets `hooks.enabled: true`)
+- **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...` is a placeholder — `wire` resolves the real absolute path of the installed package's own runner at wire time (fully self-anchored: no client variable expansion, no hook-cwd assumption, no PATH dependency, nothing deployed into the target repo). Upgrading from ≤ 0.0.41? Re-run `wire` once per client — legacy entries (variable-template / relative / PATH forms) are migrated in place.
 
@@ -494,7 +506,7 @@ npm link
   - **Pi**: In-process extension listening to `tool_call` event and denying via `{ block: true, reason }`.
 
 - **Pre-tool execution**: Only the pre-tool event is intercepted; the guard blocks *before* commands execute, so no post-tool hooks or permit-cleanup steps are needed.
-- **Binary PATH resolution**: Global installation (`npm i -g`) provides the `gitflow-guard` binary. If your agent runner does not inherit your interactive `PATH`, use the full path from `npm bin -g`.
+- **Binary PATH resolution**: Global installation (`npm i -g`) provides the `gitflow-guard` binary. `wire` anchors every hook to the absolute path of the installed package's own runner, so the hook keeps working even when the agent runner does not inherit your interactive `PATH`.
 - **Enabled by default**: Built-in defaults (`integration: ["develop"]`, `archive: ["main"]`) take effect without any config file. Custom configurations in `gitflow-guard.config.json` deep-merge on top of defaults.
 - **Non-destructive wiring**: `gitflow-guard wire` merges hook configurations idempotently without modifying existing hooks (legacy gitflow-guard entries are migrated to the current form on re-run), and `wire --unwire` removes only the guard entry.
 
@@ -556,7 +568,7 @@ Common mistakes: overriding a role with the same branch name as a default role (
 
 ### What exactly is checked against the local repository?
 
-The current branch (`git branch --show-current`), and — only for `pr merge` / `mr merge` — the PR/MR target via `gh pr view` / `glab mr view`. Nothing about ancestry is needed, because the model is role-driven (which branch *is* the target) rather than order-driven.
+The current branch (`git branch --show-current`), and — only for `pr merge` / `mr merge` — the PR/MR target via `gh pr view` / `glab mr view`. With the optional `worktree` guard enabled it also reads `git status --porcelain` (dirty / untracked state) and, when `requireUpstreamSynced` is set, `git rev-list --left-right --count HEAD...@{upstream}`. Nothing about ancestry is needed, because the model is role-driven (which branch *is* the target) rather than order-driven.
 
 Nothing is written, no remote is contacted, and no hosting-service feature is required for the core checks. Production/archive merges are simply denied for agents; the human merge happens in your UI.
 
@@ -589,7 +601,7 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 
 Future capabilities and areas under active exploration:
 
-- **New agent integrations**: Research and adapt to emerging agent hooks/extensions (e.g. Cursor, Windsurf, emerging agent CLIs).
+- **New agent integrations**: Research and adapt to emerging agent hooks/extensions (e.g. Windsurf, emerging agent CLIs).
 - **Audit aggregation**: Cross-machine audit trail synchronization and team-level compliance export formats.
 - **Workflow presets**: Ready-to-use configuration presets for common Git branching flows (Trunk-based development, multi-environment enterprise setups).
 - **CI hard-gating**: Native CI pipeline hooks and PR check integration while keeping zero-dependency local execution.
@@ -602,11 +614,16 @@ For shipped features and release history, see [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
 npm install
-npm test              # unit tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
-npm run typecheck     # tsc --noEmit, 0 errors
-npm run build         # tsdown → lib/ (CLI and plugin share the build)
-npm run check:pins    # assert package.json version matches CHANGELOG heading and any README version pins
-npm run verify:matrix # continuous cross-agent regression: DSH logic + zh-locale + multi-client hooks + Pi extension
+npm test                # unit tests: classify / gate / config / cli / repo / platform / i18n / index / accuracy-audit / pi
+npm run typecheck       # tsc --noEmit, 0 errors
+npm run build           # tsdown → lib/ (CLI and plugin share the build)
+npm run check:pins      # assert package.json version matches the CHANGELOG heading and any README version pins
+npm run check:readmes   # assert all 11 READMEs stay structurally symmetric (44 headings / 7 tables / 17 TOC items)
+npm run verify:matrix   # continuous cross-agent regression: DSH logic + zh-locale + multi-client hooks + Pi extension
+npm run test:git-matrix # 135-case git decision matrix against real repositories
+npm run test:realflow   # feature-branch lifecycle end-to-end against a real remote
+npm run test:pi         # Pi extension end-to-end (requires a local Pi install)
+npm run test:all        # typecheck + unit tests + platform matrix + git matrix + realflow
 ```
 
 - **Quality Rule**: Every logic change requires a 0-error typecheck, all tests green, and a passing `verify:matrix`.
