@@ -399,3 +399,51 @@ describe('classify: 带外别名通道', () => {
       .toContainEqual(expect.objectContaining({ kind: 'alias-smuggle' }))
   })
 })
+
+describe('classify: 跨平台路径与可执行文件解析(Windows 路径与 .exe)', () => {
+  it('剥离 .exe 后缀及忽略大小写', () => {
+    expect(first('git.exe push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('GIT.EXE push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('git.cmd push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('git.bat push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+  })
+
+  it('兼容 Windows 反斜杠与相对路径', () => {
+    expect(first('C:\\Git\\bin\\git.exe push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('.\\git.exe push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('..\\bin\\git.exe checkout main')).toMatchObject({ kind: 'checkout', branch: 'main' })
+  })
+
+  it('引号包裹的 Windows 路径与正斜杠混合路径', () => {
+    expect(first('"C:\\Program Files\\Git\\cmd\\git.exe" push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first("'C:\\Program Files\\Git\\bin\\git.exe' push origin develop")).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('"C:/Program Files/Git/bin/git.exe" push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('C:/Git/bin/git.exe push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+  })
+
+  it('其他 CLI 工具(.exe)同样识别', () => {
+    expect(first('gh.exe pr create --base develop')).toMatchObject({ kind: 'pr-create', target: 'develop' })
+    expect(first('glab.exe mr create --target-branch develop')).toMatchObject({ kind: 'pr-create', target: 'develop' })
+    expect(first('gitflow-guard.exe status')).toMatchObject({ kind: 'guard-cli', sub: 'status' })
+    expect(first('gitflow-guard.exe check')).toMatchObject({ kind: 'guard-cli', sub: 'other' })
+  })
+
+  it('Windows Shell 包装器(powershell / pwsh / cmd)内嵌命令分类', () => {
+    expect(first('powershell -Command "git push origin develop"')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('powershell.exe -c "git push origin develop"')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('pwsh -c "git push origin develop"')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('cmd.exe /c "git push origin develop"')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('cmd /c git push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('bash -c "git push origin develop"')).toMatchObject({ kind: 'push', dst: 'develop' })
+  })
+
+  it('Shell 包装器深层嵌套达到上限后降级为 other 不爆栈', () => {
+    let cmd = 'git push origin develop'
+    for (let i = 0; i < 20; i++) {
+      cmd = `bash -c "${cmd.replace(/"/g, '\\"')}"`
+    }
+    expect(first(cmd).kind).toBe('other')
+  })
+})
+
+
