@@ -127,6 +127,14 @@ export interface OtherClassified {
   cleanWorktree?: boolean
 }
 
+/**
+ * 带外别名定义通道(--config-env=alias.* / GIT_CONFIG_KEY_n=alias.*): 别名值来自环境变量,
+ * 守卫看不到其内容因而无法展开判定; 正常开发不会用这些通道定义别名, 一律拒绝。
+ */
+export interface AliasSmuggleClassified {
+  kind: 'alias-smuggle'
+}
+
 export type Classified =
   | PushClassified
   | LocalMergeClassified
@@ -137,6 +145,7 @@ export type Classified =
   | GuardCliClassified
   | RefUpdateClassified
   | RefMoveClassified
+  | AliasSmuggleClassified
   | OtherClassified
 
 /** 分类所需上下文(解析 HEAD / 无 refspec 等歧义) */

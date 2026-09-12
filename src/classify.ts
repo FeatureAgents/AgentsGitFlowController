@@ -10,16 +10,69 @@ import type { Classified, ClassifyContext, GuardCliClassified, LocalMergeClassif
  */
 const MAX_NESTED_DEPTH = 10
 
-/** 拆分命令为多段(&& / || / | / 分号 / 换行), 每段独立分类; 引号内的分隔符不算 */
-export function classify(command: string, ctx: ClassifyContext = {}): Classified[] {
-  return classifyDepth(command, ctx, 0)
+/**
+ * 别名解析作用域: -c alias.* 定义沿展开链向下传递 —— 既含链式别名, 也含 shell 别名展开后的
+ * 内层 git 调用(git 经 GIT_CONFIG_PARAMETERS 把 -c 传给子进程, 内层 git 同样能读到)。
+ * seen 记录展开链上已展开的别名名, 遇重复即截断(环): git 对递归别名报错不执行, 降级放行安全。
+ */
+interface AliasScope {
+  defs: ReadonlyMap<string, string>
+  seen: ReadonlySet<string>
+  /** shell 别名(!)的嵌套展开预算: 每层递减, 归零即拒绝(防深链递归爆栈, 爆栈会被上层 fail-open 放行) */
+  shellBudget: number
+  /** 别名链展开预算: 每层递减, 归零即只保留字面解释(防超长链递归耗尽调用栈) */
+  chainBudget: number
 }
 
-function classifyDepth(command: string, ctx: ClassifyContext, depth: number): Classified[] {
+/**
+ * shell 别名嵌套展开预算: `-c alias.aN=!git` 链每层都要重入 classifyDepth,
+ * 1500 层约 30KB 载荷即可耗尽调用栈, 而 classify 抛出的 RangeError 会被上层 fail-open 放行整条命令。
+ * 正常用法不会嵌套 shell 别名。
+ */
+const MAX_SHELL_ALIAS_DEPTH = 10
+
+/** 别名链展开预算: 超长无环链每层递归一次, 预算用尽后只保留字面解释(正常别名链远短于此) */
+const MAX_ALIAS_CHAIN = 32
+
+const EMPTY_ALIAS_SCOPE: AliasScope = {
+  defs: new Map(),
+  seen: new Set(),
+  shellBudget: MAX_SHELL_ALIAS_DEPTH,
+  chainBudget: MAX_ALIAS_CHAIN,
+}
+
+/**
+ * git 内置子命令名: 别名展开出的名字命中即停止继续展开。
+ * 内置命令优先于同名别名(实测 `git -c alias.push=status push origin master` 执行内置 push),
+ * 故 `-c alias.a=push -c alias.push=status a` 展开到 push 后不得再被 alias.push 改写。
+ */
+const BUILTIN_SUBCOMMANDS: ReadonlySet<string> = new Set([
+  'add', 'am', 'apply', 'archive', 'bisect', 'blame', 'branch', 'bundle', 'cat-file', 'checkout',
+  'cherry', 'cherry-pick', 'clean', 'clone', 'commit', 'config', 'describe', 'diff', 'fetch',
+  'filter-branch', 'format-patch', 'gc', 'grep', 'hash-object', 'help', 'init', 'log', 'ls-files',
+  'ls-remote', 'ls-tree', 'merge', 'mv', 'notes', 'pull', 'push', 'range-diff', 'rebase', 'reflog',
+  'remote', 'repack', 'replace', 'reset', 'restore', 'revert', 'rev-list', 'rev-parse', 'rm',
+  'send-pack', 'shortlog', 'show', 'show-ref', 'sparse-checkout', 'stash', 'status', 'submodule',
+  'switch', 'symbolic-ref', 'tag', 'update-ref', 'var', 'version', 'worktree',
+])
+
+/**
+ * 别名值 token 数上限: `git config alias.a0 config alias.a1 config alias.a2 …` 这类链式嵌套会让
+ * parseConfig 与 classifyGit 互递归直至栈溢出, 而上层对 classify 异常默认 fail-open(整条命令放行)。
+ * 正常别名值远短于此, 超限按带外通道拒绝。
+ */
+const MAX_ALIAS_VALUE_TOKENS = 64
+
+/** 拆分命令为多段(&& / || / | / 分号 / 换行), 每段独立分类; 引号内的分隔符不算 */
+export function classify(command: string, ctx: ClassifyContext = {}): Classified[] {
+  return classifyDepth(command, ctx, 0, EMPTY_ALIAS_SCOPE)
+}
+
+function classifyDepth(command: string, ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
   const { plain, nested } = extractNested(command)
   return [
-    ...splitSegments(plain).flatMap((seg) => classifySegment(seg, ctx)),
-    ...(depth >= MAX_NESTED_DEPTH ? [] : nested.flatMap((n) => classifyDepth(n, ctx, depth + 1))),
+    ...splitSegments(plain).flatMap((seg) => classifySegment(seg, ctx, depth, scope)),
+    ...(depth >= MAX_NESTED_DEPTH ? [] : nested.flatMap((n) => classifyDepth(n, ctx, depth + 1, scope))),
   ]
 }
 
@@ -113,41 +166,97 @@ const SHELLS: ReadonlySet<string> = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh']
 /** 可剥离的执行前缀(env/nohup/xargs/command 及 VAR=x 赋值) */
 const WRAPPERS: ReadonlySet<string> = new Set(['env', 'command', 'nohup', 'xargs'])
 
-function classifySegment(segment: string, ctx: ClassifyContext): Classified[] {
+function classifySegment(segment: string, ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
   // 子 shell 包裹(cmd …): 剥掉外层括号按原样分类
   const trimmed = segment.trim()
   const body = trimmed.startsWith('(') && trimmed.endsWith(')') ? trimmed.slice(1, -1).trim() : trimmed
   const tokens = tokenize(body)
   if (tokens.length === 0) return [{ kind: 'other' }]
-  return classifyTokens(tokens, ctx)
+  return classifyTokens(tokens, ctx, depth, scope)
+}
+
+/**
+ * 带外别名定义通道: GIT_CONFIG_KEY_n=alias.*(需同命令存在 GIT_CONFIG_COUNT=n, git 才读取 KEY_n)
+ * 或 GIT_CONFIG_PARAMETERS 的键位含 alias.*(该变量格式要求每个条目 'key=value' 带引号)。
+ * 检测在整段 token 上做 —— env/sudo/nohup/xargs 前缀的赋值会被剥壳函数消费掉, 只看首 token 会漏。
+ */
+function hasAliasSmuggleTokens(tokens: string[]): boolean {
+  const hasCount = tokens.some((t) => /^GIT_CONFIG_COUNT=\d+$/i.test(t))
+  return tokens.some(
+    (t) =>
+      (hasCount && /^GIT_CONFIG_KEY_\d+=\s*['"]?alias\./i.test(t)) ||
+      /^GIT_CONFIG_PARAMETERS=.*['"]alias\./i.test(t),
+  )
+}
+
+/** 规范化可执行文件名: 兼容 / 与 \ 路径分隔符, 剥离 .exe/.cmd/.bat 后缀并转为小写(Windows 大小写不敏感) */
+function normalizeCommandName(rawCmd: string): string {
+  const unquoted = rawCmd.replace(/^['"]|['"]$/g, '')
+  const lastSep = Math.max(unquoted.lastIndexOf('/'), unquoted.lastIndexOf('\\'))
+  const basename = lastSep >= 0 ? unquoted.slice(lastSep + 1) : unquoted
+  return basename.replace(/\.(exe|cmd|bat)$/i, '').toLowerCase()
 }
 
 /** 分派: 已知命令直接解析; 包装器剥壳后递归(token 只减不增, 必然终止) */
-function classifyTokens(tokens: string[], ctx: ClassifyContext): Classified[] {
+function classifyTokens(tokens: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
   if (tokens.length === 0) return [{ kind: 'other' }]
+  if (hasAliasSmuggleTokens(tokens)) return [{ kind: 'alias-smuggle' }]
   const rawCmd = tokens[0]
-  const cmd = rawCmd.includes('/') ? rawCmd.slice(rawCmd.lastIndexOf('/') + 1) : rawCmd
-  if (SHELLS.has(cmd)) return classifyShellWrapped(tokens, ctx)
-  if (cmd === 'env') return classifyTokens(stripEnvArgs(tokens.slice(1)), ctx)
-  if (cmd === 'sudo') return classifyTokens(stripSudoArgs(tokens.slice(1)), ctx)
-  if (WRAPPERS.has(cmd)) return classifyTokens(stripWrapperArgs(tokens.slice(1)), ctx)
-  if (/^[\w-][\w.-]*=/.test(rawCmd)) return classifyTokens(tokens.slice(1), ctx)
-  if (cmd === 'git') return classifyGit(tokens.slice(1), ctx)
+  const cmd = normalizeCommandName(rawCmd)
+  if (SHELLS.has(cmd)) return classifyShellWrapped(tokens, ctx, depth, scope)
+  if (cmd === 'powershell' || cmd === 'pwsh') return classifyPowerShellWrapped(tokens, ctx, depth, scope)
+  if (cmd === 'cmd') return classifyCmdWrapped(tokens, ctx, depth, scope)
+  if (cmd === 'env') return classifyTokens(stripEnvArgs(tokens.slice(1)), ctx, depth, scope)
+  if (cmd === 'sudo') return classifyTokens(stripSudoArgs(tokens.slice(1)), ctx, depth, scope)
+  if (WRAPPERS.has(cmd)) return classifyTokens(stripWrapperArgs(tokens.slice(1)), ctx, depth, scope)
+  if (/^[\w-][\w.-]*=/.test(rawCmd)) return classifyTokens(tokens.slice(1), ctx, depth, scope)
+  if (cmd === 'git') return classifyGit(tokens.slice(1), ctx, depth, scope)
   if (cmd === 'gh') return classifyGh(tokens.slice(1))
   if (cmd === 'glab') return classifyGlab(tokens.slice(1))
   if (cmd === 'gitflow-guard') return [{ kind: 'guard-cli', sub: guardSub(tokens.slice(1)) }]
   return [{ kind: 'other' }]
 }
 
+/** powershell/pwsh -Command / -c "<script>": 定位 -c / -command 取脚本文本递归分类 */
+function classifyPowerShellWrapped(tokens: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
+  if (depth >= MAX_NESTED_DEPTH) return [{ kind: 'other' }]
+  for (let i = 1; i < tokens.length; i++) {
+    const a = tokens[i].toLowerCase()
+    if (a === '-c' || a === '-command' || a === '--command') {
+      const rest = tokens.slice(i + 1)
+      if (rest.length === 0) break
+      const script = rest.join(' ')
+      return script.length > 0 ? classifyDepth(script, ctx, depth + 1, scope) : [{ kind: 'other' }]
+    }
+  }
+  return [{ kind: 'other' }]
+}
+
+/** cmd.exe /c "<command>": 定位 /c 或 /k 取后续命令递归分类 */
+function classifyCmdWrapped(tokens: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
+  if (depth >= MAX_NESTED_DEPTH) return [{ kind: 'other' }]
+  for (let i = 1; i < tokens.length; i++) {
+    const a = tokens[i].toLowerCase()
+    if (a === '/c' || a === '/k' || a === '-c') {
+      const rest = tokens.slice(i + 1)
+      if (rest.length === 0) break
+      const script = rest.join(' ')
+      return script.length > 0 ? classifyDepth(script, ctx, depth + 1, scope) : [{ kind: 'other' }]
+    }
+  }
+  return [{ kind: 'other' }]
+}
+
 /** sh/bash -lc "<script>": 定位 -c(含合并短旗标如 -lc)取脚本文本递归; 取不到按 other 放行 */
-function classifyShellWrapped(tokens: string[], ctx: ClassifyContext): Classified[] {
+function classifyShellWrapped(tokens: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
+  if (depth >= MAX_NESTED_DEPTH) return [{ kind: 'other' }]
   for (let i = 1; i < tokens.length; i++) {
     const a = tokens[i]
     const isCFlag = a === '-c' || (a.startsWith('-') && !a.startsWith('--') && a.includes('c'))
     if (!isCFlag) continue
     const script = tokens[i + 1]
     if (script == null) break
-    return script.length > 0 ? classify(script, ctx) : [{ kind: 'other' }]
+    return script.length > 0 ? classifyDepth(script, ctx, depth + 1, scope) : [{ kind: 'other' }]
   }
   return [{ kind: 'other' }]
 }
@@ -200,13 +309,114 @@ function stripSudoArgs(args: string[]): string[] {
   return args.slice(i)
 }
 
-/** 分词: 引号内的空格不拆分 */
-function tokenize(segment: string): string[] {
-  return segment.match(/"[^"]*"|'[^']*'|\S+/g)?.map((t) => t.replace(/^['"]|['"]$/g, '')) ?? []
+/** 解码 ANSI-C 引号($'...')内的转义序列: \xHH / \NNN(八进制) / \n \t \r \a \b \f \v / \\ \' \" */
+function decodeAnsiC(body: string): string {
+  const SIMPLE: Record<string, string> = {
+    n: '\n', t: '\t', r: '\r', a: '\x07', b: '\b', f: '\f', v: '\v', '\\': '\\', "'": "'", '"': '"',
+  }
+  return body.replace(/\\(x[0-9a-fA-F]{1,2}|[0-7]{1,3}|[\s\S])/g, (_, esc: string) => {
+    if (esc[0] === 'x') return String.fromCharCode(parseInt(esc.slice(1), 16))
+    if (/^[0-7]+$/.test(esc)) return String.fromCharCode(parseInt(esc, 8))
+    return SIMPLE[esc] ?? esc
+  })
 }
 
-function classifyGit(args: string[], ctx: ClassifyContext): Classified[] {
-  const [sub, ...rest] = stripGlobalOptions(args)
+/**
+ * 分词: 逐字符扫描, 支持 token 中间出现的引号段。
+ * shell 会把 `alias.z="push origin master"` 还原成单个参数, 而按空白切分的正则会在此处切断并残留引号 ——
+ * 既让别名收集失败, 也让带外通道检测落空。处理单/双引号与 ANSI-C 引号($'...' / $"...");
+ * 引号内的空白按字面并入当前 token, 引号本身不并入。
+ */
+function tokenize(segment: string): string[] {
+  const tokens: string[] = []
+  let cur = ''
+  let started = false
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i]
+    if (ch === ' ' || ch === '\t' || ch === '\n') {
+      if (started) {
+        tokens.push(cur)
+        cur = ''
+        started = false
+      }
+      continue
+    }
+    started = true
+    const ansi = ch === '$' && (segment[i + 1] === "'" || segment[i + 1] === '"')
+    const quote = ansi ? segment[i + 1] : ch === "'" || ch === '"' ? ch : null
+    if (quote != null) {
+      const from = i + (ansi ? 2 : 1)
+      const end = segment.indexOf(quote, from)
+      const body = end === -1 ? segment.slice(from) : segment.slice(from, end)
+      // ANSI-C 引号内的转义序列由 shell 解码, 不解码会让别名值判定与真实执行不一致
+      cur += ansi ? decodeAnsiC(body) : body
+      i = end === -1 ? segment.length : end
+      continue
+    }
+    cur += ch
+  }
+  if (started) tokens.push(cur)
+  return tokens
+}
+
+/**
+ * git 子命令分派 + 别名解析。
+ * 别名展开为真实命令后再分类, 但 git 内置命令优先于同名别名(实测 `git -c alias.push=status push
+ * origin master` 执行的是内置 push), 故字面解释与展开解释都送门禁, 任一 deny 即拦 —— 与 push
+ * 单参数歧义的双解释同机制。展开用迭代而非递归: 链长受命令中 -c 条目数约束, 环由 seen 截断,
+ * 不会耗尽调用栈, 也无需深度上限(上限会让长无环链静默放行, 而真 git 能正常执行它们)。
+ */
+/** --config-env=alias.<name>=<ENVVAR>(含空格形态): 别名值取自环境变量, 守卫看不到 */
+function hasConfigEnvAlias(args: string[]): boolean {
+  return args.some(
+    (a, i) =>
+      (/^--config-env=/i.test(a) && /^alias\./i.test(a.slice('--config-env='.length))) ||
+      (a === '--config-env' && /^alias\./i.test(args[i + 1] ?? '')),
+  )
+}
+
+function classifyGit(args: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
+  if (hasConfigEnvAlias(args)) return [{ kind: 'alias-smuggle' }]
+  const { rest: stripped, aliases: localDefs } = stripGlobalOptions(args)
+  const defs = localDefs.size === 0 ? scope.defs : new Map([...scope.defs, ...localDefs])
+  const [sub, ...rest] = stripped
+  const literal = dispatchGit(sub, rest, ctx, depth, scope)
+  if (sub == null || scope.chainBudget <= 0) return literal
+
+  const key = sub.toLowerCase() // git 配置键大小写不敏感(实测 alias.Z 与 alias.z 等价)
+  if (scope.seen.has(key)) return literal
+  const value = defs.get(key)
+  if (value == null) return literal
+
+  const nextScope: AliasScope = {
+    defs,
+    seen: new Set([...scope.seen, key]),
+    shellBudget: scope.shellBudget,
+    chainBudget: scope.chainBudget - 1,
+  }
+  // shell 别名(! 前缀): git 把调用点参数作为位置参数追加, 且内层 git 调用继承 -c 定义
+  if (value.startsWith('!')) {
+    if (scope.shellBudget <= 0) return [...literal, { kind: 'alias-smuggle' }]
+    return [
+      ...literal,
+      ...classifyDepth(expandShellAlias(value.slice(1), rest), ctx, depth, {
+        ...nextScope,
+        shellBudget: scope.shellBudget - 1,
+      }),
+    ]
+  }
+  const valueTokens = tokenize(value)
+  const nextSub = valueTokens[0]
+  // git 内置命令优先于同名别名: 展开出的名字是内置命令时只做字面分派, 不再继续展开
+  if (nextSub != null && BUILTIN_SUBCOMMANDS.has(nextSub)) {
+    return [...literal, ...dispatchGit(nextSub, [...valueTokens.slice(1), ...rest], ctx, depth, nextScope)]
+  }
+  // 交回 classifyGit: 展开值自身可能带全局选项(-c alias.q=… / --config-env=alias.*=ENV)
+  return [...literal, ...classifyGit([...valueTokens, ...rest], ctx, depth, nextScope)]
+}
+
+/** git 子命令的字面分派(不做别名展开) */
+function dispatchGit(sub: string | undefined, rest: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
   if (sub === 'push') return parsePush(rest, ctx)
   if (sub === 'pull') return parsePull(rest)
   if (sub === 'merge') return parseMerge(rest)
@@ -222,6 +432,7 @@ function classifyGit(args: string[], ctx: ClassifyContext): Classified[] {
   if (sub === 'restore') return parseRestore(rest)
   if (sub === 'rebase') return parseRebase(rest)
   if (sub === 'commit') return parseCommit(rest)
+  if (sub === 'config') return parseConfig(rest, ctx, depth, scope)
   return [{ kind: 'other' }]
 }
 
@@ -267,24 +478,92 @@ function parseCherryPickLike(args: string[]): Classified[] {
   return [{ kind: 'ref-move' }]
 }
 
-/** 剥离子命令前的全局选项(-C <path> / -c <k=v> / --git-dir 等), 否则 git -C . push 会被判 other */
-function stripGlobalOptions(args: string[]): string[] {
-  const WITH_VALUE: ReadonlySet<string> = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--super-prefix'])
+/** git config 的取值旗标(下一参数是它的值): 逐参消费, 否则键位错位(如 -f .git/config 会把路径当成键) */
+const CONFIG_VALUE_FLAGS: ReadonlySet<string> = new Set(['-f', '--file', '--type', '--blob', '--comment'])
+
+/**
+ * git config: 写入 alias.<name> 时按别名值分类 —— 值是一条 git 子命令(或 ! 开头的 shell 脚本),
+ * 用别名封装 push/merge 等命令即绕过意图识别, 故按真实语义送门禁。
+ * 查询(无值)/删除(--unset)/非 alias 键不产生命令语义 → other。
+ */
+function parseConfig(args: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
+  const positional: string[] = []
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (CONFIG_VALUE_FLAGS.has(a)) {
+      i++
+      continue
+    }
+    if (a.startsWith('-')) continue
+    positional.push(a)
+  }
+  const key = positional[0]
+  if (!key || !/^alias\./i.test(key)) return [{ kind: 'other' }]
+  const value = positional.slice(1).join(' ')
+  if (!value) return [{ kind: 'other' }]
+  const tokens = tokenize(value)
+  if (tokens.length > MAX_ALIAS_VALUE_TOKENS) return [{ kind: 'alias-smuggle' }]
+  if (value.startsWith('!')) return withoutSimulationEffects(classifyDepth(value.slice(1), ctx, depth, scope))
+  return withoutSimulationEffects(classifyGit(tokens, ctx, depth, scope))
+}
+
+/**
+ * 别名写入只改配置文件, 不切换分支也不改动工作区 —— 剥离模拟字段。
+ * 否则 evaluateCommand 会按被篡改的分支/干净状态判定后续段:
+ * 实测 `git config alias.co 'checkout feature/x'; git push origin HEAD` 可借此放行受保护分支推送。
+ */
+function withoutSimulationEffects(items: Classified[]): Classified[] {
+  return items.map((c) => {
+    if (c.kind === 'checkout') return { kind: 'checkout', branch: null }
+    if ('cleanWorktree' in c && c.cleanWorktree === true) return { ...c, cleanWorktree: false }
+    return c
+  })
+}
+
+/**
+ * shell 别名(! 前缀)的参数传递: git 把调用点参数作为位置参数追加给别名命令
+ * (值中已含 $@/$1 等占位符时由占位符自身展开, git 不再追加)。
+ * 此处按「去掉占位符 + 追加调用点参数」近似, 偏差方向为更严格(可能多出 refspec), 与安全工具宁可从严的取向一致。
+ */
+function expandShellAlias(script: string, rest: string[]): string {
+  const stripped = script.replace(/\$\{?[@*]\}?|\$\{?[1-9]\}?/g, ' ')
+  return [stripped, ...rest].join(' ')
+}
+
+/**
+ * 记录 -c 传入的别名定义(alias.<name>=<value>)。
+ * git 配置的 section 与键名大小写不敏感(实测 `git -c ALIAS.z=version z` 可执行), 故键统一小写。
+ */
+function collectAlias(kv: string | undefined, out: Map<string, string>): void {
+  const m = kv ? /^alias\.([^=]+)=([\s\S]*)$/i.exec(kv) : null
+  if (m) out.set(m[1].toLowerCase(), m[2])
+}
+
+/**
+ * 剥离子命令前的全局选项(-C <path> / -c <k=v> / --git-dir 等), 否则 git -C . push 会被判 other。
+ * 同时收集 -c 定义的别名: git -c alias.z=push z origin main 等价于 git push origin main,
+ * 不收集则别名词被判为 other 而放行(见 tests/classify.spec.ts「git -c 别名展开」)。
+ * 含 `=` 值的长选项一律跳过: 白名单之外的(如 --exec-path=/x)同样不应让子命令定位失败。
+ */
+function stripGlobalOptions(args: string[]): { rest: string[]; aliases: Map<string, string> } {
+  const WITH_VALUE: ReadonlySet<string> = new Set(['-C', '-c', '--config-env', '--git-dir', '--work-tree', '--namespace', '--super-prefix'])
   const BARE: ReadonlySet<string> = new Set(['--bare', '--no-pager', '--no-optional-locks', '--paginate', '--no-replace-objects', '--literal-pathspecs', '-p', '-P'])
+  const aliases = new Map<string, string>()
   let i = 0
   while (i < args.length) {
     const a = args[i]
-    if (BARE.has(a) || /^--(git-dir|work-tree|namespace|super-prefix)=/.test(a)) {
+    if (BARE.has(a) || /^--[\w-]+=/.test(a)) {
       i++
       continue
     }
     if (WITH_VALUE.has(a)) {
+      if (a === '-c') collectAlias(args[i + 1], aliases)
       i += 2
       continue
     }
     break
   }
-  return args.slice(i)
+  return { rest: args.slice(i), aliases }
 }
 
 /**
