@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.0.49
+
+- fix(classify): split commands on single `&` background operator — commands chained with a single `&` (such as `sleep 1 & git push origin develop` or Windows `cmd.exe` sequential execution `dir & git push origin develop`) were previously ignored because the segment splitter only broke on `&&`, so the classifier only inspected the leading non-git command and allowed the dangerous git push through; `splitSegments` now recognizes single `&` as a command separator while preserving redirection operators (`2>&1`, `>&2`, `<&0`, `&>`, `&>>`), quote boundaries (`"feat: a & b"`, escaped `\"`), and escaped ampersands (`\&`) —— 支持单个 `&` 后台/顺序操作符命令切分：此前使用单个 `&` 串联的命令（如 `sleep 1 & git push origin develop` 或 Windows `cmd.exe` 顺序执行 `dir & git push origin develop`）会被绕过，因分词仅识别 `&&` 而未识别单 `&`，导致仅审查首个非 git 命令并将整条放行；现完善切分逻辑，将单个 `&` 识别为独立子命令切分符并分别独立审查，同时保护输出与文件描述符重定向（`2>&1`、`>&2`、`<&0`、`&>`、`&>>`）、引号保护（`"feat: a & b"` 与 `\"` 转义）及普通字符转义（`\&`）。
+
 ## 0.0.48
 
 - fix(classify): support Windows paths, `.exe`/`.cmd`/`.bat` extensions, and Windows shells — commands executed on Windows with backslashes (`C:\...\git.exe`), quotes, or executable extensions were bypassed as `other` because the classifier only split paths by `/` and strictly matched the exact string `git`; command name normalization now strips quotes, splits on both `/` and `\`, strips executable extensions (`.exe`, `.cmd`, `.bat`) case-insensitively, and unwraps nested scripts in `powershell`, `pwsh`, and `cmd` with `MAX_NESTED_DEPTH` protection against recursion overflow —— 支持 Windows 路径、`.exe`/`.cmd`/`.bat` 扩展名与 Windows Shell：此前在 Windows 上使用带反斜杠路径（如 `C:\...\git.exe`）、引号或可执行扩展名执行命令时，因分类器仅按 `/` 切割路径且严格比对小写 `git`，导致全部判定为 `other` 放行绕过；现引入命令名规范化逻辑，剥除引号，兼容 `/` 与 `\` 切分，不区分大小写剥离 `.exe`/`.cmd`/`.bat`，并解析 `powershell`、`pwsh` 与 `cmd` 包装的内层脚本，同时由 `MAX_NESTED_DEPTH` 防范递归爆栈。
