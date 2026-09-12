@@ -86,6 +86,10 @@ jobs:
           npm run check:readmes
           npm run build
           npm run verify:matrix
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          npm run test:git-matrix
+          npm run test:realflow
 
       - name: Create and push Git tag
         # 只由 need_tag 决定: 「已发布但 tag 丢失」时也需要补打(此时 should_release=false)

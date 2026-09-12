@@ -54,7 +54,7 @@ const GITISH = /\b(?:git|gh|glab)\b|gitflow-guard/
 
 function execFileResult(cmd: string, args: string[], cwd: string): Promise<PiRunResult> {
   return new Promise((resolve) => {
-    execFile(cmd, args, { cwd }, (err, stdout, stderr) => {
+    execFile(cmd, args, { cwd, timeout: 10_000 }, (err, stdout, stderr) => {
       const e = err as NodeJS.ErrnoException | null
       // 非零退出码为数字; spawn 失败(如 ENOENT)是字符串, 归为 -1
       const code = e && typeof e.code === 'number' ? e.code : e ? -1 : 0

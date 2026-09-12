@@ -51,59 +51,58 @@ describe('worktree-guard: 1. 状态解析与采集层 (Repo Layer Facts Extracti
     const porcelain = ['A  new-file.ts', 'M  modified.ts', 'D  deleted.ts', 'R  old.ts -> new.ts'].join('\n')
     const runner = fakeRunner({ 'status --porcelain': { stdout: porcelain } })
     const res = await getWorktreeStatus(runner, '/fake')
-    expect(res.staged).toBe(4)
-    expect(res.unstaged).toBe(0)
-    expect(res.untracked).toBe(0)
-    expect(res.isDirty).toBe(true)
+    expect(res!.staged).toBe(4)
+    expect(res!.unstaged).toBe(0)
+    expect(res!.untracked).toBe(0)
+    expect(res!.isDirty).toBe(true)
   })
 
   it('1.2 纯工作区未暂存修改 (unstaged only: M/D)', async () => {
     const porcelain = [' M modified.ts', ' D deleted.ts'].join('\n')
     const runner = fakeRunner({ 'status --porcelain': { stdout: porcelain } })
     const res = await getWorktreeStatus(runner, '/fake')
-    expect(res.staged).toBe(0)
-    expect(res.unstaged).toBe(2)
-    expect(res.untracked).toBe(0)
-    expect(res.isDirty).toBe(true)
+    expect(res!.staged).toBe(0)
+    expect(res!.unstaged).toBe(2)
+    expect(res!.untracked).toBe(0)
+    expect(res!.isDirty).toBe(true)
   })
 
   it('1.3 暂存与未暂存同时存在 (staged & unstaged: MM/AD/MD)', async () => {
     const porcelain = ['MM both.ts', 'AM added-and-modified.ts'].join('\n')
     const runner = fakeRunner({ 'status --porcelain': { stdout: porcelain } })
     const res = await getWorktreeStatus(runner, '/fake')
-    expect(res.staged).toBe(2)
-    expect(res.unstaged).toBe(2)
-    expect(res.isDirty).toBe(true)
+    expect(res!.staged).toBe(2)
+    expect(res!.unstaged).toBe(2)
+    expect(res!.isDirty).toBe(true)
   })
 
   it('1.4 纯未追踪文件 (untracked only: ??)', async () => {
     const porcelain = ['?? scratch.py', '?? notes.txt', '?? test-output/'].join('\n')
     const runner = fakeRunner({ 'status --porcelain': { stdout: porcelain } })
     const res = await getWorktreeStatus(runner, '/fake')
-    expect(res.staged).toBe(0)
-    expect(res.unstaged).toBe(0)
-    expect(res.untracked).toBe(3)
-    expect(res.isDirty).toBe(false) // 未追踪文件不计为已追踪脏改动
+    expect(res!.staged).toBe(0)
+    expect(res!.unstaged).toBe(0)
+    expect(res!.untracked).toBe(3)
+    expect(res!.isDirty).toBe(false) // 未追踪文件不计为已追踪脏改动
   })
 
   it('1.5 完全干净工作区', async () => {
     const runner = fakeRunner({ 'status --porcelain': { stdout: '' } })
     const res = await getWorktreeStatus(runner, '/fake')
-    expect(res.staged).toBe(0)
-    expect(res.unstaged).toBe(0)
-    expect(res.untracked).toBe(0)
-    expect(res.isDirty).toBe(false)
+    expect(res!.staged).toBe(0)
+    expect(res!.unstaged).toBe(0)
+    expect(res!.untracked).toBe(0)
+    expect(res!.isDirty).toBe(false)
   })
 
-  it('1.6 Git 状态查询异常时的 fail-safe 降级', async () => {
+  it('1.6 Git 状态查询异常时返回 null (遵循 fail-closed，不可误报干净)', async () => {
     const runner: Runner = {
       async run() {
         return { code: 128, stdout: '', stderr: 'fatal: not a git repo' }
       },
     }
     const res = await getWorktreeStatus(runner, '/fake')
-    expect(res.isDirty).toBe(false)
-    expect(res.untracked).toBe(0)
+    expect(res).toBeNull()
   })
 
   it('1.7 Upstream 偏离度解析 (ahead / behind)', async () => {
@@ -142,6 +141,21 @@ describe('worktree-guard: 2. 门禁决策层纯函数验证 (Gate Decision Rules
     if (res.kind === 'deny') {
       expect(res.reason).toContain('2 staged, 1 unstaged')
       expect(res.next).toMatch(/git commit|git stash/i)
+    }
+  })
+
+  it('2.1b PR 创建与合并: 工作区状态未知 (null) 且要求干净 → deny (fail-closed)', () => {
+    const f = facts({ worktreeStatus: null })
+    const resPr = decide({ kind: 'pr-create', target: 'develop' }, f, fullWorktreeConfig)
+    expect(resPr.kind).toBe('deny')
+    if (resPr.kind === 'deny') {
+      expect(resPr.reason).toMatch(/cannot determine worktree status/i)
+    }
+
+    const resMerge = decide({ kind: 'pr-merge', pr: '1' }, facts({ resolvePrTarget: resolve('integration', 'develop', 'feature/x'), worktreeStatus: null }), fullWorktreeConfig)
+    expect(resMerge.kind).toBe('deny')
+    if (resMerge.kind === 'deny') {
+      expect(resMerge.reason).toMatch(/cannot determine worktree status/i)
     }
   })
 

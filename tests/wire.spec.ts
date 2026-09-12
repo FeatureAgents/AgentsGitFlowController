@@ -513,3 +513,98 @@ describe('wire: 客户端规格表', () => {
     expect(ag.experimental).toBeUndefined() // 真机核验闭环(AGY-D1..D4)后摘除实验标注
   })
 })
+
+describe('wire: JSONC 注释与既有 hook 细粒度保留 (§16)', () => {
+  it('配置文件含 JSONC 注释: wire 与 unwire 均不损坏注释与排版', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.claude/settings.json')
+    mkdirSync(join(dir, '.claude'), { recursive: true })
+    const originalWithComments = `// 顶层全局配置注释
+{
+  /* 自定义配置块 */
+  "env": {
+    "FOO": "bar"
+  }
+}
+`
+    writeFileSync(path, originalWithComments)
+    try {
+      expect(await applyWire('claude', path, false, false)).toBe('added')
+      const wiredContent = readFileSync(path, 'utf8')
+      expect(wiredContent).toContain('// 顶层全局配置注释')
+      expect(wiredContent).toContain('/* 自定义配置块 */')
+      expect(wiredContent).toContain(cmdOf('claude'))
+
+      expect(await isWired('claude', path)).toBe(true)
+
+      expect(await applyWire('claude', path, true, false)).toBe('removed')
+      const unwiredContent = readFileSync(path, 'utf8')
+      expect(unwiredContent).toContain('// 顶层全局配置注释')
+      expect(unwiredContent).toContain('/* 自定义配置块 */')
+      expect(unwiredContent).not.toContain(cmdOf('claude'))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('同 matcher 下已有用户自定义 hook: wire 与 unwire 均细粒度保留用户 hook', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.codex/hooks.json')
+    mkdirSync(join(dir, '.codex'), { recursive: true })
+    const original = {
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: '^Bash$',
+            hooks: [{ type: 'command', command: 'my-custom-linter' }],
+          },
+        ],
+      },
+    }
+    writeFileSync(path, JSON.stringify(original, null, 2) + '\n')
+    try {
+      expect(await applyWire('codex', path, false, false)).toBe('added')
+      const wiredObj = JSON.parse(readFileSync(path, 'utf8'))
+      // 验证用户原有 hook 仍在
+      const commands = wiredObj.hooks.PreToolUse.flatMap((e: { hooks: Array<{ command: string }> }) => e.hooks.map((h) => h.command))
+      expect(commands).toContain('my-custom-linter')
+      expect(commands).toContain(cmdOf('codex'))
+
+      // unwire 只移除守卫, 不移除用户自定义 linter
+      expect(await applyWire('codex', path, true, false)).toBe('removed')
+      const unwiredObj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(unwiredObj.hooks).toBeDefined()
+      expect(unwiredObj.hooks.PreToolUse).toBeDefined()
+      expect(unwiredObj.hooks.PreToolUse).toHaveLength(1)
+      expect(unwiredObj.hooks.PreToolUse[0].hooks[0].command).toBe('my-custom-linter')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('Cursor 下已有用户自定义 hook: unwire 仅移除守卫, 保留用户 hook 与 hooks 块', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.cursor/hooks.json')
+    mkdirSync(join(dir, '.cursor'), { recursive: true })
+    const original = {
+      version: 1,
+      hooks: {
+        beforeShellExecution: [
+          { command: 'my-custom-guard' },
+          { command: cmdOf('cursor') },
+        ],
+      },
+    }
+    writeFileSync(path, JSON.stringify(original, null, 2) + '\n')
+    try {
+      expect(await applyWire('cursor', path, true, false)).toBe('removed')
+      const unwiredObj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(unwiredObj.hooks).toBeDefined()
+      expect(unwiredObj.hooks.beforeShellExecution).toHaveLength(1)
+      expect(unwiredObj.hooks.beforeShellExecution[0].command).toBe('my-custom-guard')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+

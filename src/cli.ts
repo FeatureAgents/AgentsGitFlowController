@@ -149,7 +149,7 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
     if (c.branches.preview && roleMatches(b, c.branches.preview)) return 'preview'
     if (roleMatches(b, c.branches.integration)) return 'integration'
     if (c.branches.archive && roleMatches(b, c.branches.archive)) return 'archive'
-    if (new RegExp(c.featurePattern).test(b)) return 'feature'
+    if (new RegExp(`^(?:${c.featurePattern})$`).test(b)) return 'feature'
     return 'other'
   }
   console.log(t('cli.statusLocalBranches'))

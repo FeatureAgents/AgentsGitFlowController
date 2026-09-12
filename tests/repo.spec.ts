@@ -65,21 +65,21 @@ describe('repo: 只读查询(fake runner)', () => {
     ].join('\n')
     const { runner } = fakeRunner([{ stdout: porcelain }])
     const status = await getWorktreeStatus(runner, cwd)
-    expect(status.staged).toBe(2) // staged.txt, both.txt
-    expect(status.unstaged).toBe(2) // unstaged.txt, both.txt
-    expect(status.untracked).toBe(2)
-    expect(status.isDirty).toBe(true)
+    expect(status!.staged).toBe(2) // staged.txt, both.txt
+    expect(status!.unstaged).toBe(2) // unstaged.txt, both.txt
+    expect(status!.untracked).toBe(2)
+    expect(status!.isDirty).toBe(true)
 
     // 干净工作区
     const clean = fakeRunner([{ stdout: '' }])
     const cleanStatus = await getWorktreeStatus(clean.runner, cwd)
-    expect(cleanStatus.isDirty).toBe(false)
-    expect(cleanStatus.untracked).toBe(0)
+    expect(cleanStatus?.isDirty).toBe(false)
+    expect(cleanStatus?.untracked).toBe(0)
 
-    // git 报错 fail-safe 降级为干净
+    // git 报错返回 null (遵循 fail-closed，不可误报干净)
     const fail = fakeRunner([{ code: 128 }])
     const failStatus = await getWorktreeStatus(fail.runner, cwd)
-    expect(failStatus.isDirty).toBe(false)
+    expect(failStatus).toBeNull()
   })
 
   it('getUpstreamDivergence: 解析 ahead/behind 计数', async () => {
@@ -149,15 +149,15 @@ describe('repo: 真实 git 集成', () => {
 
     // 初始干净工作区
     const status1 = await getWorktreeStatus(gitRunner, repo)
-    expect(status1.isDirty).toBe(false)
-    expect(status1.untracked).toBe(0)
+    expect(status1!.isDirty).toBe(false)
+    expect(status1!.untracked).toBe(0)
 
     // 写入新文件和修改文件
     writeFileSync(join(repo, 'untracked.txt'), 'new')
     writeFileSync(join(repo, 'a.txt'), 'modified')
     const status2 = await getWorktreeStatus(gitRunner, repo)
-    expect(status2.isDirty).toBe(true)
-    expect(status2.untracked).toBe(1)
-    expect(status2.unstaged).toBe(1)
+    expect(status2!.isDirty).toBe(true)
+    expect(status2!.untracked).toBe(1)
+    expect(status2!.unstaged).toBe(1)
   })
 })

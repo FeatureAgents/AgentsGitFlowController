@@ -202,7 +202,7 @@ async function factsFor(seg: Classified, env: Env): Promise<{ facts: GateFacts; 
     if (needWorktreeCheck) {
       const realStatus = await getWorktreeStatus(runner, repoRoot)
       if (simulatedClean) {
-        worktreeStatusFact = { staged: 0, unstaged: 0, untracked: realStatus.untracked, isDirty: false }
+        worktreeStatusFact = realStatus ? { staged: 0, unstaged: 0, untracked: realStatus.untracked, isDirty: false } : null
       } else {
         worktreeStatusFact = realStatus
       }

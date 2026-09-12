@@ -15,11 +15,11 @@ export interface Runner {
   run(args: string[], cwd: string): Promise<RunResult>
 }
 
-function makeRunner(bin: string): Runner {
+function makeRunner(bin: string, timeoutMs: number = 10_000): Runner {
   return {
     async run(args, cwd) {
       return await new Promise<RunResult>((resolve) => {
-        execFile(bin, args, { cwd, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
+        execFile(bin, args, { cwd, maxBuffer: 16 * 1024 * 1024, timeout: timeoutMs }, (err, stdout, stderr) => {
           const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 1) : 0
           resolve({ code, stdout: stdout ?? '', stderr: stderr ?? '' })
         })
@@ -28,13 +28,13 @@ function makeRunner(bin: string): Runner {
   }
 }
 
-export const gitRunner: Runner = makeRunner('git')
+export const gitRunner: Runner = makeRunner('git', 10_000)
 
-/** GitHub 适配器: gh */
-export const ghRunner: Runner = makeRunner('gh')
+/** GitHub 适配器: gh (外部 CLI 超时 5 秒) */
+export const ghRunner: Runner = makeRunner('gh', 5_000)
 
-/** GitLab 适配器: glab */
-export const glabRunner: Runner = makeRunner('glab')
+/** GitLab 适配器: glab (外部 CLI 超时 5 秒) */
+export const glabRunner: Runner = makeRunner('glab', 5_000)
 
 export async function findRepoRoot(runner: Runner, cwd: string): Promise<string | null> {
   const r = await runner.run(['rev-parse', '--show-toplevel'], cwd)
@@ -113,10 +113,10 @@ export function resolvePrTarget(info: { base: string; head: string } | null, con
 }
 
 /** 查询工作区暂存区与未追踪文件状态(git status --porcelain=v1 -uall) */
-export async function getWorktreeStatus(runner: Runner, cwd: string): Promise<WorktreeStatusFact> {
+export async function getWorktreeStatus(runner: Runner, cwd: string): Promise<WorktreeStatusFact | null> {
   const r = await runner.run(['status', '--porcelain=v1', '-uall'], cwd)
   if (r.code !== 0) {
-    return { staged: 0, unstaged: 0, untracked: 0, isDirty: false }
+    return null
   }
   let staged = 0
   let unstaged = 0

@@ -37,6 +37,8 @@ describe('roleOfBranch', () => {
     expect(roleOfBranch('main', config)).toBe('archive')
     expect(roleOfBranch('feature/dev-x', config)).toBe('feature')
     expect(roleOfBranch('topic/abc', makeConfig({ featurePattern: 'topic/[\\w-]+' }))).toBe('feature')
+    expect(roleOfBranch('malicious/feature/dev-x', config)).toBe('other')
+    expect(roleOfBranch('feature/dev-x/extra', config)).toBe('other')
     expect(roleOfBranch('random', config)).toBe('other')
   })
 })
@@ -160,6 +162,16 @@ describe('gate: 合并 PR/MR', () => {
     expect(decide({ kind: 'pr-merge', pr: '2' }, facts({ resolvePrTarget: resolve('preview', 'ita1', 'feature/x') }), config).kind).toBe('allow')
   })
 
+  it('目标集成 + mergeBy user → deny(只能用户亲手)', () => {
+    const userIntegration = makeConfig({ branches: { ...config.branches, integration: { branches: ['develop'], update: 'pr', mergeBy: 'user' } } })
+    expect(decide({ kind: 'pr-merge', pr: '1' }, facts({ resolvePrTarget: resolve('integration', 'develop', 'feature/x') }), userIntegration).kind).toBe('deny')
+  })
+
+  it('目标预览 + mergeBy user → deny(只能用户亲手)', () => {
+    const userPreview = makeConfig({ branches: { ...config.branches, preview: { branches: ['ita1'], update: 'pr', mergeBy: 'user' } } })
+    expect(decide({ kind: 'pr-merge', pr: '2' }, facts({ resolvePrTarget: resolve('preview', 'ita1', 'feature/x') }), userPreview).kind).toBe('deny')
+  })
+
   it('目标生产 + mergeBy user → deny(只能用户亲手)', () => {
     expect(decide({ kind: 'pr-merge', pr: '3' }, facts({ resolvePrTarget: resolve('production', 'prd', 'feature/x') }), config).kind).toBe('deny')
   })
@@ -171,6 +183,11 @@ describe('gate: 合并 PR/MR', () => {
 
   it('目标归档 → deny', () => {
     expect(decide({ kind: 'pr-merge', pr: '4' }, facts({ resolvePrTarget: resolve('archive', 'main', 'feature/x') }), config).kind).toBe('deny')
+  })
+
+  it('目标归档 + mergeBy anyone → allow', () => {
+    const relaxed = makeConfig({ branches: { ...config.branches, archive: { branches: ['main'], update: 'pr', mergeBy: 'anyone' } } })
+    expect(decide({ kind: 'pr-merge', pr: '4' }, facts({ resolvePrTarget: resolve('archive', 'main', 'feature/x') }), relaxed).kind).toBe('allow')
   })
 
   it('目标其他 → allow', () => {
