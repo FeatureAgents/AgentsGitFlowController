@@ -95,7 +95,11 @@ describe('platform: detectPlatform', () => {
   it('tool_args → opencode', () => expect(detectPlatform('{"tool_args":{"command":"git push"}}')).toBe('opencode'))
   it('cursor_version → cursor', () => expect(detectPlatform('{"cursor_version":"0.45.0"}')).toBe('cursor'))
   it('workspace_roots → cursor', () => expect(detectPlatform('{"workspace_roots":["/repo"]}')).toBe('cursor'))
-  it('默认 → claude', () => expect(detectPlatform('{"tool_name":"Bash"}')).toBe('claude'))
+  it('beforeShellExecution 无 cursor_version 也识别为 cursor', () =>
+    expect(detectPlatform('{"hook_event_name":"beforeShellExecution","command":"git push origin develop"}')).toBe('cursor'))
+  it('顶层 command + cwd (无 tool_input) 识别为 cursor', () =>
+    expect(detectPlatform('{"command":"git push origin develop","cwd":"/repo"}')).toBe('cursor'))
+  it('默认 → claude', () => expect(detectPlatform('{"tool_name":"Bash","tool_input":{"command":"git push"}}')).toBe('claude'))
   it('空 payload(CLI --command 模式 raw="")→ 回退 claude, deny 走 exit 2 协议(P2-5)', () => {
     expect(detectPlatform('')).toBe('claude')
     const enc = encodeDeny(detectPlatform(''), 'blocked: x')

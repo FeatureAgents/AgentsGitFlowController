@@ -14,7 +14,7 @@ export const CONFIG_FILE = 'gitflow-guard.config.json'
  */
 export const DEFAULT_CONFIG = {
   enabled: true,
-  featurePattern: 'feature/[\\w-]+',
+  featurePattern: '^feature/[\\w-]+$',
   branches: {
     integration: { branches: ['develop'], update: 'pr' as const, mergeBy: 'anyone' as const },
     archive: { branches: ['main'], update: 'pr' as const, mergeBy: 'user' as const },
@@ -190,7 +190,7 @@ export function validateConfig(config: GuardConfig): string[] {
   const errors: string[] = []
   if (config.branches.integration.branches.length === 0) errors.push('branches.integration.branches is required')
   try {
-    new RegExp(config.featurePattern)
+    new RegExp(`^(?:${config.featurePattern})$`)
   } catch {
     errors.push(`featurePattern is not a valid regex: ${config.featurePattern}`)
   }

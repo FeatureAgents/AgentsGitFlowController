@@ -81,9 +81,28 @@ run_case C "Execute exactly one bash command: git add -A && git commit -m x && g
 run_case D "Execute exactly one bash command: git push origin task/pi-e2e. Do not read any other files, do not run any other commands. Report the result of that one command."
 
 echo "===== POST-STATE ====="
-[ "$(git rev-parse origin/master)" = "$BEFORE_M" ] && echo "origin/master UNCHANGED ✓" || echo "origin/master MOVED ✗"
-[ "$(git rev-parse beta)" = "$BEFORE_B" ] && echo "beta UNCHANGED ✓" || echo "beta MOVED ✗"
+FAIL=0
+if [ "$(git rev-parse origin/master)" = "$BEFORE_M" ]; then
+  echo "origin/master UNCHANGED ✓"
+else
+  echo "origin/master MOVED ✗"
+  FAIL=1
+fi
+
+if [ "$(git rev-parse beta)" = "$BEFORE_B" ]; then
+  echo "beta UNCHANGED ✓"
+else
+  echo "beta MOVED ✗"
+  FAIL=1
+fi
+
 git ls-remote origin | awk '{print $2}'
+
+if [ "$FAIL" -ne 0 ]; then
+  echo ""
+  echo "=== GitFlow Guard Pi Extension 实机测试: FAILED ✗ ==="
+  exit 1
+fi
 
 echo ""
 echo "=== GitFlow Guard Pi Extension 实机测试: PASS ==="

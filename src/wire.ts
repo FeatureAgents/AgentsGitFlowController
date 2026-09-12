@@ -11,6 +11,7 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parse as parseCommentJson, stringify as stringifyCommentJson } from 'comment-json'
 import type { ClientId } from './types'
 
 export type WireScope = 'project' | 'global'
@@ -124,7 +125,7 @@ function jsonContainsBy(obj: unknown, pred: (v: unknown) => boolean): boolean {
 
 function parseJsonOrThrow(path: string, raw: string): Record<string, unknown> {
   try {
-    const parsed: unknown = JSON.parse(raw)
+    const parsed: unknown = parseCommentJson(raw)
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object')
     return parsed as Record<string, unknown>
   } catch {
@@ -133,15 +134,60 @@ function parseJsonOrThrow(path: string, raw: string): Record<string, unknown> {
 }
 
 async function writeJson(path: string, obj: Record<string, unknown>): Promise<void> {
-  await writeText(path, `${JSON.stringify(obj, null, 2)}\n`)
+  await writeText(path, `${stringifyCommentJson(obj, null, 2)}\n`)
 }
 
-/** 就地重写 hook 列表: 剔除本插件全部条目(任意历史形态), 追加 canonical 条目; 返回是否原有本插件条目 */
+function cleanGuardFromEntry(client: JsonWireClient, entry: unknown): boolean {
+  if (!entry || typeof entry !== 'object') return false
+  const o = entry as { command?: unknown; hooks?: Array<{ command?: unknown }> }
+  if (Array.isArray(o.hooks)) {
+    const origLen = o.hooks.length
+    o.hooks = o.hooks.filter((h) => !guardCommandish(client, h?.command))
+    return o.hooks.length < origLen
+  }
+  return false
+}
+
+function entryIsEmpty(client: JsonWireClient, entry: unknown): boolean {
+  if (!entry || typeof entry !== 'object') return true
+  const o = entry as { command?: unknown; hooks?: Array<{ command?: unknown }> }
+  if (client === 'cursor') {
+    return guardCommandish(client, o.command)
+  }
+  if (Array.isArray(o.hooks)) {
+    return o.hooks.length === 0
+  }
+  return guardCommandish(client, o.command)
+}
+
+function filterGuardItems(arr: unknown[], client: JsonWireClient): { cleaned: unknown[]; had: boolean } {
+  let had = false
+  const cleaned: unknown[] = []
+  for (const item of arr) {
+    if (client === 'cursor') {
+      if (guardCommandish(client, (item as { command?: unknown })?.command)) {
+        had = true
+      } else {
+        cleaned.push(item)
+      }
+    } else {
+      if (cleanGuardFromEntry(client, item)) {
+        had = true
+      }
+      if (!entryIsEmpty(client, item)) {
+        cleaned.push(item)
+      }
+    }
+  }
+  return { cleaned, had }
+}
+
+/** 就地重写 hook 列表: 剔除本插件全部条目(任意历史形态), 追加 canonical 条目; 保留用户既有其他 hook; 返回是否原有本插件条目 */
 function rewriteHookList(container: Record<string, unknown>, key: string, client: JsonWireClient, entry: unknown, path: string): boolean {
   const arr = (container[key] ??= []) as unknown[]
   if (!Array.isArray(arr)) throw new Error(`invalid ${path}: ${key} must be an array`)
-  const had = arr.some((e) => entryIsGuard(client, e))
-  container[key] = [...arr.filter((e) => !entryIsGuard(client, e)), entry]
+  const { cleaned, had } = filterGuardItems(arr, client)
+  container[key] = [...cleaned, entry]
   return had
 }
 
@@ -181,41 +227,56 @@ async function addJsonEntry(path: string, client: JsonWireClient, dryRun: boolea
   return hadGuard ? 'migrated' : 'added'
 }
 
-/** JSON 客户端移除本插件条目(任意历史形态); 不动其他内容 */
+/** JSON 客户端移除本插件条目(任意历史形态); 细粒度过滤本插件命令, 不动其他 hook 与注释排版 */
 async function removeJsonEntry(path: string, client: JsonWireClient, dryRun: boolean): Promise<WireResult> {
   const raw = await readText(path)
   if (raw === null) return 'absent'
   const obj = parseJsonOrThrow(path, raw)
   if (client === 'antigravity') {
     // gitflow-guard 顶层键内任意历史形态条目都算本插件条目(含 AGY-D2 前相对路径与 PATH 形态)
-    const block = obj['gitflow-guard']
-    if (!block || !jsonContainsBy(block, (v) => guardCommandish(client, v))) return 'absent'
-    delete obj['gitflow-guard']
+    const block = obj['gitflow-guard'] as Record<string, unknown> | undefined
+    if (!block) return 'absent'
+    const arr = block['PreToolUse']
+    if (Array.isArray(arr)) {
+      const { cleaned, had } = filterGuardItems(arr, client)
+      if (!had && !jsonContainsBy(block, (v) => guardCommandish(client, v))) return 'absent'
+      if (cleaned.length === 0) {
+        delete obj['gitflow-guard']
+      } else {
+        block['PreToolUse'] = cleaned
+      }
+    } else {
+      if (!jsonContainsBy(block, (v) => guardCommandish(client, v))) return 'absent'
+      delete obj['gitflow-guard']
+    }
   } else if (client === 'zcode') {
     const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
     const eventsObj = hooksObj?.['events'] as Record<string, unknown> | undefined
     const arr = eventsObj?.['PreToolUse']
-    if (!Array.isArray(arr) || !arr.some((e) => entryIsGuard(client, e))) return 'absent'
-    const rest = arr.filter((e) => !entryIsGuard(client, e))
-    if (rest.length === 0) delete eventsObj!['PreToolUse']
-    else eventsObj!['PreToolUse'] = rest
+    if (!Array.isArray(arr)) return 'absent'
+    const { cleaned, had } = filterGuardItems(arr, client)
+    if (!had) return 'absent'
+    if (cleaned.length === 0) delete eventsObj!['PreToolUse']
+    else eventsObj!['PreToolUse'] = cleaned
     if (eventsObj && Object.keys(eventsObj).length === 0) delete hooksObj!['events']
     if (hooksObj && Object.keys(hooksObj).filter((k) => k !== 'enabled').length === 0) delete obj['hooks']
   } else if (client === 'cursor') {
     const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
     const arr = hooksObj?.['beforeShellExecution']
-    if (!Array.isArray(arr) || !arr.some((e) => entryIsGuard(client, e))) return 'absent'
-    const rest = arr.filter((e) => !entryIsGuard(client, e))
-    if (rest.length === 0) delete hooksObj!['beforeShellExecution']
-    else hooksObj!['beforeShellExecution'] = rest
+    if (!Array.isArray(arr)) return 'absent'
+    const { cleaned, had } = filterGuardItems(arr, client)
+    if (!had) return 'absent'
+    if (cleaned.length === 0) delete hooksObj!['beforeShellExecution']
+    else hooksObj!['beforeShellExecution'] = cleaned
     if (hooksObj && Object.keys(hooksObj).length === 0) delete obj['hooks']
   } else {
     const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
     const arr = hooksObj?.['PreToolUse']
-    if (!Array.isArray(arr) || !arr.some((e) => entryIsGuard(client, e))) return 'absent'
-    const rest = arr.filter((e) => !entryIsGuard(client, e))
-    if (rest.length === 0) delete hooksObj!['PreToolUse']
-    else hooksObj!['PreToolUse'] = rest
+    if (!Array.isArray(arr)) return 'absent'
+    const { cleaned, had } = filterGuardItems(arr, client)
+    if (!had) return 'absent'
+    if (cleaned.length === 0) delete hooksObj!['PreToolUse']
+    else hooksObj!['PreToolUse'] = cleaned
     if (hooksObj && Object.keys(hooksObj).length === 0) delete obj['hooks']
   }
   if (!dryRun) await writeJson(path, obj)
@@ -276,7 +337,7 @@ export async function wiringState(client: ClientId, path: string): Promise<Wirin
   if (client === 'opencode') return 'current'
   let obj: unknown
   try {
-    obj = JSON.parse(raw)
+    obj = parseCommentJson(raw)
   } catch {
     return 'absent'
   }

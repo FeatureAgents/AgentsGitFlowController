@@ -9,4 +9,7 @@ export default defineConfig({
   outDir: 'lib',
   dts: true,
   clean: true,
+  deps: {
+    alwaysBundle: ['comment-json'],
+  },
 })
