@@ -120,7 +120,7 @@ function extractNested(command: string): { plain: string; nested: string[] } {
   return { plain, nested }
 }
 
-/** 引号感知拆分: 保护 "..." 与 '...' 内的 && / || / | / ; / 换行 */
+/** 引号与转义感知拆分: 保护 "..." 与 '...' 内的 && / || / | / ; / & / 换行, 独立切分各个子命令 */
 function splitSegments(command: string): string[] {
   const segments: string[] = []
   let current = ''
@@ -132,8 +132,20 @@ function splitSegments(command: string): string[] {
   for (let i = 0; i < command.length; i++) {
     const ch = command[i]
     if (quote != null) {
+      // 双引号内的 \" 与 \\ 转义保护, 避免双引号提前闭合
+      if (quote === '"' && ch === '\\' && i + 1 < command.length) {
+        current += ch + command[i + 1]
+        i++
+        continue
+      }
       current += ch
       if (ch === quote) quote = null
+      continue
+    }
+    // 引号外的 \ 转义字符保护(如 \&, \;, \|, \")
+    if (ch === '\\' && i + 1 < command.length) {
+      current += ch + command[i + 1]
+      i++
       continue
     }
     if (ch === '"' || ch === "'") {
@@ -154,6 +166,16 @@ function splitSegments(command: string): string[] {
     if (ch === ';' || ch === '\n' || ch === '|') {
       push()
       continue
+    }
+    if (ch === '&') {
+      // 重定向判定: &> / &>> 为重定向输出; >& / <& 为重定向文件描述符(如 2>&1)
+      const isRedirectOut = command[i + 1] === '>'
+      const prevChar = i > 0 ? command[i - 1] : ''
+      const isRedirectFd = prevChar === '>' || prevChar === '<'
+      if (!isRedirectOut && !isRedirectFd) {
+        push()
+        continue
+      }
     }
     current += ch
   }

@@ -180,6 +180,35 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
+  it('& 后台串联: 危险命令在 & 之后执行 → deny(防止后台绕过)', async () => {
+    const dir = tempRepo()
+    try {
+      const r = await evaluateCommand('sleep 1 & git push origin develop', {
+        repoRoot: dir,
+        runner: scriptedRunner(),
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(r.outcome).toBe('deny')
+      expect(r.segmentCount).toBe(2)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('& 位于末尾: 危险命令在后台执行 → deny', async () => {
+    const dir = tempRepo()
+    try {
+      const r = await evaluateCommand('git push origin develop &', {
+        repoRoot: dir,
+        runner: scriptedRunner(),
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(r.outcome).toBe('deny')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('合法串联: 切新分支并推 feature → allow', async () => {
     const dir = tempRepo()
     try {

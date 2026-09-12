@@ -446,4 +446,89 @@ describe('classify: 跨平台路径与可执行文件解析(Windows 路径与 .e
   })
 })
 
+describe('classify: Shell 分隔符切分(单 &, ;, |, ||, && 与重定向保护)', () => {
+  it('单个 & 后台串联: sleep 1 & git push 识别全部段', () => {
+    const r = classify('sleep 1 & git push origin develop')
+    expect(r).toEqual([
+      { kind: 'other' },
+      { kind: 'push', dst: 'develop', force: false, delete: false },
+    ])
+  })
+
+  it('末尾单个 & 后台执行: 识别为目标推送而非将 & 作为 refspec', () => {
+    const r = classify('git push origin develop &')
+    expect(r).toEqual([
+      { kind: 'push', dst: 'develop', force: false, delete: false },
+    ])
+  })
+
+  it('首部 & (PowerShell 调用符形态或前导分隔符): 仍识别其后的危险命令', () => {
+    const r = classify('& git push origin develop')
+    expect(r).toEqual([
+      { kind: 'push', dst: 'develop', force: false, delete: false },
+    ])
+  })
+
+  it('无空格紧凑单 &: sleep 1&git push 依然正确切分', () => {
+    const r = classify('sleep 1&git push origin develop')
+    expect(r).toEqual([
+      { kind: 'other' },
+      { kind: 'push', dst: 'develop', force: false, delete: false },
+    ])
+  })
+
+  it('多重 & 连续串联: cmd1 & cmd2 & cmd3 逐一分类', () => {
+    const r = classify('sleep 1 & sleep 2 & git push origin develop')
+    expect(r).toEqual([
+      { kind: 'other' },
+      { kind: 'other' },
+      { kind: 'push', dst: 'develop', force: false, delete: false },
+    ])
+  })
+
+  it('Windows cmd.exe 风格顺序串联(dir & git push)', () => {
+    const r = classify('dir & git push origin develop')
+    expect(r).toEqual([
+      { kind: 'other' },
+      { kind: 'push', dst: 'develop', force: false, delete: false },
+    ])
+  })
+
+  it('重定向保护: 2>&1 与 >&2 中的 & 不作为命令切分符', () => {
+    const r = classify('sleep 1 2>&1 & git push origin develop')
+    expect(r).toEqual([
+      { kind: 'other' },
+      { kind: 'push', dst: 'develop', force: false, delete: false },
+    ])
+  })
+
+  it('重定向保护: &> 与 &>> 输出重定向中的 & 不作为命令切分符', () => {
+    const r = classify('sleep 1 &> /dev/null & git push origin develop')
+    expect(r).toEqual([
+      { kind: 'other' },
+      { kind: 'push', dst: 'develop', force: false, delete: false },
+    ])
+  })
+
+  it('引号保护: commit 信息中包含 & 不被错误切分', () => {
+    const r = classify('git commit -m "feat: user & auth" & git push origin develop')
+    expect(r).toHaveLength(2)
+    expect(r[0].kind).toBe('other')
+    expect(r[1]).toMatchObject({ kind: 'push', dst: 'develop' })
+  })
+
+  it('引号转义保护: 双引号内转义 \\" 后的 & 仍处于引号保护中', () => {
+    const r = classify('git commit -m "message with \\"escaped quotes\\" & symbols" & git push origin develop')
+    expect(r).toHaveLength(2)
+    expect(r[1]).toMatchObject({ kind: 'push', dst: 'develop' })
+  })
+
+  it('转义保护: 命令行外层 \\& 转义为普通字符不作命令切分', () => {
+    const r = classify('echo foo \\& git push origin develop')
+    expect(r).toHaveLength(1)
+    expect(r[0].kind).toBe('other')
+  })
+})
+
+
 
