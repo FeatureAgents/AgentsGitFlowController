@@ -189,13 +189,23 @@ function hasAliasSmuggleTokens(tokens: string[]): boolean {
   )
 }
 
+/** 规范化可执行文件名: 兼容 / 与 \ 路径分隔符, 剥离 .exe/.cmd/.bat 后缀并转为小写(Windows 大小写不敏感) */
+function normalizeCommandName(rawCmd: string): string {
+  const unquoted = rawCmd.replace(/^['"]|['"]$/g, '')
+  const lastSep = Math.max(unquoted.lastIndexOf('/'), unquoted.lastIndexOf('\\'))
+  const basename = lastSep >= 0 ? unquoted.slice(lastSep + 1) : unquoted
+  return basename.replace(/\.(exe|cmd|bat)$/i, '').toLowerCase()
+}
+
 /** 分派: 已知命令直接解析; 包装器剥壳后递归(token 只减不增, 必然终止) */
 function classifyTokens(tokens: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
   if (tokens.length === 0) return [{ kind: 'other' }]
   if (hasAliasSmuggleTokens(tokens)) return [{ kind: 'alias-smuggle' }]
   const rawCmd = tokens[0]
-  const cmd = rawCmd.includes('/') ? rawCmd.slice(rawCmd.lastIndexOf('/') + 1) : rawCmd
+  const cmd = normalizeCommandName(rawCmd)
   if (SHELLS.has(cmd)) return classifyShellWrapped(tokens, ctx, depth, scope)
+  if (cmd === 'powershell' || cmd === 'pwsh') return classifyPowerShellWrapped(tokens, ctx, depth, scope)
+  if (cmd === 'cmd') return classifyCmdWrapped(tokens, ctx, depth, scope)
   if (cmd === 'env') return classifyTokens(stripEnvArgs(tokens.slice(1)), ctx, depth, scope)
   if (cmd === 'sudo') return classifyTokens(stripSudoArgs(tokens.slice(1)), ctx, depth, scope)
   if (WRAPPERS.has(cmd)) return classifyTokens(stripWrapperArgs(tokens.slice(1)), ctx, depth, scope)
@@ -207,15 +217,46 @@ function classifyTokens(tokens: string[], ctx: ClassifyContext, depth: number, s
   return [{ kind: 'other' }]
 }
 
+/** powershell/pwsh -Command / -c "<script>": 定位 -c / -command 取脚本文本递归分类 */
+function classifyPowerShellWrapped(tokens: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
+  if (depth >= MAX_NESTED_DEPTH) return [{ kind: 'other' }]
+  for (let i = 1; i < tokens.length; i++) {
+    const a = tokens[i].toLowerCase()
+    if (a === '-c' || a === '-command' || a === '--command') {
+      const rest = tokens.slice(i + 1)
+      if (rest.length === 0) break
+      const script = rest.join(' ')
+      return script.length > 0 ? classifyDepth(script, ctx, depth + 1, scope) : [{ kind: 'other' }]
+    }
+  }
+  return [{ kind: 'other' }]
+}
+
+/** cmd.exe /c "<command>": 定位 /c 或 /k 取后续命令递归分类 */
+function classifyCmdWrapped(tokens: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
+  if (depth >= MAX_NESTED_DEPTH) return [{ kind: 'other' }]
+  for (let i = 1; i < tokens.length; i++) {
+    const a = tokens[i].toLowerCase()
+    if (a === '/c' || a === '/k' || a === '-c') {
+      const rest = tokens.slice(i + 1)
+      if (rest.length === 0) break
+      const script = rest.join(' ')
+      return script.length > 0 ? classifyDepth(script, ctx, depth + 1, scope) : [{ kind: 'other' }]
+    }
+  }
+  return [{ kind: 'other' }]
+}
+
 /** sh/bash -lc "<script>": 定位 -c(含合并短旗标如 -lc)取脚本文本递归; 取不到按 other 放行 */
 function classifyShellWrapped(tokens: string[], ctx: ClassifyContext, depth: number, scope: AliasScope): Classified[] {
+  if (depth >= MAX_NESTED_DEPTH) return [{ kind: 'other' }]
   for (let i = 1; i < tokens.length; i++) {
     const a = tokens[i]
     const isCFlag = a === '-c' || (a.startsWith('-') && !a.startsWith('--') && a.includes('c'))
     if (!isCFlag) continue
     const script = tokens[i + 1]
     if (script == null) break
-    return script.length > 0 ? classifyDepth(script, ctx, depth, scope) : [{ kind: 'other' }]
+    return script.length > 0 ? classifyDepth(script, ctx, depth + 1, scope) : [{ kind: 'other' }]
   }
   return [{ kind: 'other' }]
 }
