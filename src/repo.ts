@@ -8,6 +8,8 @@ export interface RunResult {
   code: number
   stdout: string
   stderr: string
+  /** 子进程因超时被杀: 区分"执行失败"与"命令确实不适用"(如未设置 upstream) */
+  timedOut?: boolean
 }
 
 /** 命令执行器(外部边界, 测试注入 fake) */
@@ -15,29 +17,42 @@ export interface Runner {
   run(args: string[], cwd: string): Promise<RunResult>
 }
 
-function makeRunner(bin: string): Runner {
+/** 超时熔断: 调用方需显式处理, 不得把"查不出"折算成"不受保护" */
+export class RunnerTimeoutError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RunnerTimeoutError'
+  }
+}
+
+export function makeRunner(bin: string, timeoutMs: number = 10_000): Runner {
   return {
     async run(args, cwd) {
       return await new Promise<RunResult>((resolve) => {
-        execFile(bin, args, { cwd, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
-          const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 1) : 0
-          resolve({ code, stdout: stdout ?? '', stderr: stderr ?? '' })
+        // killSignal 用 SIGKILL: 忽略 SIGTERM 的子进程不能拖垮超时熔断
+        execFile(bin, args, { cwd, maxBuffer: 16 * 1024 * 1024, timeout: timeoutMs, killSignal: 'SIGKILL' }, (err, stdout, stderr) => {
+          const e = err as (NodeJS.ErrnoException & { killed?: boolean }) | null
+          const code = e ? (typeof e.code === 'number' ? e.code : 1) : 0
+          // 超时被杀时 node 置 killed=true 且 code 非数字(通常为 null)
+          const timedOut = !!e && e.killed === true && typeof e.code !== 'number'
+          resolve({ code, stdout: stdout ?? '', stderr: stderr ?? '', ...(timedOut ? { timedOut: true } : {}) })
         })
       })
     },
   }
 }
 
-export const gitRunner: Runner = makeRunner('git')
+export const gitRunner: Runner = makeRunner('git', 10_000)
 
-/** GitHub 适配器: gh */
-export const ghRunner: Runner = makeRunner('gh')
+/** GitHub 适配器: gh (外部 CLI 超时 5 秒) */
+export const ghRunner: Runner = makeRunner('gh', 5_000)
 
-/** GitLab 适配器: glab */
-export const glabRunner: Runner = makeRunner('glab')
+/** GitLab 适配器: glab (外部 CLI 超时 5 秒) */
+export const glabRunner: Runner = makeRunner('glab', 5_000)
 
 export async function findRepoRoot(runner: Runner, cwd: string): Promise<string | null> {
   const r = await runner.run(['rev-parse', '--show-toplevel'], cwd)
+  if (r.timedOut) throw new RunnerTimeoutError('git rev-parse --show-toplevel timed out')
   return r.code === 0 ? r.stdout.trim() || null : null
 }
 
@@ -49,6 +64,7 @@ export async function commonGitDir(runner: Runner, cwd: string): Promise<string 
 
 export async function currentBranch(runner: Runner, cwd: string): Promise<string | null> {
   const r = await runner.run(['branch', '--show-current'], cwd)
+  if (r.timedOut) throw new RunnerTimeoutError('git branch --show-current timed out')
   return r.code === 0 ? r.stdout.trim() || null : null
 }
 
@@ -113,10 +129,10 @@ export function resolvePrTarget(info: { base: string; head: string } | null, con
 }
 
 /** 查询工作区暂存区与未追踪文件状态(git status --porcelain=v1 -uall) */
-export async function getWorktreeStatus(runner: Runner, cwd: string): Promise<WorktreeStatusFact> {
+export async function getWorktreeStatus(runner: Runner, cwd: string): Promise<WorktreeStatusFact | null> {
   const r = await runner.run(['status', '--porcelain=v1', '-uall'], cwd)
   if (r.code !== 0) {
-    return { staged: 0, unstaged: 0, untracked: 0, isDirty: false }
+    return null
   }
   let staged = 0
   let unstaged = 0
@@ -144,6 +160,7 @@ export async function getWorktreeStatus(runner: Runner, cwd: string): Promise<Wo
 /** 查询当前分支相对 upstream 的 ahead/behind 计数 (git rev-list --left-right --count HEAD...@{upstream}) */
 export async function getUpstreamDivergence(runner: Runner, cwd: string, upstream: string = '@{upstream}'): Promise<DivergenceFact | null> {
   const r = await runner.run(['rev-list', '--left-right', '--count', `HEAD...${upstream}`], cwd)
+  if (r.timedOut) throw new RunnerTimeoutError('git rev-list --left-right --count timed out')
   if (r.code !== 0) return null
   const parts = r.stdout.trim().split(/\s+/)
   if (parts.length >= 2) {

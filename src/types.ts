@@ -176,6 +176,8 @@ export interface GateFacts {
   worktreeStatus?: WorktreeStatusFact | null
   /** 相对 upstream 的偏离事实 */
   upstreamDivergence?: DivergenceFact | null
+  /** git 只读查询超时熔断: 无法确认仓库事实时保守拒绝, 不得折算成"不受保护" */
+  repoTimeout?: boolean
 }
 
 /** PR 解析结果: 目标角色 + head 分支 + 目标分支名(来自 gh/glab view) */
@@ -192,4 +194,3 @@ export type GateDecision =
 
 /** wire 目标客户端枚举(dsh/pi 为进程内接入, 无 hook 文件, 仅输出接入引导) */
 export type ClientId = 'dsh' | 'claude' | 'codex' | 'opencode' | 'antigravity' | 'pi' | 'codebuddy' | 'zcode' | 'cursor'
-

@@ -36,14 +36,25 @@ cat << 'EOF' > "$TMP_REPO/gitflow-guard.config.json"
 }
 EOF
 
-PASS=0; FAIL=0; FAILED_CASES=""
+PASS=0; FAIL=0; SKIP=0; FAILED_CASES=""
 
 check() {
   local branch="$1" cmd="$2" want="$3"
-  git -C "$TMP_REPO" checkout -q "$branch" || { echo "SKIP [no branch $branch] $cmd"; return; }
+  git -C "$TMP_REPO" checkout -q "$branch" || { echo "SKIP [no branch $branch] $cmd"; SKIP=$((SKIP+1)); return; }
   node "$GUARD_BIN" check --command "$cmd" --repo "$TMP_REPO" >/tmp/gf-out.txt 2>/tmp/gf-err.txt
   local code=$? got
-  if [ "$code" -eq 2 ]; then got=deny; else got=allow; fi
+  # 退出码只有 0(放行) 与 2(拦截) 属于协议内结果; 其它退出码是守卫自身故障,
+  # 必须单列为 FAIL —— 否则"守卫崩溃"会被记成"合法放行"(台账 P3-9)。
+  if [ "$code" -eq 0 ]; then
+    got=allow
+  elif [ "$code" -eq 2 ]; then
+    got=deny
+  else
+    FAIL=$((FAIL+1))
+    FAILED_CASES="$FAILED_CASES\nFAIL [$branch] $cmd => internal-error(exit $code) (want $want)"
+    sed 's/^/    /' /tmp/gf-err.txt | head -2
+    return
+  fi
   if [ "$got" = "$want" ]; then
     PASS=$((PASS+1))
   else
@@ -247,5 +258,10 @@ EOF
 
 printf '%b' "$FAILED_CASES"
 echo ""
+# SKIP 意味着沙箱缺少用例所需分支: 属矩阵自身故障, 必须计入失败而不是静默跳过
+if [ "$SKIP" -ne 0 ]; then
+  echo "FAIL: $SKIP case(s) skipped — sandbox is missing required branches"
+  FAIL=$((FAIL+SKIP))
+fi
 echo "=== GitFlow Guard 169 决策矩阵: $PASS PASS / $FAIL FAIL ==="
 [ "$FAIL" -eq 0 ]

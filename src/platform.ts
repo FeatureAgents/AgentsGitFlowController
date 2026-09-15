@@ -35,6 +35,8 @@ interface RawPayload {
   turn_id?: unknown
   cursor_version?: unknown
   workspace_roots?: unknown
+  conversation_id?: unknown
+  generation_id?: unknown
   // agy 1.1.22 实机 payload 核验(TestResult/antigravity.md AGY-D3): cwd 在 toolCall.args.Cwd(嵌套大写 C), 不在顶层
   toolCall?: { args?: { CommandLine?: unknown; Cwd?: unknown } }
 }
@@ -90,14 +92,24 @@ export function extractHookPayload(raw: string, platform: HookPlatform | 'auto' 
   return { command, cwd: cwd || undefined, toolUseId: str(j.tool_use_id) || undefined, event: eventFrom(j.hook_event_name) }
 }
 
-/** 按 payload 判别平台: 非空 turn_id→codex, toolCall→antigravity, tool_args→opencode, cursor_version/workspace_roots→cursor, 其余→claude */
+/** 按 payload 判别平台: 非空 turn_id→codex, toolCall→antigravity, tool_args→opencode, cursor 特征(cursor_version/workspace_roots/beforeShellExecution/afterShellExecution/顶层 command 无 tool_input)→cursor, 其余→claude */
 export function detectPlatform(raw: string): HookPlatform {
   const j = parseRaw(raw)
   if (!j) return 'claude'
   if (j.turn_id) return 'codex'
   if (j.toolCall) return 'antigravity'
   if (j.tool_args) return 'opencode'
-  if (j.cursor_version || j.workspace_roots) return 'cursor'
+  if (
+    j.cursor_version ||
+    j.workspace_roots ||
+    j.conversation_id ||
+    j.generation_id ||
+    j.hook_event_name === 'beforeShellExecution' ||
+    j.hook_event_name === 'afterShellExecution' ||
+    (typeof j.command === 'string' && !j.tool_input)
+  ) {
+    return 'cursor'
+  }
   return 'claude'
 }
 

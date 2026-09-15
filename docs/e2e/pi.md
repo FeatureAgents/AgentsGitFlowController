@@ -15,7 +15,7 @@
 
 ## 用例
 
-### A. 真实拦截(deny)——gfguard-pi-cases.sh 用例 A-C
+### A. 真实拦截(deny)——`scripts/test-pi-extension.sh` 用例 A-C
 
 | ID | 命令 | 前置 | 期望 | 断言要点 |
 |---|---|---|---|---|
@@ -27,12 +27,12 @@
 | PI-A6 | `git checkout -B master` | fix 分支 | `{block:true}` | 0.0.19 修复面:强制重建拒绝 |
 | PI-A7 | 受保护分支上 `git cherry-pick <sha>` | master | `{block:true}` | 0.0.19 修复面:HEAD 不变 |
 
-### B. 真实放行(allow)——gfguard-pi-cases.sh 用例 D + gfguard-realflow.sh
+### B. 真实放行(allow)——`scripts/test-pi-extension.sh` 用例 D + `scripts/test-git-realflow.sh`
 
 | ID | 命令 | 前置 | 期望 | 断言要点 |
 |---|---|---|---|---|
 | PI-B1 | `git push origin task/pi-e2e` | task/pi-e2e | 真实执行 | 远端真实创建(脚本比对 AFTER) |
-| PI-B2 | feature 全生命周期(建/改/amend/reset/merge master/push -u/force push/rename/删除) | 见脚本 | 全部真实执行 | 走通 `gfguard-realflow.sh`(含 `merge master` 受保护合入 feature、feature 上 `commit --amend`/`reset --soft`/force push) |
+| PI-B2 | feature 全生命周期(建/改/amend/reset/merge master/push -u/force push/rename/删除) | 见脚本 | 全部真实执行 | 走通 `scripts/test-git-realflow.sh`(含 `merge master` 受保护合入 feature、feature 上 `commit --amend`/`reset --soft`/force push) |
 | PI-B3 | 受保护分支间 `git merge master`(在 beta) | beta | 真实执行 | 设计内:preview 可合入 integration |
 | PI-B4 | tags-only `git push --tags origin` | master | 真实执行 | 设计豁免 |
 | PI-B5 | 非 git 命令(如 `npm test`) | 任意 | 真实执行 | 扩展快路径不 spawn |
@@ -49,13 +49,13 @@
 | ID | 用例 | 说明 |
 |---|---|---|
 | PI-D1 | 拆条执行 | 模型把链式命令拆成单条时,`git commit -m x`(受保护分支普通 commit)按设计放行、`git push origin master` 仍被拦(2026-08-28 事故复盘;证据:事故记录 + 重跑确认 push 侧拦截) |
-| PI-D2 | fail-open | 令 `GITFLOW_GUARD_BIN` 指向不存在路径(spawn 失败)→ 命令放行(降级不阻断);恢复后拦截恢复 |
-| PI-D3 | 决策矩阵联动 | `gfguard-matrix.sh`(135 用例 CLI 文本级)变动的命令族须在 Pi 扩展通道至少各抽 1 条真机复核 |
+| PI-D2 | fail-open / 超时阻断 | 令 `GITFLOW_GUARD_BIN` 指向不存在路径(spawn 失败)→ 命令放行(降级不阻断);恢复后拦截恢复。**超时例外**: 守卫子进程被超时终结(外层 45s、`killSignal: SIGKILL`)→ `{ block: true }` 阻断, 不退化为放行 |
+| PI-D3 | 决策矩阵联动 | `scripts/test-git-matrix.sh`(169 用例 CLI 文本级)变动的命令族须在 Pi 扩展通道至少各抽 1 条真机复核 |
 
 ## 运行方式
 
 ```bash
-# 决策矩阵(135 用例,CLI 级)
+# 决策矩阵(169 用例,CLI 级)
 npm run test:git-matrix
 # 真实拦截(Pi 扩展通道,用例 A-D)
 npm run test:pi

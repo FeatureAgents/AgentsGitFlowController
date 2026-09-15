@@ -21,7 +21,7 @@ export function roleOfBranch(branch: string | null | undefined, config: GuardCon
   if (config.branches.integration && roleMatches(branch, config.branches.integration)) return 'integration'
   if (config.branches.archive && roleMatches(branch, config.branches.archive)) return 'archive'
   try {
-    if (new RegExp(config.featurePattern).test(branch)) return 'feature'
+    if (new RegExp(`^(?:${config.featurePattern})$`).test(branch)) return 'feature'
   } catch {
     // 非法正则已在配置层拦截
   }
@@ -43,6 +43,8 @@ function roleLabel(role: BranchRoleName, t: T, branch?: string | null): string {
 }
 
 export function decide(classified: Classified, facts: GateFacts, config: GuardConfig, t: T = defaultT): GateDecision {
+  // 超时熔断: 关键的仓库事实(git 查询)不可得时保守拒绝
+  if (facts.repoTimeout) return deny(t('repoTimeout.why'), t('repoTimeout.next'))
   switch (classified.kind) {
     case 'push':
       return decidePush(classified, facts, config, t)
@@ -105,7 +107,9 @@ function checkWorktreeClean(facts: GateFacts, config: GuardConfig, t: T): GateDe
   const wt = config.worktree
   if (!wt) return null
   const status = facts.worktreeStatus
-  if (!status) return null
+  if (status === null || status === undefined) {
+    return deny(t('worktreeStatusUnknown.why'), t('worktreeStatusUnknown.next'))
+  }
 
   if (status.isDirty) {
     return deny(
@@ -217,13 +221,23 @@ function decidePrMerge(c: Extract<Classified, { kind: 'pr-merge' }>, facts: Gate
   if (!resolved) return deny(t('prMergeUnknown.why'), t('prMergeUnknown.next'))
 
   const role = resolved.role
-  if (role === 'production') {
+  if (role === 'integration') {
+    if (config.branches.integration.mergeBy === 'user') {
+      return deny(t('prMergeIntegration.why'), t('prMergeIntegration.next'))
+    }
+  } else if (role === 'preview') {
+    if (config.branches.preview?.mergeBy === 'user') {
+      return deny(t('prMergePreview.why'), t('prMergePreview.next'))
+    }
+  } else if (role === 'production') {
     const prod = config.branches.production
     if (prod?.mergeBy === 'user') {
       return deny(t('prMergeProduction.why'), t('prMergeProduction.next'))
     }
   } else if (role === 'archive') {
-    return deny(t('prMergeArchive.why'), t('prMergeArchive.next'))
+    if (config.branches.archive?.mergeBy !== 'anyone') {
+      return deny(t('prMergeArchive.why'), t('prMergeArchive.next'))
+    }
   }
 
   // 角色权限通过后, 检查工作区状态(若配置启用)

@@ -93,6 +93,17 @@ function runCheck(platform, payload, cwd) {
   }
 }
 
+/** 跑 bin 的 check 且不带 --platform: 覆盖 detectPlatform 自动判别路径(§8-5 / §15) */
+function runCheckAuto(payload, cwd) {
+  try {
+    const out = execFileSync('node', [BIN, 'check'], { input: payload, cwd, encoding: 'utf8' })
+    return { code: 0, stdout: out, stderr: '' }
+  } catch (e) {
+    const err = e
+    return { code: typeof err.status === 'number' ? err.status : -1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' }
+  }
+}
+
 const CONFIG = {
   enabled: true,
   featurePattern: 'feature/[\\w-]+',
@@ -364,6 +375,15 @@ console.log('[J] Cursor hook (--platform cursor + wire 装配)')
     check('拦截: stdout JSON 含 user_message 与 agent_message', /user_message/.test(deny.stdout) && /agent_message/.test(deny.stdout), deny.stdout)
     const ok = runCheck('cursor', JSON.stringify({ hook_event_name: 'beforeShellExecution', command: 'npm test', cwd: repo }), repo)
     check('放行: exit 0 且无输出', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
+    // 自动判别路径(不带 --platform): 无 cursor_version 的 Cursor payload 也必须按 Cursor 协议编码
+    const autoDeny = runCheckAuto(JSON.stringify({ hook_event_name: 'beforeShellExecution', command: 'git push origin develop', cwd: repo }), repo)
+    check(
+      '自动判别: 无 cursor_version → Cursor 协议 (exit 0 + permission=deny)',
+      autoDeny.code === 0 && /"permission":"deny"/.test(autoDeny.stdout),
+      `code=${autoDeny.code} stdout=${autoDeny.stdout}`,
+    )
+    const autoOk = runCheckAuto(JSON.stringify({ hook_event_name: 'beforeShellExecution', command: 'npm test', cwd: repo }), repo)
+    check('自动判别: 放行用例 exit 0 且无输出', autoOk.code === 0 && autoOk.stdout === '', `code=${autoOk.code}`)
     // wire 装配: 落位到 .cursor/hooks.json; 命令为执行包 runner 绝对路径
     execFileSync('node', [BIN, 'wire', '--client', 'cursor', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
     const config = JSON.parse(readFileSync(join(repo, '.cursor', 'hooks.json'), 'utf8'))
@@ -387,5 +407,4 @@ console.log('[J] Cursor hook (--platform cursor + wire 装配)')
 console.log('\n' + lines.join('\n'))
 console.log(`\n=== ${pass} PASS / ${fail} FAIL ===`)
 process.exit(fail ? 1 : 0)
-
 
