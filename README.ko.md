@@ -316,7 +316,7 @@ archive (선택; 배포 후 사람이 직접 아카이브)
 - `update`: `pr` (기본값) = PR/MR을 통해서만 업데이트; `flexible` = 직접 푸시 및 로컬 머지 허용 (소규모 팀용).
 - `mergeBy` (production): `user` (기본값) = 사람만 머지 버튼 클릭 가능; `anyone` = PR 머지 허용.
 - **작업 트리 및 업스트림 베이스라인 가드 (`worktree`)**: 선택적 상태 및 이탈 검사 —— `requireCleanOnPr: true`는 커밋되지 않은 스테이징/미스테이징 변경 사항이 있을 때 PR 생성을 차단합니다. `requireCleanOnMerge: true`는 작업 트리가 더러운 상태에서의 로컬 및 PR 머지를 차단합니다. `allowUntracked` (기본값 `true`)는 미추적 파일 (`??`)을 마찰 없이 허용하며, 인간-AI 협업 환경에서 엄격한 통제를 위해 `false`로 설정할 수 있습니다. `requireUpstreamSynced: true`는 브랜치가 업스트림 베이스라인보다 뒤처져 있을 때 PR 생성을 차단합니다. 다중 세그먼트 복합 명령(예: `git add . && git commit && gh pr create`)에서는 후속 세그먼트에 대해 클린 상태가 동적으로 시뮬레이션됩니다.
-- 각 브랜치 항목은 정확한 이름 또는 정규식(자동 감지)입니다. **정규식 안전성**: 브랜치 패턴은 사용자가 작성한 대로 컴파일되므로 `featurePattern` 및 브랜치 항목에 치명적인 백트래킹(예: `(\w+)+`와 같은 중첩 수량자)을 유발하는 표현을 피하세요.
+- 각 브랜치 항목은 정확한 이름 또는 정규식(자동 감지)입니다. **정규식 안전성**: 브랜치 패턴은 사용자가 작성한 대로 컴파일되며, `featurePattern`은 브랜치 이름 전체를 대상으로 판정합니다(`^(?:<pattern>)$`로 컴파일). 이름 전체를 포괄하는 식을 작성하세요. `feature/`나 단독 `fix` 같은 부분 문자열 방식은 일치하지 않아 해당 브랜치는 `other`로 분류됩니다. `featurePattern` 및 브랜치 항목에 치명적인 백트래킹(예: `(\w+)+`와 같은 중첩 수량자)을 유발하는 표현을 피하세요.
 - **메시지 언어**: 기본값은 영어입니다. 중국어로 변경하려면 `"locale": "zh"`를 추가하거나 임의의 `gitflow-guard` 하위 명령에 `--locale <en|zh>`를 전달할 수 있습니다 (우선순위: CLI 플래그 > 프로젝트 설정 > 영어). `--help`, 알 수 없는 명령어 안내, 빈 감사 로그 안내 등 모든 CLI 프레임워크 텍스트가 locale을 따릅니다.
 - **커스텀 언어 등록**: 다운스트림 패키지는 런타임에 언어를 추가할 수 있습니다 — `import { registerLocale } from 'agents-gitflow-guard'`, 내장 영문 사전과 완전히 동일한 키를 가진 딕셔너리를 전달하여 `registerLocale('fr', frDict)`를 호출하고, 프로젝트 설정에 `"locale": "fr"`을 지정하면 활성화됩니다.
 
@@ -620,7 +620,7 @@ npm run build           # 빌드: tsdown → lib/ (CLI 및 플러그인 공유)
 npm run check:pins      # package.json 버전과 CHANGELOG 제목 및 README 핀 일치 여부 확인
 npm run check:readmes   # 11개 README의 구조 대칭 유지 검증 (제목 44개 / 표 7개 / 목차 항목 17개)
 npm run verify:matrix   # 연속 회귀 매트릭스 테스트: DSH 로직 + zh 로케일 + 멀티 클라이언트 hook + Pi 확장
-npm run test:git-matrix # 실제 저장소 대상 135개 케이스 Git 판정 매트릭스
+npm run test:git-matrix # 실제 저장소 대상 169개 케이스 Git 판정 매트릭스
 npm run test:realflow   # 실제 원격 저장소 대상 feature 브랜치 라이프사이클 엔드투엔드
 npm run test:pi         # Pi 확장 엔드투엔드 (로컬 Pi 설치 필요)
 npm run test:all        # 타입 체크 + 단위 테스트 + 플랫폼 매트릭스 + Git 매트릭스 + realflow

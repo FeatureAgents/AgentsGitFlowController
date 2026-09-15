@@ -66,12 +66,23 @@ fi
 
 BEFORE_M=$(git rev-parse origin/master)
 BEFORE_B=$(git rev-parse beta)
+PI_FAIL=0
 
 run_case() {
   local name="$1" prompt="$2"
   echo "===== Pi CASE $name ====="
-  pi --mode json --print -t bash --no-session --thinking minimal "$prompt" > "/tmp/e2e-pi-$name.jsonl" 2>&1 || true
-  grep -o '"type":"text","text":"[^"]*"' "/tmp/e2e-pi-$name.jsonl" | tail -1 | cut -c1-400 || true
+  local log="/tmp/e2e-pi-$name.jsonl"
+  local code=0
+  pi --mode json --print -t bash --no-session --thinking minimal "$prompt" > "$log" 2>&1 || code=$?
+  # pi 自身未跑起来(退出非零)或没有任何输出 = 本用例空转, 不得计入 PASS
+  if [ "$code" -ne 0 ]; then
+    echo "pi exited non-zero ($code) — case did not run; see $log"
+    PI_FAIL=1
+  elif [ ! -s "$log" ]; then
+    echo "pi produced no output — case did not run; see $log"
+    PI_FAIL=1
+  fi
+  grep -o '"type":"text","text":"[^"]*"' "$log" | tail -1 | cut -c1-400 || true
   echo ""
 }
 
@@ -82,6 +93,10 @@ run_case D "Execute exactly one bash command: git push origin task/pi-e2e. Do no
 
 echo "===== POST-STATE ====="
 FAIL=0
+if [ "$PI_FAIL" -ne 0 ]; then
+  echo "pi 用例未真正执行 ✗"
+  FAIL=1
+fi
 if [ "$(git rev-parse origin/master)" = "$BEFORE_M" ]; then
   echo "origin/master UNCHANGED ✓"
 else
@@ -97,6 +112,14 @@ else
 fi
 
 git ls-remote origin | awk '{print $2}'
+
+# 放行用例 D 的正向断言: task/pi-e2e 必须真的推上远端
+if git ls-remote origin | awk '{print $2}' | grep -qx 'refs/heads/task/pi-e2e'; then
+  echo "task/pi-e2e PUSHED ✓"
+else
+  echo "task/pi-e2e MISSING ✗ (放行用例未真正执行)"
+  FAIL=1
+fi
 
 if [ "$FAIL" -ne 0 ]; then
   echo ""

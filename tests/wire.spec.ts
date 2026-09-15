@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync, statSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { isWired, WIRE_CLIENTS, applyWire, guardCommand, resolveRunnerPath, wiringState } from '../src/wire'
 import type { WiringState } from '../src/wire'
 
@@ -64,6 +64,195 @@ describe('wire: runner 自锚定(BUG-REPORT-wire-runner-deployment 回归)', () 
       expect(existsSync(path)).toBe(false)
       expect(await applyWire('claude', path, true, false, { runnerExists: () => false })).toBe('absent') // unwire 无需 runner
       expect(await applyWire('opencode', join(dir, '.opencode/plugins/gitflow-guard.ts'), false, false, { runnerExists: () => false })).toBe('added')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('wire: §16 回归 —— 仅回收因摘除守卫而变空的条目(非破坏性)', () => {
+  /** 三种 JSON 客户端形态的"数组落点": wrap 造完整文件对象, read 从解析对象取回条目数组 */
+  const shapes = [
+    {
+      client: 'claude' as const,
+      relativePath: '.claude/settings.json',
+      wrap: (items: unknown[]) => ({ hooks: { PreToolUse: items } }),
+      read: (obj: Record<string, unknown>) => (obj.hooks as { PreToolUse: unknown[] }).PreToolUse,
+    },
+    {
+      client: 'zcode' as const,
+      relativePath: '.zcode/config.json',
+      wrap: (items: unknown[]) => ({ hooks: { enabled: true, events: { PreToolUse: items } } }),
+      read: (obj: Record<string, unknown>) => (obj.hooks as { events: { PreToolUse: unknown[] } }).events.PreToolUse,
+    },
+    {
+      client: 'antigravity' as const,
+      relativePath: '.agents/hooks.json',
+      wrap: (items: unknown[]) => ({ 'gitflow-guard': { PreToolUse: items } }),
+      read: (obj: Record<string, unknown>) => (obj['gitflow-guard'] as { PreToolUse: unknown[] }).PreToolUse,
+    },
+  ]
+
+  for (const shape of shapes) {
+    it(`${shape.client}: 非对象数组元素(字符串)在 wire 与 unwire 之后原样保留`, async () => {
+      const dir = tempDir()
+      const path = join(dir, shape.relativePath)
+      mkdirSync(dirname(path), { recursive: true })
+      const legacy = 'legacy-string-element'
+      writeFileSync(path, `${JSON.stringify(shape.wrap([legacy]))}\n`)
+      try {
+        expect(await applyWire(shape.client, path, false, false)).toBe('added')
+        const wired = shape.read(JSON.parse(readFileSync(path, 'utf8')))
+        expect(wired).toHaveLength(2)
+        expect(wired[0]).toBe(legacy) // 字符串元素不被当作"空条目"吞掉
+        expect((wired[1] as { hooks: Array<{ command: string }> }).hooks[0].command).toBe(cmdOf(shape.client))
+
+        expect(await applyWire(shape.client, path, true, false)).toBe('removed')
+        const after = shape.read(JSON.parse(readFileSync(path, 'utf8')))
+        expect(after).toEqual([legacy]) // unwire 后仍原样保留
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it(`${shape.client}: 用户原有的空条目 { matcher, hooks: [] } 在 wire 与 unwire 之后保留`, async () => {
+      const dir = tempDir()
+      const path = join(dir, shape.relativePath)
+      mkdirSync(dirname(path), { recursive: true })
+      const emptyEntry = { matcher: '^Bash$', hooks: [] as unknown[] }
+      writeFileSync(path, `${JSON.stringify(shape.wrap([emptyEntry]))}\n`)
+      try {
+        expect(await applyWire(shape.client, path, false, false)).toBe('added')
+        const wired = shape.read(JSON.parse(readFileSync(path, 'utf8')))
+        expect(wired).toHaveLength(2)
+        expect(wired[0]).toEqual(emptyEntry) // 非本插件条目, 空 hooks 也不动
+
+        expect(await applyWire(shape.client, path, true, false)).toBe('removed')
+        const after = shape.read(JSON.parse(readFileSync(path, 'utf8')))
+        expect(after).toEqual([emptyEntry]) // 只回收"因摘除守卫而变空"的条目
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  }
+
+  it('codex: 单条目内用户命令与守卫命令并存 → unwire 保留条目与用户命令, 仅摘除守卫(旧实现整条删除)', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.codex/hooks.json')
+    mkdirSync(join(dir, '.codex'), { recursive: true })
+    const mixed = {
+      matcher: '^Bash',
+      hooks: [
+        { type: 'command', command: 'my-linter' },
+        { type: 'command', command: cmdOf('codex') },
+      ],
+    }
+    writeFileSync(path, `${JSON.stringify({ hooks: { PreToolUse: [mixed] } })}\n`)
+    try {
+      expect(await applyWire('codex', path, true, false)).toBe('removed')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj.hooks.PreToolUse).toEqual([{ matcher: '^Bash', hooks: [{ type: 'command', command: 'my-linter' }] }])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('zcode: 单条目内用户命令与守卫命令并存 → unwire 保留条目与用户命令, 仅摘除守卫(旧实现整条删除)', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.zcode/config.json')
+    mkdirSync(join(dir, '.zcode'), { recursive: true })
+    const mixed = {
+      matcher: '^Bash',
+      hooks: [
+        { type: 'command', command: 'my-linter' },
+        { type: 'command', command: cmdOf('zcode') },
+      ],
+    }
+    writeFileSync(path, `${JSON.stringify({ hooks: { enabled: true, events: { PreToolUse: [mixed] } } })}\n`)
+    try {
+      expect(await applyWire('zcode', path, true, false)).toBe('removed')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj.hooks.enabled).toBe(true)
+      expect(obj.hooks.events.PreToolUse).toEqual([{ matcher: '^Bash', hooks: [{ type: 'command', command: 'my-linter' }] }])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('antigravity: 用户条目与守卫条目共存 → unwire 保留顶层键与全部用户条目, 仅摘除守卫条目', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.agents/hooks.json')
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    const guardEntry = { matcher: 'run_command', hooks: [{ type: 'command', command: cmdOf('antigravity') }] }
+    const userEntry = { matcher: 'run_command', hooks: [{ type: 'command', command: 'my-audit.sh' }] }
+    const userPost = { matcher: 'run_command', hooks: [{ type: 'command', command: 'post-hook.sh' }] }
+    writeFileSync(path, `${JSON.stringify({ 'gitflow-guard': { PreToolUse: [guardEntry, userEntry], PostToolUse: [userPost] } })}\n`)
+    try {
+      expect(await applyWire('antigravity', path, true, false)).toBe('removed')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj['gitflow-guard']).toBeDefined()
+      expect(obj['gitflow-guard'].PreToolUse).toEqual([userEntry])
+      expect(obj['gitflow-guard'].PostToolUse).toEqual([userPost])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('antigravity: unwire 遍历顶层键内所有事件数组(含非 PreToolUse) → 摘除守卫, 键内无内容时才删键', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.agents/hooks.json')
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    const guardEntry = { matcher: 'run_command', hooks: [{ type: 'command', command: cmdOf('antigravity') }] }
+    const userPost = { matcher: 'run_command', hooks: [{ type: 'command', command: 'post-hook.sh' }] }
+    try {
+      // (i) PostToolUse 仅含守卫条目 → 摘除后键内无内容, 顶层键整键删除
+      writeFileSync(path, `${JSON.stringify({ 'gitflow-guard': { PostToolUse: [guardEntry] } })}\n`)
+      expect(await applyWire('antigravity', path, true, false)).toBe('removed')
+      expect(JSON.parse(readFileSync(path, 'utf8'))['gitflow-guard']).toBeUndefined()
+
+      // (ii) PostToolUse 守卫与用户条目并存 → 只摘守卫, 键与用户条目保留
+      writeFileSync(path, `${JSON.stringify({ 'gitflow-guard': { PostToolUse: [guardEntry, userPost] } })}\n`)
+      expect(await applyWire('antigravity', path, true, false)).toBe('removed')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj['gitflow-guard'].PostToolUse).toEqual([userPost])
+
+      // (iii) 守卫在 PreToolUse 被摘空, 但其他事件仍有用户条目 → 顶层键保留(不得连坐删除用户内容)
+      writeFileSync(path, `${JSON.stringify({ 'gitflow-guard': { PreToolUse: [guardEntry], PostToolUse: [userPost] } })}\n`)
+      expect(await applyWire('antigravity', path, true, false)).toBe('removed')
+      const obj2 = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj2['gitflow-guard'].PreToolUse).toEqual([])
+      expect(obj2['gitflow-guard'].PostToolUse).toEqual([userPost])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('antigravity: 守卫落在非数组位置(PreToolUse 为命令字符串) → unwire 返回 removed 并整键删除', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.agents/hooks.json')
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    // 非数组位置无法细粒度摘除 → 整键移除(但不动顶层其他键)
+    writeFileSync(path, `${JSON.stringify({ keep: { x: 1 }, 'gitflow-guard': { PreToolUse: cmdOf('antigravity') } })}\n`)
+    try {
+      expect(await applyWire('antigravity', path, true, false)).toBe('removed')
+      const obj = JSON.parse(readFileSync(path, 'utf8'))
+      expect(obj['gitflow-guard']).toBeUndefined()
+      expect(obj.keep.x).toBe(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('antigravity: 键内无守卫命令 → unwire 返回 absent 且文件字节不变(不重写序列化)', async () => {
+    const dir = tempDir()
+    const path = join(dir, '.agents/hooks.json')
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    const userEntry = { matcher: 'run_command', hooks: [{ type: 'command', command: 'my-audit.sh' }] }
+    const original = `${JSON.stringify({ 'gitflow-guard': { PreToolUse: [userEntry] } }, null, 2)}\n`
+    writeFileSync(path, original)
+    try {
+      expect(await applyWire('antigravity', path, true, false)).toBe('absent')
+      expect(readFileSync(path, 'utf8')).toBe(original)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -607,4 +796,3 @@ describe('wire: JSONC 注释与既有 hook 细粒度保留 (§16)', () => {
     }
   })
 })
-

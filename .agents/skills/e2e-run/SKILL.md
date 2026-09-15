@@ -10,7 +10,7 @@ This skill defines how to execute live end-to-end testing and collect physical e
 ## Mandatory Prerequisites
 
 1. **Verify Guard Build**: Ensure the guard under test is built from the latest codebase (`npm run build` has been executed, `lib/` is fresh).
-2. **Matrix and Realflow Regression**: Execute `npm run test:git-matrix` (the 135-case exhaustive Git command decision matrix) and `npm run test:realflow` (full feature branch lifecycle flow), asserting that all tests pass.
+2. **Matrix and Realflow Regression**: Execute `npm run test:git-matrix` (the exhaustive Git command decision matrix defined in `scripts/test-git-matrix.sh`) and `npm run test:realflow` (full feature branch lifecycle flow), asserting that all tests pass.
 3. **Controlled Sandboxes**: Run client tests strictly within temporary directories (e.g., `/tmp/e2e-<client>-repo` with `master=integration`, `beta=preview`, `(fix|task)/*=feature`, local bare remotes, and local config). **Never execute commands with successful push side-effects against real remotes.**
 4. **Client Credentials**: Smoke-test each client with a simple prompt (e.g., `codex exec "Reply with exactly: OK"`, `claude -p "Reply with exactly: OK"`, `pi --mode json ... "PI-OK"`, `opencode run "OK"`). When running in restricted sandbox environments, mirror credentials using platform-specific XDG/temporary directory variables.
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { decide, roleOfBranch } from '../src/gate'
+import { makeT } from '../src/i18n'
 import type { GateFacts, GuardConfig, PrTargetResolution } from '../src/types'
 
 function makeConfig(over: Partial<GuardConfig> = {}): GuardConfig {
@@ -162,14 +163,26 @@ describe('gate: 合并 PR/MR', () => {
     expect(decide({ kind: 'pr-merge', pr: '2' }, facts({ resolvePrTarget: resolve('preview', 'ita1', 'feature/x') }), config).kind).toBe('allow')
   })
 
-  it('目标集成 + mergeBy user → deny(只能用户亲手)', () => {
+  it('目标集成 + mergeBy user → deny(只能用户亲手), reason 指明角色且 next 给出用户亲手操作指引', () => {
     const userIntegration = makeConfig({ branches: { ...config.branches, integration: { branches: ['develop'], update: 'pr', mergeBy: 'user' } } })
-    expect(decide({ kind: 'pr-merge', pr: '1' }, facts({ resolvePrTarget: resolve('integration', 'develop', 'feature/x') }), userIntegration).kind).toBe('deny')
+    const d = decide({ kind: 'pr-merge', pr: '1' }, facts({ resolvePrTarget: resolve('integration', 'develop', 'feature/x') }), userIntegration)
+    expect(d.kind).toBe('deny')
+    if (d.kind === 'deny') {
+      expect(d.reason).toMatch(/integration/i)
+      expect(d.reason).toMatch(/only by you/i)
+      expect(d.next).toBeTruthy()
+    }
   })
 
-  it('目标预览 + mergeBy user → deny(只能用户亲手)', () => {
+  it('目标预览 + mergeBy user → deny(只能用户亲手), reason 指明角色且 next 给出用户亲手操作指引', () => {
     const userPreview = makeConfig({ branches: { ...config.branches, preview: { branches: ['ita1'], update: 'pr', mergeBy: 'user' } } })
-    expect(decide({ kind: 'pr-merge', pr: '2' }, facts({ resolvePrTarget: resolve('preview', 'ita1', 'feature/x') }), userPreview).kind).toBe('deny')
+    const d = decide({ kind: 'pr-merge', pr: '2' }, facts({ resolvePrTarget: resolve('preview', 'ita1', 'feature/x') }), userPreview)
+    expect(d.kind).toBe('deny')
+    if (d.kind === 'deny') {
+      expect(d.reason).toMatch(/preview/i)
+      expect(d.reason).toMatch(/only by you/i)
+      expect(d.next).toBeTruthy()
+    }
   })
 
   it('目标生产 + mergeBy user → deny(只能用户亲手)', () => {
@@ -208,6 +221,28 @@ describe('gate: 其他', () => {
     expect(decide({ kind: 'checkout', branch: 'develop' }, facts(), config).kind).toBe('allow')
     expect(decide({ kind: 'guard-cli', sub: 'status' }, facts(), config).kind).toBe('allow')
     expect(decide({ kind: 'guard-cli', sub: 'other' }, facts(), config).kind).toBe('allow')
+  })
+})
+
+describe('gate: 仓库事实超时熔断 (repoTimeout)', () => {
+  it('repoTimeout → 一律 deny(超时先行于分类判定), reason/next 命中超时文案', () => {
+    // 本可放行的动作(push feature / checkout)在事实不可读时也必须保守拒绝
+    const push = decide({ kind: 'push', dst: 'feature/dev-x-01', force: false, delete: false }, facts({ repoTimeout: true }), config)
+    expect(push.kind).toBe('deny')
+    if (push.kind === 'deny') {
+      expect(push.reason).toMatch(/timed out/i)
+      expect(push.next).toBeTruthy()
+    }
+    expect(decide({ kind: 'checkout', branch: 'develop' }, facts({ repoTimeout: true }), config).kind).toBe('deny')
+  })
+
+  it('repoTimeout 文案随 locale 一致(zh)', () => {
+    const d = decide({ kind: 'push', dst: 'feature/dev-x-01', force: false, delete: false }, facts({ repoTimeout: true }), config, makeT('zh'))
+    expect(d.kind).toBe('deny')
+    if (d.kind === 'deny') {
+      expect(d.reason).toContain('超时')
+      expect(d.next).toBeTruthy()
+    }
   })
 })
 

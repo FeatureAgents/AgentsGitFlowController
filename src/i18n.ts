@@ -67,6 +67,8 @@ const en: Dict = {
   'prMergeUnknown.next': () => 'Retry once gh/glab is available, or let the user handle it.',
   'worktreeStatusUnknown.why': () => 'Cannot determine worktree status (git status failed)',
   'worktreeStatusUnknown.next': () => 'Check git repository state, resolve any index lock or corruption, and retry.',
+  'repoTimeout.why': () => 'Git query timed out, so the guard cannot confirm branch/worktree facts',
+  'repoTimeout.next': () => 'Retry, or check for a hung git process or slow disk; the guard fails closed until facts are readable.',
   'denyDirtyWorktree.why': (v) => `Working tree has uncommitted changes (${v.staged} staged, ${v.unstaged} unstaged)`,
   'denyDirtyWorktree.next': () =>
     'Commit changes ("git commit") or stash them ("git stash") before creating a PR or merging.',
@@ -211,6 +213,8 @@ const zh: Dict = {
   'prMergeUnknown.next': () => '请确认 gh/glab 可用后重试, 或让用户亲手处理',
   'worktreeStatusUnknown.why': () => '无法查询工作区状态(git status 执行失败)',
   'worktreeStatusUnknown.next': () => '请检查 git 仓库状态、解除 index.lock 或修复异常后重试',
+  'repoTimeout.why': () => 'git 查询超时, 无法确认分支/工作区事实',
+  'repoTimeout.next': () => '请重试, 并排查是否有卡死的 git 进程或磁盘过慢; 事实不可读期间守卫按保守拒绝处理',
   'denyDirtyWorktree.why': (v) => `工作区存在未提交改动(暂存区 ${v.staged} 项, 未暂存 ${v.unstaged} 项)`,
   'denyDirtyWorktree.next': () => '请先提交改动(git commit)或暂存(git stash)后再发起 PR 或执行合并',
   'denyUntrackedWorktree.why': (v) => `工作区存在 ${v.untracked} 个未追踪文件`,

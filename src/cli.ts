@@ -9,7 +9,7 @@ import { evaluateCommand, formatDeny, stateDir } from './index'
 import { makeT, resolveLocale } from './i18n'
 import type { I18nVars, Locale } from './i18n'
 import { detectPlatform, encodeDeny, extractHookPayload } from './platform'
-import { currentBranch, findRepoRoot, gitRunner } from './repo'
+import { currentBranch, findRepoRoot, gitRunner, RunnerTimeoutError } from './repo'
 import { applyWire, isWireClient, wiringState, WIRE_CLIENTS } from './wire'
 import type { WireScope } from './wire'
 import type { HookPayload, HookPlatform } from './platform'
@@ -87,7 +87,7 @@ export async function main(argv: string[], opts: { runner?: Runner } = {}): Prom
   try {
     if (cmd === 'status') return await status(flags, runner)
     if (cmd === 'audit') return await audit(flags, runner)
-    if (cmd === 'check') return await check(flags)
+    if (cmd === 'check') return await check(flags, runner)
     if (cmd === 'wire') return await wire(flags, runner)
     if (cmd === 'setup') return await setup(flags, runner)
     const t = makeT(await resolveFrameworkLocale(flags, runner))
@@ -100,7 +100,14 @@ export async function main(argv: string[], opts: { runner?: Runner } = {}): Prom
 }
 
 async function status(flags: Flags, runner: Runner): Promise<number> {
-  const repoRoot = await resolveRepo(flags, runner)
+  let repoRoot: string | null
+  try {
+    repoRoot = await resolveRepo(flags, runner)
+  } catch (e) {
+    if (!(e instanceof RunnerTimeoutError)) throw e
+    console.error(makeT(resolveLocale(flags.locale))('repoTimeout.why'))
+    return 1
+  }
   if (!repoRoot) {
     console.error(makeT(resolveLocale(flags.locale))('cli.cannotLocate'))
     return 1
@@ -119,7 +126,14 @@ async function status(flags: Flags, runner: Runner): Promise<number> {
   // 非致命告警(如未注册 locale 回退 en)在启用态也可见(P2-2)
   for (const w of warnings) console.log(t('cli.statusConfigWarning', { warn: w }))
 
-  const branch = await currentBranch(runner, repoRoot)
+  let branch: string | null
+  try {
+    branch = await currentBranch(runner, repoRoot)
+  } catch (e) {
+    if (!(e instanceof RunnerTimeoutError)) throw e
+    console.error(t('repoTimeout.why'))
+    branch = null
+  }
   const c = config!
   console.log(t('cli.statusEnabled', { pattern: c.featurePattern }))
   console.log(t('cli.statusIntegration', { list: c.branches.integration.branches.join(', '), mode: c.branches.integration.update || 'pr' }))
@@ -339,7 +353,7 @@ function emitDeny(platform: HookPlatform, why: string, next: string, locale: Loc
 }
 
 /** check: agent hook 门禁。读 stdin hook payload(或 --command), exit 0=放行 / 2=拦截(按平台编码) */
-async function check(flags: Flags): Promise<number> {
+async function check(flags: Flags, runner: Runner): Promise<number> {
   const platformFlag = (flags.platform ?? 'auto') as HookPlatform | 'auto'
   let raw = ''
   let strict = false
@@ -361,7 +375,7 @@ async function check(flags: Flags): Promise<number> {
     if (segments.length === 0 || segments.every((s) => s.kind === 'other')) return 0
 
     const cwd = payload.cwd ?? process.cwd()
-    const repoRoot = flags.repo ?? (await findRepoRoot(gitRunner, cwd))
+    const repoRoot = flags.repo ?? (await findRepoRoot(runner, cwd))
     if (!repoRoot) return 0
     const loaded = await loadConfig(repoRoot)
     strict = loaded.strict === true || loaded.config?.strict === true
@@ -382,12 +396,18 @@ async function check(flags: Flags): Promise<number> {
     const config = loaded.config
     // locale(P2-1): --locale 旗标 > 项目 config > en; 并同步传入 evaluateCommand 保证 why/next 正文与封装同语言
     const locale = flags.locale != null ? resolveLocale(flags.locale) : resolveLocale(config.locale)
-    const result = await evaluateCommand(payload.command, { repoRoot, locale })
+    const result = await evaluateCommand(payload.command, { repoRoot, runner, locale })
     if (result.outcome === 'deny' && result.reason) {
       return emitDeny(denyPlatform, result.reason.why, result.reason.next, locale)
     }
     return 0
   } catch (e) {
+    if (e instanceof RunnerTimeoutError) {
+      // 超时熔断: 仓库事实不可读时按拦截处理(不受 strict 影响)。
+      // 命中此分支即 findRepoRoot 自身超时 —— 没有仓库键可供审计落盘(仓库根已知的超时拒绝由 evaluateCommand 内部记账)
+      const t = makeT('en')
+      return emitDeny(denyPlatform, t('repoTimeout.why'), t('repoTimeout.next'))
+    }
     if (strict) {
       // strict: 内部异常也 fail-closed
       const t = makeT('en')

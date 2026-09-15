@@ -95,6 +95,9 @@ describe('platform: detectPlatform', () => {
   it('tool_args → opencode', () => expect(detectPlatform('{"tool_args":{"command":"git push"}}')).toBe('opencode'))
   it('cursor_version → cursor', () => expect(detectPlatform('{"cursor_version":"0.45.0"}')).toBe('cursor'))
   it('workspace_roots → cursor', () => expect(detectPlatform('{"workspace_roots":["/repo"]}')).toBe('cursor'))
+  it('仅带 conversation_id → cursor(无 cursor_version 的实机 payload 也不误判为 claude)', () =>
+    expect(detectPlatform('{"conversation_id":"c1"}')).toBe('cursor'))
+  it('仅带 generation_id → cursor', () => expect(detectPlatform('{"generation_id":"g1"}')).toBe('cursor'))
   it('beforeShellExecution 无 cursor_version 也识别为 cursor', () =>
     expect(detectPlatform('{"hook_event_name":"beforeShellExecution","command":"git push origin develop"}')).toBe('cursor'))
   it('顶层 command + cwd (无 tool_input) 识别为 cursor', () =>
@@ -138,4 +141,3 @@ describe('platform: encodeDeny', () => {
     expect(enc.stderr).toBe('blocked: x')
   })
 })
-

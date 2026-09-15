@@ -317,7 +317,7 @@ archive (optional; you archive after release)
 - `update`: `pr` (default) = updates only via PR/MR; `flexible` = allow direct/local merges (small teams).
 - `mergeBy` (production): `user` (default) = only you click merge; `anyone` = allow PR merge through.
 - **Working tree & upstream baseline guard (`worktree`)**: optional state and divergence checks — `requireCleanOnPr: true` blocks PR creation if there are uncommitted staged/unstaged changes; `requireCleanOnMerge: true` blocks local and PR merges on dirty working trees; `allowUntracked` (default `true`) allows untracked files (`??`) without friction, or set `false` for strict human-agent collaboration; `requireUpstreamSynced: true` blocks PR creation when the branch is behind the upstream baseline (`behind > 0`). Multi-segment compound commands (e.g. `git add . && git commit && gh pr create`) dynamically simulate a clean state for subsequent segments.
-- Each branch entry is an exact name or a regex (auto-detected). **Regex safety**: branch patterns are authored by you and compiled as-is — avoid catastrophic-backtracking constructs (e.g. nested quantifiers like `(\w+)+`) in `featurePattern` and branch entries.
+- Each branch entry is an exact name or a regex (auto-detected). **Regex safety**: branch patterns are authored by you and compiled as-is; a pattern is matched against the whole branch name (compiled as `^(?:<pattern>)$`), so write expressions that cover the entire name — substring-style patterns like `feature/` or a bare `fix` won't match, and those branches fall through to `other`. Avoid catastrophic-backtracking constructs (e.g. nested quantifiers like `(\w+)+`) in `featurePattern` and branch entries.
 - **Language**: messages are English by default; add `"locale": "zh"` for Chinese, or pass `--locale <en|zh>` to any `gitflow-guard` subcommand (priority: CLI flag > project config > English). All user-facing text follows the locale — including CLI framework messages such as `--help`, unknown-command notices, and the empty-audit line.
 - **Custom locales**: downstream packages can add a language at runtime — `import { registerLocale } from 'agents-gitflow-guard'`, call `registerLocale('fr', frDict)` with a dictionary covering exactly the same keys as built-in English (validated on registration), then set `"locale": "fr"` in the project config to activate it.
 
@@ -621,7 +621,7 @@ npm run build           # tsdown → lib/ (CLI and plugin share the build)
 npm run check:pins      # assert package.json version matches the CHANGELOG heading and any README version pins
 npm run check:readmes   # assert all 11 READMEs stay structurally symmetric (44 headings / 7 tables / 17 TOC items)
 npm run verify:matrix   # continuous cross-agent regression: DSH logic + zh-locale + multi-client hooks + Pi extension
-npm run test:git-matrix # 135-case git decision matrix against real repositories
+npm run test:git-matrix # 169-case git decision matrix against real repositories
 npm run test:realflow   # feature-branch lifecycle end-to-end against a real remote
 npm run test:pi         # Pi extension end-to-end (requires a local Pi install)
 npm run test:all        # typecheck + unit tests + platform matrix + git matrix + realflow
