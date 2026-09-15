@@ -38,6 +38,8 @@ export interface PiRunResult {
   code: number
   stdout: string
   stderr: string
+  /** 子进程因超时被杀(区别于 spawn 失败): 必须按阻断处理, 不得 fail-open */
+  timedOut?: boolean
 }
 
 export interface PiExtensionOptions {
@@ -54,11 +56,14 @@ const GITISH = /\b(?:git|gh|glab)\b|gitflow-guard/
 
 function execFileResult(cmd: string, args: string[], cwd: string): Promise<PiRunResult> {
   return new Promise((resolve) => {
-    execFile(cmd, args, { cwd, timeout: 10_000 }, (err, stdout, stderr) => {
-      const e = err as NodeJS.ErrnoException | null
+    // 外层超时必须高于守卫内核的最坏预算(branch + status + rev-list ≈ 30s): 否则外层会抢在内层熔断产出 deny 之前杀进程
+    // killSignal 用 SIGKILL: 忽略 SIGTERM 的子进程不能拖垮超时熔断
+    execFile(cmd, args, { cwd, timeout: 45_000, killSignal: 'SIGKILL' }, (err, stdout, stderr) => {
+      const e = err as (NodeJS.ErrnoException & { killed?: boolean }) | null
       // 非零退出码为数字; spawn 失败(如 ENOENT)是字符串, 归为 -1
       const code = e && typeof e.code === 'number' ? e.code : e ? -1 : 0
-      resolve({ code, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') })
+      const timedOut = !!e && e.killed === true && typeof e.code !== 'number'
+      resolve({ code, stdout: String(stdout ?? ''), stderr: String(stderr ?? ''), ...(timedOut ? { timedOut: true } : {}) })
     })
   })
 }
@@ -81,13 +86,17 @@ export function createPiExtension(opts: PiExtensionOptions = {}): (pi: PiExtensi
         const res = await run(['check', '--platform', 'claude', '--command', command], ctx.cwd)
         // 守卫 CLI 经 claude 编码回答: exit 2 = 拒绝, stderr 即原因与下一步。
         // --platform claude 仅是守卫内部进程间契约的 deny 编码选择, 不是 Pi 的协议。
+        if (res.timedOut) {
+          // 超时熔断: 子进程被超时终结时按阻断处理(与 DSH/CLI 的超时拒绝口径一致)
+          return { block: true, reason: 'gitflow-guard timed out — blocking by default; retry once the repository is responsive' }
+        }
         if (res.code === 2) {
           const reason = res.stderr.trim() || 'blocked by gitflow-guard'
           return { block: true, reason }
         }
         return undefined
       } catch {
-        // 门禁内部故障降级放行(fail-open), 不阻断工具管道; 与 DSH apply() 及 CLI check 一致
+        // 门禁内部故障降级放行(fail-open), 不阻断工具管道; 超时熔断已在上面按阻断处理
         return undefined
       }
     })

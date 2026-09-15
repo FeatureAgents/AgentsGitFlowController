@@ -170,14 +170,13 @@ function filterGuardItems(arr: unknown[], client: JsonWireClient): { cleaned: un
       } else {
         cleaned.push(item)
       }
-    } else {
-      if (cleanGuardFromEntry(client, item)) {
-        had = true
-      }
-      if (!entryIsEmpty(client, item)) {
-        cleaned.push(item)
-      }
+      continue
     }
+    const removedFromEntry = cleanGuardFromEntry(client, item)
+    if (removedFromEntry) had = true
+    // 仅回收"因摘除守卫而变空"的条目: 用户原有的空条目与非对象条目原样保留(非破坏性)
+    if (removedFromEntry && entryIsEmpty(client, item)) continue
+    cleaned.push(item)
   }
   return { cleaned, had }
 }
@@ -227,27 +226,33 @@ async function addJsonEntry(path: string, client: JsonWireClient, dryRun: boolea
   return hadGuard ? 'migrated' : 'added'
 }
 
-/** JSON 客户端移除本插件条目(任意历史形态); 细粒度过滤本插件命令, 不动其他 hook 与注释排版 */
+/** JSON 客户端移除本插件条目(任意历史形态); 细粒度过滤本插件命令, 保留用户其他 hook 与注释(序列化统一为 2 空格缩进) */
 async function removeJsonEntry(path: string, client: JsonWireClient, dryRun: boolean): Promise<WireResult> {
   const raw = await readText(path)
   if (raw === null) return 'absent'
   const obj = parseJsonOrThrow(path, raw)
   if (client === 'antigravity') {
-    // gitflow-guard 顶层键内任意历史形态条目都算本插件条目(含 AGY-D2 前相对路径与 PATH 形态)
+    // 顶层键内为"事件名 → 条目数组"结构: 逐数组细粒度摘除守卫, 保留用户自建的其他事件条目
     const block = obj['gitflow-guard'] as Record<string, unknown> | undefined
     if (!block) return 'absent'
-    const arr = block['PreToolUse']
-    if (Array.isArray(arr)) {
-      const { cleaned, had } = filterGuardItems(arr, client)
-      if (!had && !jsonContainsBy(block, (v) => guardCommandish(client, v))) return 'absent'
-      if (cleaned.length === 0) {
-        delete obj['gitflow-guard']
-      } else {
-        block['PreToolUse'] = cleaned
-      }
-    } else {
-      if (!jsonContainsBy(block, (v) => guardCommandish(client, v))) return 'absent'
+    let had = false
+    for (const [key, value] of Object.entries(block)) {
+      if (!Array.isArray(value)) continue
+      const res = filterGuardItems(value, client)
+      if (res.had) had = true
+      block[key] = res.cleaned
+    }
+    // 非数组位置残留的守卫命令(含 AGY-D2 前相对路径与 PATH 形态)无法细粒度摘除: 整键移除
+    const guardOutsideArrays = jsonContainsBy(
+      Object.fromEntries(Object.entries(block).filter(([, v]) => !Array.isArray(v))),
+      (v) => guardCommandish(client, v),
+    )
+    if (!had) {
+      if (!guardOutsideArrays) return 'absent'
       delete obj['gitflow-guard']
+    } else {
+      const stillHasContent = Object.values(block).some((v) => (Array.isArray(v) ? v.length > 0 : true))
+      if (guardOutsideArrays || !stillHasContent) delete obj['gitflow-guard']
     }
   } else if (client === 'zcode') {
     const hooksObj = obj['hooks'] as Record<string, unknown> | undefined

@@ -61,7 +61,7 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 // gitflow-guard.config.json(项目根, 可选): 深度合并覆盖内置默认(默认保护 develop=integration / main=archive; 无文件也生效, enabled:false 关闭)
 {
   "enabled": true,
-  "featurePattern": "feature/[\\w-]+",       // 自由开发分支识别
+  "featurePattern": "^feature/[\\w-]+$",     // 自由开发分支识别(整串锚定: 编译为 ^(?:<pattern>)$)
   "branches": {
     "integration": ["develop"],              // 核心角色(内置默认); 缺省沿用默认
     "preview":    ["release/.*"],            // 可选; 条目=精确名或正则
@@ -83,6 +83,7 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 - 角色条目支持数组简写或 `{branches, update?, mergeBy?}` 完整形。
 - 默认值: integration/preview → `update:'pr', mergeBy:'anyone'`; production/archive → `update:'pr', mergeBy:'user'`。
 - 角色判定优先级(先命中先得): production > preview > integration > archive > featurePattern > other。受保护角色 = 四个具名角色全体。
+- featurePattern 按整串锚定匹配(编译为 `^(?:<pattern>)$`): 子串/前缀式写法(如 `feature/` 或裸 `fix`)会失配落为 other; `malicious/feature/x` 这类前缀冒充因此不会被判为 feature。
 - 校验(失败即未启用): integration 必填非空; 角色间条目不得重叠; 正则非法在加载期报错(不静默失效)。
 
 ## 5. 门禁规则矩阵
@@ -210,7 +211,7 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 │   ├── gate.ts         # 门禁矩阵(纯函数)
 │   ├── config.ts       # 配置加载/规范化/校验/strict
 │   ├── repo.ts         # git 只读查询 + gh/glab Runner(可注入)
-│   ├── platform.ts     # 八平台 hook 协议 (DSH / Claude Code / Codex / OpenCode / Antigravity / Pi / CodeBuddy / ZCode)(extract/detect/encodeDeny)
+│   ├── platform.ts     # 7 个 stdin-hook 平台协议 (Claude Code / Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor)(extract/detect/encodeDeny; DSH 在 index.ts、Pi 在 pi.ts)
 
 │   ├── wire.ts         # 脚手架 wire/setup(各 agent 平台 hook 配置接入与更新)
 │   ├── pi.ts           # Pi 扩展工厂(createPiExtension 进程内事件拦截)
@@ -241,4 +242,3 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 2. 分支正则由项目作者编写, 注意避免灾难性回溯(README 有提示); 非法正则在加载期报错。
 3. 审计单机存储(§10), 多机协同需 v2 同步。
 4. 插件改动需重新构建(`npm run build`)，DSH 需重启宿主进程；核心逻辑全部纯函数 + 配置驱动, 把「改代码」压到最少。
-

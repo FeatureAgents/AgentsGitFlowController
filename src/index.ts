@@ -12,7 +12,7 @@ import { loadConfig } from './config'
 import { decide } from './gate'
 import { makeT, resolveLocale } from './i18n'
 import type { Locale } from './i18n'
-import { commonGitDir, currentBranch as queryCurrentBranch, findRepoRoot, getUpstreamDivergence, getWorktreeStatus, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget } from './repo'
+import { commonGitDir, currentBranch as queryCurrentBranch, findRepoRoot, getUpstreamDivergence, getWorktreeStatus, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget, RunnerTimeoutError } from './repo'
 import type { Classified, GateFacts, PrTargetResolution } from './types'
 import type { Runner } from './repo'
 
@@ -34,6 +34,8 @@ export const name = 'gitflow-guard'
 export interface PluginConfig {
   /** 拦截哪些工具的命令文本(默认 pwsh / bash) */
   toolNames?: string[]
+  /** 命令执行器(测试注入; 默认真实 git) */
+  runner?: Runner
 }
 
 export interface EvaluateOptions {
@@ -143,7 +145,20 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
   const locale = opts.locale != null ? resolveLocale(opts.locale) : resolveLocale(config.locale)
   const t = makeT(locale)
 
-  const branch = opts.currentBranch ?? (await queryCurrentBranch(runner, opts.repoRoot))
+  let branch: string | null
+  if (opts.currentBranch != null) {
+    branch = opts.currentBranch
+  } else {
+    try {
+      branch = await queryCurrentBranch(runner, opts.repoRoot)
+    } catch (e) {
+      if (!(e instanceof RunnerTimeoutError)) throw e
+      // git 超时熔断: 连当前分支都无法确认时不进入判定, 直接保守拒绝
+      const reason = t('repoTimeout.why')
+      await appendAudit(opts.repoRoot, { time: Date.now(), event: 'deny', command, reason }, runner)
+      return { outcome: 'deny', reason: { why: reason, next: t('repoTimeout.next') }, segmentCount: 1, locale }
+    }
+  }
   const env: Env = { repoRoot: opts.repoRoot, config, branch, runner, gh, glab }
 
   const segments = classify(command, { currentBranch: branch })
@@ -180,6 +195,7 @@ async function factsFor(seg: Classified, env: Env): Promise<{ facts: GateFacts; 
   let prRes: PrTargetResolution | null = null
   let worktreeStatusFact: GateFacts['worktreeStatus'] = null
   let upstreamDivFact: GateFacts['upstreamDivergence'] = null
+  let repoTimeout = false
 
   if (seg.kind === 'pr-merge') {
     // 先试 GitHub gh, 再试 GitLab glab
@@ -209,7 +225,12 @@ async function factsFor(seg: Classified, env: Env): Promise<{ facts: GateFacts; 
     }
 
     if (seg.kind === 'pr-create' && wt.requireUpstreamSynced) {
-      upstreamDivFact = await getUpstreamDivergence(runner, repoRoot)
+      try {
+        upstreamDivFact = await getUpstreamDivergence(runner, repoRoot)
+      } catch (e) {
+        if (!(e instanceof RunnerTimeoutError)) throw e
+        repoTimeout = true
+      }
     }
   }
 
@@ -220,6 +241,7 @@ async function factsFor(seg: Classified, env: Env): Promise<{ facts: GateFacts; 
       ...(prRes ? { resolvePrTarget: () => prRes } : {}),
       ...(worktreeStatusFact ? { worktreeStatus: worktreeStatusFact } : {}),
       ...(upstreamDivFact ? { upstreamDivergence: upstreamDivFact } : {}),
+      ...(repoTimeout ? { repoTimeout: true } : {}),
     },
   }
 }
@@ -236,21 +258,31 @@ export function formatDeny(locale: Locale, why: string, next: string): string {
 
 export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
   const toolNames = new Set(pluginConfig.toolNames ?? ['pwsh', 'bash'])
+  const runner = pluginConfig.runner ?? gitRunner
 
   ctx.on('tools/pre-execute', async (exec, next) => {
     try {
       const command = commandText(exec)
       if (!command || !toolNames.has(exec.name)) return next()
+      // 快路径: 非 git 系命令直接放行, 不触发任何 git 查询(与 CLI check 的快路径同口径)
+      const segments = classify(command)
+      if (segments.length === 0 || segments.every((s) => s.kind === 'other')) return next()
       const cwd = exec.agent?.session.header.cwd ?? process.cwd()
-      const repoRoot = await findRepoRoot(gitRunner, cwd)
+      const repoRoot = await findRepoRoot(runner, cwd)
       if (!repoRoot) return next()
 
-      const result = await evaluateCommand(command, { repoRoot, runner: gitRunner })
+      const result = await evaluateCommand(command, { repoRoot, runner })
       if (result.outcome === 'deny' && result.reason) {
         return { kind: 'deny', reason: formatDeny(result.locale, result.reason.why, result.reason.next) }
       }
       return next()
     } catch (e) {
+      if (e instanceof RunnerTimeoutError) {
+        // 超时熔断不走 fail-open: 仓库事实不可读时保守拒绝。
+        // 命中此分支即 findRepoRoot 自身超时 —— 没有仓库键可供审计落盘(仓库根已知的超时拒绝由 evaluateCommand 内部记账)
+        const t = makeT('en')
+        return { kind: 'deny', reason: formatDeny('en', t('repoTimeout.why'), t('repoTimeout.next')) }
+      }
       // 门禁内部故障降级放行, 不阻断工具管道
       ctx.logger?.warn?.(`gitflow-guard: gate internal error, allowed through: ${(e as Error).message}`)
       return next()

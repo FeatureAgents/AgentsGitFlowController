@@ -43,6 +43,8 @@ function roleLabel(role: BranchRoleName, t: T, branch?: string | null): string {
 }
 
 export function decide(classified: Classified, facts: GateFacts, config: GuardConfig, t: T = defaultT): GateDecision {
+  // 超时熔断: 关键的仓库事实(git 查询)不可得时保守拒绝
+  if (facts.repoTimeout) return deny(t('repoTimeout.why'), t('repoTimeout.next'))
   switch (classified.kind) {
     case 'push':
       return decidePush(classified, facts, config, t)

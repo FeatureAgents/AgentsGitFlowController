@@ -2,21 +2,25 @@
 
 > 本目录按客户端分文件,记录各平台**实机测试用例**(真实客户端进程 + 真实 hook 通道 + 真实 git 操作)。
 > 用例执行与结果证据规范见 `TestResult/`(每个客户端一个证据文件)。
-> 基础决策矩阵与生命周期放行流见本仓库 `scripts/test-git-matrix.sh`(135 项决策矩阵)与 `scripts/test-git-realflow.sh`。
+> 基础决策矩阵与生命周期放行流见本仓库 `scripts/test-git-matrix.sh`(169 项决策矩阵)与 `scripts/test-git-realflow.sh`。
 
-## 客户端用例文件
+## 客户端文档索引(官方协议 / 测试用例 / 实机证据)
 
-| 客户端 | 接入形态 | 用例文件 | 本机状态 |
-|---|---|---|---|
-| DSH | 进程内插件 | `dsh.md` | ✅ 已实测(0.0.21,2026-08-29) |
-| Claude Code | stdin hook (exit 2) | `claude-code.md` | ✅ 已安装 2.1.224 |
-| Codex | stdin hook (exit 0+JSON) | `codex.md` | ✅ 已实测(codex-cli 0.150.1, 2026-08-29) |
-| OpenCode | stdin hook (exit 2) | `opencode.md` | ✅ 已安装 1.18.15 |
-| Antigravity | stdin hook (exit 0+{decision}) | `antigravity.md` | ✅ 已实测(agy 1.1.22,2026-08-29);拦截/放行全通,2 处协议差异待修复 |
-| CodeBuddy | stdin hook (exit 2) | `codebuddy.md` | 📝 用例已就绪 |
-| ZCode | stdin hook (exit 2) | `zcode.md` | 📝 用例已就绪 |
-| Cursor | stdin hook (exit 0+JSON) | `cursor.md` | 📝 用例已就绪 |
-| Pi | 进程内扩展 | `pi.md` | ✅ 已安装 0.84.3 |
+> 每个客户端三处文档各司其职:`.agents/hooks/references/<客户端>.md` 记**官方协议事实**(几乎不变, 代码注释按路径引用),
+> 本目录 `<客户端>.md` 记**测试用例**(客户端触发方式变则改), `TestResult/<客户端>.md` 记**某次实测证据**(带日期与输出, 归档只增不改)。
+> 本表是三者唯一入口;`实机证据` 列为"待测"表示该客户端尚未真机跑过(AGENTS.md §8 接入清单的 E2E 固证项未闭环)。
+
+| 客户端 | 接入形态 | 官方协议 | 测试用例 | 实机证据 | 本机状态 |
+|---|---|---|---|---|---|
+| DSH | 进程内插件 | [`dsh.md`](../../.agents/hooks/references/dsh.md) | [`dsh.md`](dsh.md) | [`dsh.md`](TestResult/dsh.md) | ✅ 已实测(0.0.21,2026-08-29) |
+| Claude Code | stdin hook (exit 2) | [`claude-code.md`](../../.agents/hooks/references/claude-code.md) | [`claude-code.md`](claude-code.md) | [`claude-code.md`](TestResult/claude-code.md) | ✅ 已安装 2.1.224 |
+| Codex | stdin hook (exit 0+JSON) | [`codex.md`](../../.agents/hooks/references/codex.md) | [`codex.md`](codex.md) | [`codex.md`](TestResult/codex.md) | ✅ 已实测(codex-cli 0.150.1, 2026-08-29) |
+| OpenCode | stdin hook (exit 2) | [`opencode.md`](../../.agents/hooks/references/opencode.md) | [`opencode.md`](opencode.md) | [`opencode.md`](TestResult/opencode.md) | ✅ 已安装 1.18.15 |
+| Antigravity | stdin hook (exit 0+{decision}) | [`antigravity.md`](../../.agents/hooks/references/antigravity.md) | [`antigravity.md`](antigravity.md) | [`antigravity.md`](TestResult/antigravity.md) | ✅ 已实测(agy 1.1.22,2026-08-29);AGY-D2/D3 两处协议差异已修复(见证据文件) |
+| Pi | 进程内扩展 | [`pi.md`](../../.agents/hooks/references/pi.md) | [`pi.md`](pi.md) | [`pi.md`](TestResult/pi.md) | ✅ 已安装 0.84.3 |
+| CodeBuddy | stdin hook (exit 2) | [`codebuddy.md`](../../.agents/hooks/references/codebuddy.md) | [`codebuddy.md`](codebuddy.md) | 待测 | 📝 用例已就绪 |
+| ZCode | stdin hook (exit 2) | [`zcode.md`](../../.agents/hooks/references/zcode.md) | [`zcode.md`](zcode.md) | 待测 | 📝 用例已就绪 |
+| Cursor | stdin hook (exit 0+JSON) | [`cursor.md`](../../.agents/hooks/references/cursor.md) | [`cursor.md`](cursor.md) | 待测 | 📝 用例已就绪 |
 
 ## 统一前置条件(所有客户端)
 

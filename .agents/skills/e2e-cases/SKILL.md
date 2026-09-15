@@ -17,14 +17,14 @@ After **any guard logic, protocol, or wiring change** passes unit tests and the 
 1. **Assess Impact Scope**: Map affected clients according to the modified layer:
    | Modified Layer | Affected Clients |
    |---|---|
-   | `classify`/`gate`/`config`/`i18n` (Guard kernel) | **All 6 clients** (share the `evaluateCommand` core) |
-   | `platform.ts` (Encoding / Payload extraction) | Corresponding platform files (`claude`/`codex`/`opencode`/`antigravity`) |
+   | `classify`/`gate`/`config`/`i18n` (Guard kernel) | **Every wired client** (`WIRE_CLIENTS` in `src/wire.ts` — they share the `evaluateCommand` core) |
+   | `platform.ts` (Encoding / Payload extraction) | The stdin-hook platforms listed in `src/platform.ts` |
    | `pi.ts` / `index.ts` (In-process integration) | `pi` / `dsh` |
    | `wire.ts` (Configuration file drop-in) | Corresponding stdin-hook clients |
-2. **Synchronize `docs/e2e/<client>.md`**: Add or update test cases under the unified case ID system (`<CLIENT>-A*` Deny / `B*` Allow / `C*` Wire / `D*` Platform-Specific). Specify commands, prerequisite branches, expectations, and key assertion criteria. If changes involve new command families, add cases to `scripts/test-git-matrix.sh` (the 135-case decision matrix) simultaneously.
+2. **Synchronize `docs/e2e/<client>.md`**: Add or update test cases under the unified case ID system (`<CLIENT>-A*` Deny / `B*` Allow / `C*` Wire / `D*` Platform-Specific). Specify commands, prerequisite branches, expectations, and key assertion criteria. If changes involve new command families, add cases to the decision matrix in `scripts/test-git-matrix.sh` simultaneously.
 3. **Execute Testing**: Invoke the **`e2e-run`** skill to run live test cases for affected clients. Guard kernel changes must be sampled against **at least one real client channel** (e.g., Codex or Pi extension channel) for the modified command family. Wire/protocol changes must be verified against that specific client (wire artifacts must actively trigger blocking/allowing; file existence alone is insufficient).
 4. **Update `TestResult`**: Record test outcomes and physical evidence (session output excerpts, remote ref comparison before/after execution, and audit entries) in `docs/e2e/TestResult/<client>.md`, preserving historical test sections per the evidence specification.
-5. **Finalize**: Run the full QA verification suite (`npm run test:all`, including type checking, unit tests, platform matrix, Git 135 matrix, and lifecycle realflow). Test case documentation and `TestResult` entries must ship within the same PR as the code changes.
+5. **Finalize**: Run the full QA verification suite (`npm run test:all`, including type checking, unit tests, platform matrix, the Git decision matrix, and lifecycle realflow). Test case documentation and `TestResult` entries must ship within the same PR as the code changes.
 
 ## Decision Criteria (Consistent with `TestResult/README.md`)
 
@@ -34,7 +34,7 @@ After **any guard logic, protocol, or wiring change** passes unit tests and the 
 
 ## Pitfalls & Lessons Learned
 
-- **Prerequisite State**: Pi Case D depends on the presence of a local feature branch (`gfguard-pi-cases.sh` does not create it automatically) — create the branch before executing; investigate script prerequisites before suspecting the guard.
+- **Prerequisite State**: Pi Case D needs a local feature branch — the in-repo script `scripts/test-pi-extension.sh` creates it itself (`git branch task/pi-e2e`), but a hand-rolled replay does not. Set up the branch before executing, and check script prerequisites before suspecting the guard.
 - **Version Mounting**: `^0.0.17` will not resolve to `0.0.21` (Node/npm caret semver on `0.0.x` locks patches). Verify that the testbed mounts the exact version under test before execution.
 - **Bare Remote Isolation**: Controlled repositories must strictly use local bare remotes (`/tmp`), and never execute allow/push test cases against real production remotes.
 - **Model Command Rewriting**: Headless agent sessions may rewrite commands (e.g., adding `--set-upstream`). Base assertions strictly on physical Git refs before and after execution, never relying solely on model phrasing.

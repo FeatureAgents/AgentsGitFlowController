@@ -111,6 +111,69 @@ describe('cli: status(只读状态一览)', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('本地分支角色按整串锚定: malicious/feature/dev-x → other(前缀伪装的代码分支不可被 featurePattern 命中)', async () => {
+    const dir = tempRepo()
+    const runner: Runner = {
+      async run(args) {
+        const key = args.join(' ')
+        if (key === 'branch --show-current') return { code: 0, stdout: 'feature/dev-x-01\n', stderr: '' }
+        if (args[0] === 'for-each-ref') return { code: 0, stdout: 'malicious/feature/dev-x\nfeature/dev-x-01\n', stderr: '' }
+        if (args[0] === 'rev-parse') return { code: 0, stdout: '', stderr: '' }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    try {
+      const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner }))
+      expect(code).toBe(0)
+      expect(text).toContain('malicious/feature/dev-x → other')
+      expect(text).toContain('feature/dev-x-01 → feature')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('仓库根查询超时 → exit 1 + 超时文案(不抛栈)', async () => {
+    const runner: Runner = {
+      async run(args) {
+        if (args[0] === 'rev-parse') return { code: 1, stdout: '', stderr: '', timedOut: true }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    // 不带 --repo: status 经注入 runner 查仓库根, 超时应在 status 内兜住并给出可读提示
+    const { code, text } = await captureConsoleError(() => main(['status'], { runner }))
+    expect(code).toBe(1)
+    expect(text).toMatch(/cannot confirm branch\/worktree facts/i) // repoTimeout.why 文案本体
+    expect(text).not.toContain('RunnerTimeoutError')
+  })
+
+  it('当前分支查询超时 → 不崩溃, 分支显示未知, 其余状态行正常', async () => {
+    const dir = tempRepo()
+    const runner: Runner = {
+      async run(args) {
+        const key = args.join(' ')
+        if (key === 'branch --show-current') return { code: 1, stdout: '', stderr: '', timedOut: true }
+        if (args[0] === 'for-each-ref') return { code: 0, stdout: 'develop\nfeature/dev-x-01\n', stderr: '' }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    try {
+      let stderrText = ''
+      const { code, text } = await captureStdout(async () => {
+        // vitest 接管 stdout/stderr 后 console.error 不走 process.stderr.write: 须拦 console.error
+        const inner = await captureConsoleError(() => main(['status', '--repo', dir], { runner }))
+        stderrText = inner.text
+        return inner.code
+      })
+      expect(code).toBe(0)
+      expect(text).toContain('Current branch: (unknown)')
+      expect(text).toContain('Integration: develop')
+      expect(text).toContain('develop → integration')
+      expect(stderrText).toMatch(/timed out/i) // 超时在 stderr 提示, 不静默
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('cli: 其他', () => {
@@ -288,6 +351,45 @@ describe('cli: check(agent hook 门禁)', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+
+  it('分支查询超时 → exit 2(claude 编码) + stderr 超时文案, 且落审计', async () => {
+    const dir = tempRepo()
+    const runner: Runner = {
+      async run(args) {
+        if (args[0] === 'branch') return { code: 1, stdout: '', stderr: '', timedOut: true }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    try {
+      const { code, stderr } = await captureStderr(() =>
+        main(['check', '--platform', 'claude', '--command', 'git push origin develop', '--repo', dir], { runner }),
+      )
+      expect(code).toBe(2)
+      expect(stderr).toContain('blocked:')
+      expect(stderr).toMatch(/timed out/i)
+      const auditFile = join(await stateDir(dir, runner), 'audit.jsonl')
+      expect(existsSync(auditFile)).toBe(true)
+      expect(readFileSync(auditFile, 'utf8')).toMatch(/timed out/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+      rmSync(await stateDir(dir, runner), { recursive: true, force: true })
+    }
+  })
+
+  it('兜底 catch: 仓库根查询超时(不带 --repo) → exit 2 + 超时文案', async () => {
+    const runner: Runner = {
+      async run(args) {
+        if (args[0] === 'rev-parse') return { code: 1, stdout: '', stderr: '', timedOut: true }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    // stdin-hook 真实形态不带 --repo: findRepoRoot 自身超时, 由 check 的兜底 catch 编码为拦截
+    const { code, stderr } = await captureStderr(() =>
+      main(['check', '--platform', 'claude', '--command', 'git push origin develop'], { runner }),
+    )
+    expect(code).toBe(2)
+    expect(stderr).toMatch(/timed out/i)
   })
 })
 

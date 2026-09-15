@@ -17,6 +17,7 @@
   "files": [
     "lib",
     "bin",
+    "THIRD-PARTY-NOTICES.md",
     "patch.yml",
     "pi",
     "opencode",
@@ -117,11 +118,9 @@
     "@deepseek-ai/dsh-tools": "^0.1.0-rc.5",
     "@types/comment-json": "^2.4.1",
     "@types/node": "^22",
+    "comment-json": "^5.0.0",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  },
-  "dependencies": {
-    "comment-json": "^5.0.0"
   }
 }
