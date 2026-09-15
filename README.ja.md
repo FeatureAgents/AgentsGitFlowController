@@ -316,7 +316,7 @@ archive (任意; リリース後に人間がアーカイブ)
 - `update`: `pr`（デフォルト）= PR/MR 経由でのみ合流可能; `flexible` = 直接プッシュおよびローカルマージを許可（小規模チーム向け）。
 - `mergeBy`（production）: `user`（デフォルト）= 人間のみがマージボタンをクリック可能; `anyone` = PR マージを許可。
 - **ワークツリーと上流ベースラインガード (`worktree`)**: 任意の状態および乖離度チェック —— `requireCleanOnPr: true` は未コミットのステージ/未ステージ変更がある場合に PR 作成をブロックします。`requireCleanOnMerge: true` はワークツリーがダーティな状態でのローカルおよび PR マージをブロックします。`allowUntracked`（デフォルト `true`）は未追跡ファイル（`??`）を摩擦なく許可し、人間と AI の厳格な共同開発環境では `false` に設定してブロックできます。`requireUpstreamSynced: true` はブランチが上流ベースラインより遅れている場合に PR 作成をブロックします。複合コマンド（例: `git add . && git commit && gh pr create`）では後続セグメントに対してクリーン状態が動的にシミュレートされます。
-- 各ブランチ項目は完全一致名または正規表現（自動判別）です。**正規表現の安全性**: ブランチパターンはそのままコンパイルされるため、`featurePattern` やブランチエントリで壊滅的なバックトラッキングを引き起こす構文（`(\w+)+` などのネストされた量詞）は避けてください。
+- 各ブランチ項目は完全一致名または正規表現（自動判別）です。**正規表現の安全性**: ブランチパターンはそのままコンパイルされ、`featurePattern` はブランチ名の全体に対して照合されます（`^(?:<pattern>)$` としてコンパイル）。全体を覆う式を書き、`feature/` や裸の `fix` のような部分一致前提の書き方では一致せず `other` に分類されます。`featurePattern` やブランチエントリで壊滅的なバックトラッキングを引き起こす構文（`(\w+)+` などのネストされた量詞）は避けてください。
 - **言語設定**: メッセージはデフォルトで英語です。`"locale": "zh"` を追加すると中国語に切り替わります。また、任意の `gitflow-guard` サブコマンドに `--locale <en|zh>` を渡すこともできます（優先順位: CLI フラグ > プロジェクト設定 > 英語）。`--help` や未知のコマンド通知、空の監査ログ行など、すべての CLI フレームワークテキストが locale に追従します。
 - **カスタム言語の登録**: 下流パッケージは実行時に言語を追加できます — `import { registerLocale } from 'agents-gitflow-guard'`、内蔵の英語辞書と同じキーセットを持つ辞書を渡して `registerLocale('fr', frDict)` を呼び出し、プロジェクト設定で `"locale": "fr"` を指定します。
 
@@ -620,7 +620,7 @@ npm run build           # ビルド: tsdown → lib/ (CLI とプラグインで�
 npm run check:pins      # package.json バージョンと CHANGELOG 見出し・README 内のピン留め整合性チェック
 npm run check:readmes   # 全 11 言語の README が構造的に対称であることを検証 (44 見出し / 7 テーブル / 17 目次項目)
 npm run verify:matrix   # 連続回帰マトリクステスト: DSH ロジック + zh ロケール + 複数クライアント hook + Pi 拡張
-npm run test:git-matrix # 実リポジトリに対する 135 ケースの Git 判定マトリクス
+npm run test:git-matrix # 実リポジトリに対する 169 ケースの Git 判定マトリクス
 npm run test:realflow   # 実リモートに対する feature ブランチライフサイクルのエンドツーエンドテスト
 npm run test:pi         # Pi 拡張のエンドツーエンドテスト (ローカルに Pi のインストールが必要)
 npm run test:all        # typecheck + 単体テスト + プラットフォームマトリクス + Git マトリクス + realflow

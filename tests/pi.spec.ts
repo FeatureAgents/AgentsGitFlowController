@@ -76,6 +76,18 @@ describe('pi: createPiExtension', () => {
     expect(await m.handler(evt('bash', 'git push origin develop'), ctx())).toBeUndefined()
   })
 
+  it('守卫子进程被超时终结 → { block: true }(超时熔断, 不 fail-open)', async () => {
+    const m = mount({ run: () => Promise.resolve({ code: -1, stdout: '', stderr: '', timedOut: true }) })
+    const res = await m.handler(evt('bash', 'git push origin develop'), ctx())
+    expect(res).toEqual({ block: true, reason: expect.stringMatching(/timed out/) })
+  })
+
+  it('超时判定优先于 exit 2: timedOut 为真即按超时阻断', async () => {
+    const m = mount({ run: () => Promise.resolve({ code: 2, stdout: '', stderr: 'blocked: x', timedOut: true }) })
+    const res = await m.handler(evt('bash', 'git push origin develop'), ctx())
+    expect(res).toEqual({ block: true, reason: expect.stringMatching(/timed out/) })
+  })
+
   it('run 抛异常(如 CLI 缺失)→ fail-open 放行', async () => {
     const m = mount({ run: () => Promise.reject(new Error('ENOENT')) })
     expect(await m.handler(evt('bash', 'git push origin develop'), ctx())).toBeUndefined()

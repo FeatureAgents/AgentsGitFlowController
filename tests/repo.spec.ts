@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { currentBranch, findRepoRoot, getUpstreamDivergence, getWorktreeStatus, ghPrChecks, ghPrInfo, glabMrInfo, gitRunner, resolvePrTarget } from '../src/repo'
+import { currentBranch, findRepoRoot, getUpstreamDivergence, getWorktreeStatus, ghPrChecks, ghPrInfo, glabMrInfo, gitRunner, makeRunner, resolvePrTarget, RunnerTimeoutError } from '../src/repo'
 import type { RunResult, Runner } from '../src/repo'
 import type { GuardConfig } from '../src/types'
 
@@ -65,21 +65,21 @@ describe('repo: 只读查询(fake runner)', () => {
     ].join('\n')
     const { runner } = fakeRunner([{ stdout: porcelain }])
     const status = await getWorktreeStatus(runner, cwd)
-    expect(status.staged).toBe(2) // staged.txt, both.txt
-    expect(status.unstaged).toBe(2) // unstaged.txt, both.txt
-    expect(status.untracked).toBe(2)
-    expect(status.isDirty).toBe(true)
+    expect(status!.staged).toBe(2) // staged.txt, both.txt
+    expect(status!.unstaged).toBe(2) // unstaged.txt, both.txt
+    expect(status!.untracked).toBe(2)
+    expect(status!.isDirty).toBe(true)
 
     // 干净工作区
     const clean = fakeRunner([{ stdout: '' }])
     const cleanStatus = await getWorktreeStatus(clean.runner, cwd)
-    expect(cleanStatus.isDirty).toBe(false)
-    expect(cleanStatus.untracked).toBe(0)
+    expect(cleanStatus?.isDirty).toBe(false)
+    expect(cleanStatus?.untracked).toBe(0)
 
-    // git 报错 fail-safe 降级为干净
+    // git 报错返回 null (遵循 fail-closed，不可误报干净)
     const fail = fakeRunner([{ code: 128 }])
     const failStatus = await getWorktreeStatus(fail.runner, cwd)
-    expect(failStatus.isDirty).toBe(false)
+    expect(failStatus).toBeNull()
   })
 
   it('getUpstreamDivergence: 解析 ahead/behind 计数', async () => {
@@ -90,6 +90,34 @@ describe('repo: 只读查询(fake runner)', () => {
     // 无 upstream 或 git 报错 → null
     const fail = fakeRunner([{ code: 128 }])
     expect(await getUpstreamDivergence(fail.runner, cwd)).toBeNull()
+  })
+})
+
+describe('repo: 超时熔断(RunnerTimeoutError —— "查不出"不得折算成"不受保护")', () => {
+  it('makeRunner 真实短超时: 子进程被杀 → code !== 0 且 timedOut === true', async () => {
+    // Windows 无 sleep: 用 node 自身挂起做等价短超时(win32 分支在 CI 矩阵上同样跑得到)
+    const win = process.platform === 'win32'
+    const runner = makeRunner(win ? process.execPath : 'sleep', 50)
+    const started = Date.now()
+    const r = await runner.run(win ? ['-e', 'setTimeout(() => {}, 5000)'] : ['2'], win ? process.cwd() : '/')
+    expect(r.timedOut).toBe(true)
+    expect(r.code).not.toBe(0)
+    expect(Date.now() - started).toBeLessThan(5000) // 确被超时杀掉, 而非等命令自然结束
+  })
+
+  it('findRepoRoot / currentBranch / getUpstreamDivergence: timedOut → 抛 RunnerTimeoutError', async () => {
+    const timedOut: Partial<RunResult> = { code: 1, stdout: '', stderr: '', timedOut: true }
+    await expect(findRepoRoot(fakeRunner([timedOut]).runner, cwd)).rejects.toThrow(RunnerTimeoutError)
+    await expect(currentBranch(fakeRunner([timedOut]).runner, cwd)).rejects.toThrow(RunnerTimeoutError)
+    await expect(getUpstreamDivergence(fakeRunner([timedOut]).runner, cwd)).rejects.toThrow(RunnerTimeoutError)
+    // 异常信息英文且含超时语义(项目规范: 日志/异常信息用英文)
+    await expect(getUpstreamDivergence(fakeRunner([timedOut]).runner, cwd)).rejects.toThrow(/timed out/)
+  })
+
+  it('对照: 非超时的执行失败仍返回 null(执行失败 ≠ 超时)', async () => {
+    expect(await findRepoRoot(fakeRunner([{ code: 128 }]).runner, cwd)).toBeNull()
+    expect(await currentBranch(fakeRunner([{ code: 128 }]).runner, cwd)).toBeNull()
+    expect(await getUpstreamDivergence(fakeRunner([{ code: 128 }]).runner, cwd)).toBeNull()
   })
 })
 
@@ -149,15 +177,15 @@ describe('repo: 真实 git 集成', () => {
 
     // 初始干净工作区
     const status1 = await getWorktreeStatus(gitRunner, repo)
-    expect(status1.isDirty).toBe(false)
-    expect(status1.untracked).toBe(0)
+    expect(status1!.isDirty).toBe(false)
+    expect(status1!.untracked).toBe(0)
 
     // 写入新文件和修改文件
     writeFileSync(join(repo, 'untracked.txt'), 'new')
     writeFileSync(join(repo, 'a.txt'), 'modified')
     const status2 = await getWorktreeStatus(gitRunner, repo)
-    expect(status2.isDirty).toBe(true)
-    expect(status2.untracked).toBe(1)
-    expect(status2.unstaged).toBe(1)
+    expect(status2!.isDirty).toBe(true)
+    expect(status2!.untracked).toBe(1)
+    expect(status2!.unstaged).toBe(1)
   })
 })

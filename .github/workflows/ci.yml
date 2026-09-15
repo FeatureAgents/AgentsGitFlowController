@@ -43,7 +43,7 @@ jobs:
       - run: npm run verify:matrix
         if: matrix.node != 23
 
-  # Git 决策矩阵(135 项)与真实流程 E2E: 需要 bash 与真实 git 仓库, 单独一个 ubuntu job。
+  # Git 决策矩阵(169 项)与真实流程 E2E: 需要 bash 与真实 git 仓库, 单独一个 ubuntu job。
   # 此前这两个套件只在本地手动执行, 核心正确性回归没有 CI 门禁。
   git-matrix:
     runs-on: ubuntu-latest

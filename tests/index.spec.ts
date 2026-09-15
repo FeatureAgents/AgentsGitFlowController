@@ -290,6 +290,29 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
+  it('worktree guard: simulatedClean 下 git status 查询失败 → deny(realStatus 为空不伪造干净工作区)', async () => {
+    const dir = tempRepo({
+      enabled: true,
+      branches: { integration: ['develop'] },
+      worktree: { requireCleanOnPr: true },
+    })
+    try {
+      const runner = scriptedRunner({
+        'status --porcelain': { code: 1, stdout: '', stderr: '' },
+      })
+      const res = await evaluateCommand('git commit -m "feat: done" && gh pr create --base develop', {
+        repoRoot: dir,
+        runner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(res.outcome).toBe('deny')
+      expect(res.reason?.why).toMatch(/worktree status/i)
+      expect(res.reason?.next).toBeTruthy()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('worktree guard: requireUpstreamSynced 且分支落后 upstream 时拦截', async () => {
     const dir = tempRepo({
       enabled: true,
@@ -307,6 +330,54 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
       })
       expect(res.outcome).toBe('deny')
       expect(res.reason?.why).toMatch(/behind upstream/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('evaluateCommand: 超时熔断的消费端接线', () => {
+  it('分支查询超时 → deny(reason.why 命中超时文案), 且超时拒绝同样落审计', async () => {
+    const dir = tempRepo()
+    const runner: Runner = {
+      async run(args) {
+        if (args[0] === 'branch') return { code: 1, stdout: '', stderr: '', timedOut: true }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    try {
+      const res = await evaluateCommand('git push origin develop', { repoRoot: dir, runner })
+      expect(res.outcome).toBe('deny')
+      expect(res.reason?.why).toMatch(/timed out/i)
+      expect(res.reason?.next).toBeTruthy()
+      // 超时拒绝不得静默: 与普通 deny 一样落 audit.jsonl
+      const auditFile = join(await stateDir(dir, runner), 'audit.jsonl')
+      expect(existsSync(auditFile)).toBe(true)
+      expect(readFileSync(auditFile, 'utf8')).toMatch(/"event":"deny"/)
+      expect(readFileSync(auditFile, 'utf8')).toMatch(/timed out/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+      rmSync(await stateDir(dir, runner), { recursive: true, force: true })
+    }
+  })
+
+  it('factsFor: upstream 偏离查询超时 → 置 repoTimeout 并 deny(不落入"放行"路径)', async () => {
+    const dir = tempRepo({
+      enabled: true,
+      branches: { integration: ['develop'] },
+      worktree: { requireUpstreamSynced: true },
+    })
+    try {
+      const runner = scriptedRunner({
+        'rev-list --left-right': { code: 1, stdout: '', stderr: '', timedOut: true },
+      })
+      const res = await evaluateCommand('gh pr create --base develop', {
+        repoRoot: dir,
+        runner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(res.outcome).toBe('deny')
+      expect(res.reason?.why).toMatch(/timed out/i)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -339,10 +410,45 @@ describe('apply: DSH 插件降级路径(P0-1)', () => {
     apply(ctx as unknown as Context)
     expect(handler).toBeTypeOf('function')
     // exec.agent 属性访问即抛错 → 命中 apply 的 catch 降级路径
-    const exec = { name: 'bash', arguments: { command: 'git status' }, get agent(): unknown { throw new Error('boom') } }
+    // 命令须为非 git-只读(git status 属 other, 会被 classify 快路径提前放行, 触达不到 catch)
+    const exec = { name: 'bash', arguments: { command: 'git push origin develop' }, get agent(): unknown { throw new Error('boom') } }
     const next = async () => 'passed-through'
     await expect(handler!(exec, next)).resolves.toBe('passed-through')
     expect(warnings).toEqual(['gitflow-guard: gate internal error, allowed through: boom'])
+  })
+
+  it('注入 runner 的仓库根查询超时 → deny(超时文案); 非 git 命令走 classify 快路径仍放行且零 git 调用', async () => {
+    let calls = 0
+    const runner: Runner = {
+      async run(args) {
+        calls++
+        if (args[0] === 'rev-parse') return { code: 1, stdout: '', stderr: '', timedOut: true }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    type PreExecuteHandler = (exec: unknown, next: () => Promise<unknown>) => Promise<unknown>
+    let handler: PreExecuteHandler | undefined
+    const ctx = {
+      on: (_event: string, fn: PreExecuteHandler) => {
+        handler = fn
+      },
+    }
+    // 注入缝: pluginConfig.runner(默认真实 gitRunner)
+    apply(ctx as unknown as Context, { runner })
+    expect(handler).toBeTypeOf('function')
+
+    const next = async () => 'passed-through'
+    const exec = { name: 'bash', arguments: { command: 'git push origin develop' }, agent: { session: { header: { cwd: '/fake/repo' } } } }
+    const res = await handler!(exec, next)
+    expect(res).toMatchObject({ kind: 'deny' })
+    expect((res as { reason: string }).reason).toMatch(/timed out/i)
+
+    // 非 git 命令在 classify 快路径直接放行: 不触发任何 git 查询, 超时 runner 也不会误伤
+    const callsBefore = calls
+    await expect(
+      handler!({ name: 'bash', arguments: { command: 'npm test' }, agent: { session: { header: { cwd: '/fake/repo' } } } }, next),
+    ).resolves.toBe('passed-through')
+    expect(calls).toBe(callsBefore)
   })
 })
 
