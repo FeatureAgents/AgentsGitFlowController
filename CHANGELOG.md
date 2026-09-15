@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.1.0
+
+- chore(release): move the package onto the conservative 0.1.x pre-1.0 stabilization line without changing the 0.0.50 feature set — this version is a release-line transition only; no runtime, CLI, configuration, or hook-protocol behavior changes are included, and no 1.0 API-compatibility guarantee is implied —— 将包切换到保守的 0.1.x 预 1.0 稳定化版本线，保持 0.0.50 的功能集不变：本版仅作版本线切换，不包含运行时、CLI、配置或 Hook 协议行为变更，也不代表开始承诺 1.0 API 兼容性。
+
 ## 0.0.50
 
 - fix(gate): enforce `mergeBy` consistently across all four roles — PR merge checks previously read `mergeBy` only on production, denied archive merges unconditionally, and ignored `mergeBy` on integration/preview entirely; `decidePrMerge` now reads `mergeBy` for every role with dedicated i18n guidance, keeping each role's established default (`integration`/`preview` = `anyone`, `production`/`archive` = `user`). Behavior change to note: archive merges are no longer denied unconditionally — they are denied unless the archive role explicitly sets `mergeBy: "anyone"` —— 四角色统一按 `mergeBy` 判定：此前 PR 合并检查只对生产分支读取 `mergeBy`、对归档分支无条件拒绝、对集成分支与预览分支完全忽略该配置；现 `decidePrMerge` 对四个角色统一读取 `mergeBy` 并给出对应国际化提示，各角色沿用既有默认（`integration`/`preview` = `anyone`，`production`/`archive` = `user`）。需注意的行为变化：归档分支不再是"一律拒绝"，而是"除显式配置 `mergeBy: "anyone"` 外均拒绝"。
