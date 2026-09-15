@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // 版本锁定一致性守卫: package.json 的 version 必须与——
-//   1. 双语 README 中全部 agents-gitflow-guard@x.y.z 锁定安装示例
-//   2. CHANGELOG 里的 ## <version> 小节标题
+//   1. package-lock.json 的顶层 version 与 packages[""].version
+//   2. 全部 README 中全部 agents-gitflow-guard@x.y.z 锁定安装示例
+//   3. CHANGELOG 里的 ## <version> 小节标题
 // 完全一致。发版流程中「README 锁版本示例随 bump 同步」是人工步骤,
 // 此脚本把它变成机器拦截(CI 与 prepublishOnly 双挂载, 漏改即红)。
 import { readFileSync } from 'node:fs'
@@ -20,11 +21,25 @@ export function checkPins(version, files) {
   return errors
 }
 
+/** package-lock 根版本一致性(纯函数核心): 顶层与 packages[""] 都必须跟随 package.json */
+export function checkLockVersions(version, lock) {
+  const errors = []
+  if (lock?.version !== version) {
+    errors.push('package-lock.json: root version ' + String(lock?.version) + ' (expected ' + version + ')')
+  }
+  const packageVersion = lock?.packages?.['']?.version
+  if (packageVersion !== version) {
+    errors.push('package-lock.json: packages[""].version ' + String(packageVersion) + ' (expected ' + version + ')')
+  }
+  return errors
+}
+
 function main() {
   const version = JSON.parse(readFileSync('package.json', 'utf8')).version
+  const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'))
   const files = ['README.md', 'README.zh.md', 'README.zh-tw.md', 'README.ja.md', 'README.ko.md', 'README.de.md', 'README.fr.md', 'README.it.md', 'README.pt.md', 'README.es.md', 'README.ru.md', 'CHANGELOG.md'].map((name) => ({ name, content: readFileSync(name, 'utf8') }))
   // 锁定安装示例只存在于双语 README; CHANGELOG 仅校验小节标题(见下), 不要求含 pin
-  const errors = checkPins(version, files.filter((f) => f.name !== 'CHANGELOG.md'))
+  const errors = [...checkLockVersions(version, lock), ...checkPins(version, files.filter((f) => f.name !== 'CHANGELOG.md'))]
   if (!files.some((f) => f.name === 'CHANGELOG.md' && f.content.includes('## ' + version))) {
     errors.push('CHANGELOG.md: missing "## ' + version + '" section heading')
   }
