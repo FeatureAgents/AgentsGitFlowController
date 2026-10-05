@@ -4,7 +4,7 @@
 
 Un guardián configurable para roles de ramas Git, diseñado para agentes de programación con IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) y [Pi](https://github.com/mariozechner/pi).
 Tú defines tus propias ramas —
-**integration** (las funcionalidades se integran mediante PR/MR), **preview** (entornos de prueba), **production**, **archive** — cada una con sus propias reglas de actualización. Los agentes no pueden eludir el flujo y los merges críticos permanecen en tus manos.
+**integration** (las funcionalidades se integran mediante PR/MR), **preview** (entornos de prueba), **production**, **archive** — cada una con sus propias reglas de actualización. Las infracciones rutinarias del flujo se bloquean antes de ejecutarse, con el motivo y el siguiente paso claros; y los merges críticos permanecen en tus manos. Un agente decidido puede aún eludir una capa de texto; véase [Límites honestos](#qué-no-hace--límites-honestos).
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Licencia](LICENSE)
 
@@ -17,6 +17,7 @@ Tú defines tus propias ramas —
 
 - [Inicio Rápido — 30 segundos para proteger tu repositorio](#inicio-rápido--30-segundos-para-proteger-tu-repositorio)
 - [Por qué — El problema que resuelve este plugin](#por-qué--el-problema-que-resuelve-este-plugin)
+- [Véalo en acción — una demostración en vivo de 30 segundos](#véalo-en-acción--una-demostración-en-vivo-de-30-segundos)
 - [Para quién es esto — Escenarios y equipos](#para-quién-es-esto--escenarios-y-equipos)
 - [Qué hace — Capacidades](#qué-hace--capacidades)
 - [Qué NO hace — Límites honestos](#qué-no-hace--límites-honestos)
@@ -121,9 +122,23 @@ Los agentes de programación con IA trabajan directamente en tu repositorio. A t
 
 **Esa es una regla flexible (blanda).** Los agentes se la saltan, alteran el orden o simplemente la «olvidan» — no por malicia, sino porque las instrucciones blandas son optativas para un modelo de lenguaje.
 
-Este plugin transforma esa regla flexible en un **mecanismo estricto (duro)**. Cada operación de Git intentada por un agente se evalúa frente al *estado real de tu repositorio local*. Las infracciones se bloquean antes de que el comando se ejecute, explicando el motivo y el siguiente paso a seguir.
+Este plugin dota a la regla flexible de una **compuerta mecánica**. Cada operación de Git intentada por un agente se evalúa frente al *estado real de tu repositorio local*. Las infracciones rutinarias se bloquean antes de que el comando se ejecute, explicando el motivo y el siguiente paso a seguir.
 
-Nadie tiene que acordarse de las reglas — las reglas se aplican técnicamente.
+Nadie tiene que acordarse de las reglas — el guardián las verifica mecánicamente. La capa de texto es inherentemente best-effort: lo que un agente decidido aún puede hacer, véase [Límites honestos](#qué-no-hace--límites-honestos).
+
+---
+
+## Véalo en acción — una demostración en vivo de 30 segundos
+
+Sin tocar los archivos de tu proyecto, sin dejar nada atrás — un solo comando ejecuta tres escenas reales (1 pase, 2 bloqueos) dentro de un repositorio sandbox desechable y lo elimina al salir. La animación de abajo se genera a partir de la salida real de ese comando — el mismo núcleo de guardia que invoca el hook de tu agente:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — decisiones reales de pase/bloqueo en un repositorio desechable real](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Para poner el guardián delante de tu agente después, continúa con [Inicio Rápido](#inicio-rápido--30-segundos-para-proteger-tu-repositorio).
 
 ---
 

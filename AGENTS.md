@@ -88,7 +88,7 @@ AgentsGitFlowController/
 - **提交前清单与确认（pre-commit-review）**：任何 `git add` / commit / push / PR 创建前，先执行项目技能 **`.agents/skills/pre-commit-review/SKILL.md`**——逐文件列提交清单（新增/修改、公开进 PR 还是私有留本地、纳入/排除原因），经用户明确确认后才可暂存与提交；禁止 `git add -A` 整体暂存，暂存一律显式列文件路径。
 - 提交规范：Conventional Commits（feat / fix / docs / style / refactor / test / chore）；**PR 标题与正文一律英文**。
 - **CHANGELOG 随功能同一 PR 写入**, 标题仅用版本号、不写日期(发布时间由 git tag / GitHub Release 承载), 发布 bump 时一次到位; 禁止发版后再为本次版本单独开修正 PR。
-- **多语言文档绝对对等（多语种平等守卫）**：修改或更新任何面向用户的说明、门禁规则、配置项或 CLI 功能时，必须执行 **`.agents/skills/readme-sync/SKILL.md`**，确保全部 11 种语言 README（`README.md`、`README.zh.md`、`README.zh-tw.md`、`README.ja.md`、`README.ko.md`、`README.de.md`、`README.fr.md`、`README.es.md`、`README.it.md`、`README.pt.md`、`README.ru.md`）保持 100% 结构对称与完整对齐（44 标题、7 表格、24 代码块、17 TOC 锚点），禁止出现摘要与全量不对等的现象；并通过 `npm run check:readmes` 机械拦截校验。
+- **多语言文档绝对对等（多语种平等守卫）**：修改或更新任何面向用户的说明、门禁规则、配置项或 CLI 功能时，必须执行 **`.agents/skills/readme-sync/SKILL.md`**，确保全部 11 种语言 README（`README.md`、`README.zh.md`、`README.zh-tw.md`、`README.ja.md`、`README.ko.md`、`README.de.md`、`README.fr.md`、`README.es.md`、`README.it.md`、`README.pt.md`、`README.ru.md`）保持 100% 结构对称与完整对齐（45 标题、7 表格、21 代码块、18 TOC 锚点），禁止出现摘要与全量不对等的现象；并通过 `npm run check:readmes` 机械拦截校验。
 - **特定场景智能体**：
   - 遇到设计稿 / 报错截图 / 架构图等图片时，插入 `vision` 识别。
   - 小型改动或无需拆分单测/E2E细分流程时，可选用综合 `tester` 驱动。

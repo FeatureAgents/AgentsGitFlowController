@@ -18,9 +18,9 @@ export const REQUIRED_README_FILES = [
   'README.ru.md'
 ]
 
-export const EXPECTED_REAL_HEADINGS = 44 // 1 H1 + 18 H2 + 22 H3 + 3 H4 (排除代码块内注释)
+export const EXPECTED_REAL_HEADINGS = 45 // 1 H1 + 19 H2 + 22 H3 + 3 H4 (排除代码块内注释)
 export const EXPECTED_TABLE_COUNT = 7
-export const EXPECTED_TOC_ITEMS = 17
+export const EXPECTED_TOC_ITEMS = 18
 
 /**
  * 提取文件中的真实 Markdown 标题（排除代码块内的 # 注释）

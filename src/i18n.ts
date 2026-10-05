@@ -143,6 +143,16 @@ const en: Dict = {
   'cli.setupClientAsk': () => 'Which client? [dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor] ',
   'cli.setupClientInvalid': () => 'invalid client (expected dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor)',
   'cli.setupNoTty': () => 'setup needs an interactive terminal — use: gitflow-guard wire --client <name> --yes',
+  // —— demo: 30 秒真实演示(沙箱仓库 + 同一守卫核心, 用户目录零残留) ——
+  'cli.demo.title': () => '[gitflow-guard] demo — watch the guard decide on a real throwaway repo',
+  'cli.demo.sandbox': (v) => `  sandbox: ${v.dir} (a real git repo — deleted on exit)`,
+  'cli.demo.scene': (v) => `  scene ${v.n}/${v.total} — on ${v.branch}: ${v.cmd}`,
+  'cli.demo.allow': () => '    → ALLOW (exit 0) — the command may run',
+  'cli.demo.deny': () => '    → DENY (exit 2) — the command never ran',
+  'cli.demo.why': (v) => `      why: ${v.why}`,
+  'cli.demo.next': (v) => `      next: ${v.next}`,
+  'cli.demo.cleanup': () => '  sandbox deleted — no files left behind. That was the real guard core, the same code your agent\'s hook calls.',
+  'cli.demo.wire': () => '  Put the guard in front of your agent:  npx gitflow-guard wire --client <claude|codex|cursor|...> --project',
   'guardStrictConfigBroken.why': () => 'Guard config is invalid while strict mode is enabled',
   'guardStrictConfigBroken.next': () => 'Fix gitflow-guard.config.json (or remove "strict": true) before retrying.',
   'guardStrictInternalError.why': (v) => `Guard internal error while strict mode is enabled: ${v.msg}`,
@@ -152,6 +162,7 @@ const en: Dict = {
 Usage:
   gitflow-guard status [--repo <path>] [--locale <en|zh>]
   gitflow-guard audit [--lines <count>] [--repo <path>] [--locale <en|zh>]
+  gitflow-guard demo [--cast <file>] [--locale <en|zh>]
   gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|codebuddy|zcode|cursor>] [--command "<cmd>"] [--repo <path>] [--locale <en|zh>]
   gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <path>] [--locale <en|zh>]
   gitflow-guard setup [--repo <path>] [--locale <en|zh>]
@@ -160,6 +171,8 @@ Usage:
 
 Notes:
   status/audit are read-only; the agent can self-inspect.
+  demo runs three real scenes in a throwaway sandbox repo (allow / deny / deny), then deletes it —
+  nothing is left in your home or state directories.
   --locale overrides the message language for this invocation (flag > project config > English).
   check reads the hook payload on stdin (platform-specific protocol: claude/opencode exit 2,
   codex/antigravity/cursor JSON on stdout) and is meant for pre/post hooks of AI agents.
@@ -283,6 +296,16 @@ const zh: Dict = {
   'cli.setupClientAsk': () => '选哪个客户端? [dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor] ',
   'cli.setupClientInvalid': () => '无效客户端(应为 dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor)',
   'cli.setupNoTty': () => 'setup 需要交互终端 — 请用: gitflow-guard wire --client <名字> --yes',
+  // —— demo: 30 秒真实演示(沙箱仓库 + 同一守卫核心, 用户目录零残留) ——
+  'cli.demo.title': () => '[gitflow-guard] demo — 在一个真实的一次性仓库上, 看守卫现场做判断',
+  'cli.demo.sandbox': (v) => `  沙箱: ${v.dir}(真实 git 仓库, 退出即删除)`,
+  'cli.demo.scene': (v) => `  场景 ${v.n}/${v.total} — 在 ${v.branch} 上: ${v.cmd}`,
+  'cli.demo.allow': () => '    → 放行 (exit 0) — 命令可以执行',
+  'cli.demo.deny': () => '    → 拦截 (exit 2) — 命令没有执行',
+  'cli.demo.why': (v) => `      原因: ${v.why}`,
+  'cli.demo.next': (v) => `      下一步: ${v.next}`,
+  'cli.demo.cleanup': () => '  沙箱已删除 — 不留任何文件。刚才就是真实的守卫核心, 与你 agent hook 调用的是同一份代码。',
+  'cli.demo.wire': () => '  把守卫接到你的 agent 面前:  npx gitflow-guard wire --client <claude|codex|cursor|...> --project',
   'guardStrictConfigBroken.why': () => '守卫配置无效, 且已启用 strict 模式',
   'guardStrictConfigBroken.next': () => '请先修复 gitflow-guard.config.json(或移除 "strict": true)后重试',
   'guardStrictInternalError.why': (v) => `守卫内部错误, 且已启用 strict 模式: ${v.msg}`,
@@ -292,6 +315,7 @@ const zh: Dict = {
 用法:
   gitflow-guard status [--repo <路径>] [--locale <en|zh>]
   gitflow-guard audit [--lines <数量>] [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard demo [--cast <文件>] [--locale <en|zh>]
   gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|codebuddy|zcode|cursor>] [--command "<cmd>"] [--repo <路径>] [--locale <en|zh>]
   gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <路径>] [--locale <en|zh>]
   gitflow-guard setup [--repo <路径>] [--locale <en|zh>]
@@ -300,6 +324,7 @@ const zh: Dict = {
 
 说明:
   status/audit 只读, agent 可自查。
+  demo 在一次性沙箱仓库里跑三个真实场景(放行/拦截/拦截), 结束即删 — 不在你的主目录或状态目录留任何文件。
   --locale 可临时覆盖本次调用的文案语言(旗标 > 项目配置 > 英文)。
   check 读 stdin hook payload 做门禁(平台协议: claude/opencode exit 2, codex/antigravity/cursor stdout JSON),
   供 Claude Code / Codex / OpenCode 等 agent 的 pre/post hook 调用。

@@ -4,7 +4,7 @@
 
 Un garde-fou configurable pour les rôles de branches Git, conçu pour les agents de codage IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) et [Pi](https://github.com/mariozechner/pi).
 Vous définissez vos propres branches —
-**integration** (les fonctionnalités sont intégrées via PR/MR), **preview** (environnements de test), **production**, **archive** — chacune avec ses propres règles de mise à jour. Les agents ne peuvent pas contourner le processus et les fusions sensibles restent entre vos mains.
+**integration** (les fonctionnalités sont intégrées via PR/MR), **preview** (environnements de test), **production**, **archive** — chacune avec ses propres règles de mise à jour. Les infractions routinières au flux sont bloquées avant exécution, avec un motif et la marche à suivre clairement indiqués — et les fusions sensibles restent entre vos mains. Un agent déterminé peut toujours contourner un garde au niveau texte ; voir [Limites honnêtes](#ce-quil-ne-fait-pas--limites-honnêtes).
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Licence](LICENSE)
 
@@ -17,6 +17,7 @@ Vous définissez vos propres branches —
 
 - [Démarrage rapide — 30 secondes pour protéger un dépôt](#démarrage-rapide--30-secondes-pour-protéger-un-dépôt)
 - [Pourquoi — Le problème résolu par ce plugin](#pourquoi--le-problème-résolu-par-ce-plugin)
+- [Voyez-le à l'œuvre — une démo live de 30 secondes](#voyez-le-à-loeuvre--une-démo-live-de-30-secondes)
 - [À qui s'adresse ce plugin — Scénarios et équipes](#à-qui-sadresse-ce-plugin--scénarios-et-équipes)
 - [Ce qu'il fait — Fonctionnalités](#ce-quil-fait--fonctionnalités)
 - [Ce qu'il ne fait PAS — Limites honnêtes](#ce-quil-ne-fait-pas--limites-honnêtes)
@@ -121,9 +122,23 @@ Les agents de codage IA travaillent directement au sein de votre dépôt. Il leu
 
 **Il s'agit d'une règle souple.** Les agents la contournent, inversent les étapes ou « l'oublient » tout simplement — non par malveillance, mais parce que les instructions informelles restent facultatives pour un modèle de langage.
 
-Ce plugin transforme cette règle souple en un **mécanisme rigide**. Chaque opération Git tentée par un agent est confrontée à *l'état réel de votre dépôt local*. Les infractions sont bloquées avant l'exécution de la commande, avec une explication claire du motif et de la marche à suivre.
+Ce plugin dote la règle souple d'un **verrou mécanique**. Chaque opération Git tentée par un agent est confrontée à *l'état réel de votre dépôt local*. Les infractions routinières sont bloquées avant l'exécution de la commande, avec une explication claire du motif et de la marche à suivre.
 
-Personne n'a besoin de se remémorer les règles — elles sont appliquées de manière automatisée et stricte.
+Personne n'a besoin de se remémorer les règles — le garde les vérifie mécaniquement. Le niveau texte reste du best-effort par nature : ce qu'un agent déterminé peut encore faire, voir [Limites honnêtes](#ce-quil-ne-fait-pas--limites-honnêtes).
+
+---
+
+## Voyez-le à l'œuvre — une démo live de 30 secondes
+
+Aucune modification de vos fichiers de projet, aucun résidu — une seule commande exécute trois scènes réelles (1 passage, 2 blocages) dans un dépôt bac à sable jetable et le supprime en quittant. L'animation ci-dessous est générée à partir de la sortie réelle de cette commande — le même noyau de garde que celui que le hook de votre agent appelle :
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — décisions réelles de passage/blocage sur un dépôt jetable réel](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Pour placer ensuite le garde devant votre agent, continuez avec [Démarrage rapide](#démarrage-rapide--30-secondes-pour-protéger-un-dépôt).
 
 ---
 

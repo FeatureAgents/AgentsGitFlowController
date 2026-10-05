@@ -43,12 +43,12 @@ Whenever editing documentation, verify all 11 files against these 7 structural i
 
 | # | Check Dimension | Exact Specification |
 |---|---|---|
-| 1 | **Headings Hierarchy** | Exactly **44 headings** (1 H1, 18 H2, 22 H3, 3 H4) in identical order. |
+| 1 | **Headings Hierarchy** | Exactly **45 headings** (1 H1, 19 H2, 22 H3, 3 H4) in identical order. |
 | 2 | **Markdown Tables** | Exactly **7 tables** with identical row counts: Walkthrough (6 steps), Server vs Plugin (7 rows), Defaults (2 roles), Branch Roles (5 roles), Gate Matrix (11 actions), Install Matrix (3 tiers), Glossary (8 terms). |
-| 3 | **Code Blocks** | Exactly **20 code blocks** preserving identical commands, CLI arguments, JSON keys, and schemas. |
+| 3 | **Code Blocks** | Exactly **21 code blocks** preserving identical commands, CLI arguments, JSON keys, and schemas. |
 | 4 | **FAQ Completeness** | Exactly **9 FAQ Q&A pairs** answering all common user questions. |
 | 5 | **Glossary Completeness** | Exactly **8 core terms** defined in the Glossary table. |
-| 6 | **TOC & Anchor Validity** | Exactly **17 TOC links** resolving to valid GitHub slug anchors with 0 broken links. |
+| 6 | **TOC & Anchor Validity** | Exactly **18 TOC links** resolving to valid GitHub slug anchors with 0 broken links. |
 | 7 | **Navigation Bar Symmetry** | All 11 language links + localized License link present in the exact same order. |
 
 ---

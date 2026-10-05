@@ -3,7 +3,7 @@
 > **AI 에이전트가 GitFlow 규칙을 무단으로 건너뛰는 문제로 고민하고 계신가요?**
 
 AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 플러그인 — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 및 [Pi](https://github.com/mariozechner/pi) 지원.  
-자신만의 브랜치 역할을 자유롭게 정의하세요 — **integration** (PR/MR을 통해 feature 통합), **preview** (스테이징/테스트 환경 엔드포인트), **production** (운영), **archive** (아카이브) — 각각 고유한 업데이트 규칙을 설정할 수 있습니다. 에이전트는 정의된 흐름을 임의로 건너뛸 수 없으며, 민감한 머지 권한은 확실하게 사람의 손에 유지됩니다.
+자신만의 브랜치 역할을 자유롭게 정의하세요 — **integration** (PR/MR을 통해 feature 통합), **preview** (스테이징/테스트 환경 엔드포인트), **production** (운영), **archive** (아카이브) — 각각 고유한 업데이트 규칙을 설정할 수 있습니다. 정형적인 흐름 위반은 실행 전에 차단되고, 명확한 원인과 다음 조치가 안내됩니다. 민감한 머지 권한은 확실하게 사람의 손에 유지됩니다. 의도적인 에이전트는 여전히 텍스트 계층 가드를 우회할 수 있습니다 —— [명확한 한계](#제한-사항--명확한-한계) 참조.
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [라이선스](LICENSE)
 
@@ -16,6 +16,7 @@ AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 
 
 - [빠른 시작 — 30초 만에 저장소 보호하기](#빠른-시작--30초-만에-저장소-보호하기)
 - [도입 배경 — 이 플러그인이 해결하는 문제](#도입-배경--이-플러그인이-해결하는-문제)
+- [직접 확인하기 — 30초 라이브 데모](#직접-확인하기--30초-라이브-데모)
 - [대상 사용자 — 활용 시나리오 및 팀](#대상-사용자--활용-시나리오-및-팀)
 - [주요 기능 — 지원하는 동작](#주요-기능--지원하는-동작)
 - [제한 사항 — 명확한 한계](#제한-사항--명확한-한계)
@@ -120,9 +121,23 @@ AI 코딩 에이전트는 사용자의 저장소 내에서 직접 작업합니�
 
 **하지만 이는 소프트 규칙(Soft rule)에 불과합니다.** 에이전트는 규칙을 건너뛰거나 순서를 바꾸거나 단순히 "잊어버립니다" — 악의가 있어서가 아니라, LLM 모델에게 텍스트 지침은 본질적으로 선택 사항이기 때문입니다.
 
-본 플러그인은 소프트 규칙을 **물리적인 하드 제약(Hard mechanism)**으로 변환합니다. 에이전트가 시도하는 모든 Git 명령어는 *로컬 저장소의 실제 상태*를 기준으로 검증됩니다. 위반 사항은 명령어가 실행되기 전에 즉시 차단되며, 원인과 다음 조치 방법이 명확하게 안내됩니다.
+본 플러그인은 소프트 규칙에 **기계적으로 작동하는 게이트**를 붙입니다. 에이전트가 시도하는 모든 Git 명령어는 *로컬 저장소의 실제 상태*를 기준으로 검증됩니다. 정형적인 위반은 명령어가 실행되기 전에 즉시 차단되며, 원인과 다음 조치 방법이 명확하게 안내됩니다.
 
-누구도 규칙을 억지로 기억할 필요가 없습니다 — 규칙은 시스템에 의해 강제됩니다.
+누구도 규칙을 억지로 기억할 필요가 없습니다 — 가드가 기계적으로 검증합니다. 텍스트 계층은 본질적으로 best-effort입니다: 의도적인 에이전트가 할 수 있는 일은 [명확한 한계](#제한-사항--명확한-한계) 참조.
+
+---
+
+## 직접 확인하기 — 30초 라이브 데모
+
+프로젝트 파일을 건드리지 않고, 아무것도 남기지 않습니다 — 명령어 하나로 일회성 샌드박스 저장소 안에서 3개의 실제 장면(1 허용, 2 차단)을 실행하고 종료 시 삭제합니다. 아래 애니메이션은 그 명령어의 실제 출력에서 생성된 것으로 — 에이전트 훅이 호출하는 것과 동일한 가드 코어입니다:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — 실제 저장소 위의 실제 허용/차단 판정](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+확인 후 에이전트 앞에 가드를 두고 싶다면, [빠른 시작](#빠른-시작--30초-만에-저장소-보호하기)으로 이어가세요.
 
 ---
 

@@ -3,7 +3,7 @@
 > **有沒有受夠了 AI Agent 隨意跳過你的 GitFlow 合併流程？**
 
 一個可自由配置分支角色的流程守衛，專為主流 AI 寫碼 Agent 平台而生 —— [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://github.com/opencode-ai/opencode)、[Antigravity](https://github.com/google-deepmind)、[CodeBuddy](https://codebuddy.ai)、[ZCode](https://zcode.ai)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 與 [Pi](https://github.com/mariozechner/pi)。  
-你自己定義分支 —— **集成分支**（feature 經 PR/MR 合入）、**預覽分支**（環境端點）、**生產分支**、**歸檔分支** —— 每個角色各自配置規則。Agent 無法跳過流程，敏感合併始終留在你手上。
+你自己定義分支 —— **集成分支**（feature 經 PR/MR 合入）、**預覽分支**（環境端點）、**生產分支**、**歸檔分支** —— 每個角色各自配置規則。常規流程違規在執行前就被攔截，並給出明確的原因與下一步；敏感合併始終留在你手上。存心的 Agent 仍可繞過文字層守衛 —— 見[誠實的邊界](#它不能做什麼--誠實的邊界)。
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [授權條款](LICENSE)
 
@@ -16,6 +16,7 @@
 
 - [快速開始 — 30 秒上手](#快速開始--30-秒上手)
 - [為什麼需要它 — 解決的問題](#為什麼需要它--解決的問題)
+- [看它實際攔截 — 30 秒真機演示](#看它實際攔截--30-秒真機演示)
 - [適合誰 — 場景與團隊](#適合誰--場景與團隊)
 - [它能做什麼](#它能做什麼)
 - [它不能做什麼 — 誠實的邊界](#它不能做什麼--誠實的邊界)
@@ -120,9 +121,23 @@ AI 寫碼 Agent 在你的程式碼倉庫裡工作。它透過系統提示詞、�
 
 **這是軟規則。** Agent 會跳過、重排、甚至乾脆「忘記」它 —— 不是出於惡意，而是因為軟性指令對模型來說本來就是可選的。
 
-這個外掛把軟規則變成**硬機制**。Agent 每次嘗試的 Git 操作都會對照*本地倉庫的真實狀態*進行檢查；違規操作在指令執行前就會被攔截，並給出原因與下一步指引。
+這個外掛給軟規則配上**機械執行的閘門**。Agent 每次嘗試的 Git 操作都會對照*本地倉庫的真實狀態*進行檢查；常規違規在指令執行前就會被攔截，並給出原因與下一步指引。
 
-沒有人需要刻意記住規則 —— 規則被強制執行。
+沒有人需要刻意記住規則 —— 守衛機械地把關。文字層本質上是盡力而為：存心的 Agent 能做什麼，見[誠實的邊界](#它不能做什麼--誠實的邊界)。
+
+---
+
+## 看它實際攔截 — 30 秒真機演示
+
+不碰你的專案檔案，不留任何東西 —— 一條命令在一次性沙箱儲存庫裡跑三個真實場景（1 放行，2 攔截），退出即刪。下面的動畫由該命令的真實輸出生成 —— 與你 Agent hook 呼叫的是同一守衛核心：
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — 真實儲存庫上真實的放行/攔截判定](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+看完之後想把守衛接到你的 Agent 面前，繼續看[快速開始](#快速開始--30-秒上手)。
 
 ---
 
