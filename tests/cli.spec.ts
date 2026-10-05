@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, readFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { main } from '../src/cli'
 import { stateDir } from '../src/index'
 import { guardCommand, resolveRunnerPath } from '../src/wire'
-import { MESSAGE_KEYS, registerLocale } from '../src/i18n'
+import { MESSAGE_KEYS, makeT, registerLocale } from '../src/i18n'
 import type { Dict } from '../src/i18n'
 import type { Runner } from '../src/repo'
 
@@ -701,6 +701,115 @@ describe('cli: status 内置默认与接线提示', () => {
       expect(text).not.toContain('wire --client opencode')
     } finally {
       rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('cli: demo(30 秒真实演示, 用户目录零残留)', () => {
+  /** tmpdir 快照: 只比对 demo 专属前缀, 规避并行测试噪声 */
+  function demoSandboxes(): string[] {
+    return readdirSync(tmpdir()).filter((n) => n.startsWith('gfguard-demo-'))
+  }
+
+  it('真实 git 沙箱: 1 放行 + 2 拦截, 结束后沙箱目录已删除', async () => {
+    const castDir = mkdtempSync(join(tmpdir(), 'gfguard-cli-cast-'))
+    const castPath = join(castDir, 'demo.cast.jsonl')
+    try {
+      const { code, text } = await captureStdout(() => main(['demo', '--cast', castPath]))
+      expect(code).toBe(0)
+      // en 输出: 三个场景行 + 一次放行 + 两次拦截(拦截各带 why/next)
+      expect(text).toContain('demo')
+      expect(text).toContain('feature/demo-x')
+      expect(text.match(/DENY/g)?.length).toBe(2)
+      expect(text.match(/ALLOW/g)?.length).toBe(1)
+      expect(text.match(/why:/g)?.length).toBe(2)
+      expect(text.match(/next:/g)?.length).toBe(2)
+      // 沙箱路径取自 cast 事件流(运行中才可知), 运行后必须已删除
+      const lines = readFileSync(castPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { tag: string; dir?: string })
+      const sandboxDir = lines.find((e) => e.tag === 'sandbox')?.dir
+      expect(sandboxDir).toBeTruthy()
+      expect(existsSync(sandboxDir!)).toBe(false)
+    } finally {
+      rmSync(castDir, { recursive: true, force: true })
+    }
+  })
+
+  it('--cast 产物: JSONL 事件流, 3 场景 + 判定 + 收尾', async () => {
+    const castDir = mkdtempSync(join(tmpdir(), 'gfguard-cli-cast-'))
+    const castPath = join(castDir, 'demo.cast.jsonl')
+    try {
+      const { code } = await captureStdout(() => main(['demo', '--cast', castPath]))
+      expect(code).toBe(0)
+      const lines = readFileSync(castPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>)
+      // 每行都有时延与渲染文本, tag 属固定集合
+      const tags = new Set(['title', 'sandbox', 'scene', 'allow', 'deny', 'why', 'next', 'cleanup', 'wire'])
+      for (const e of lines) {
+        expect(typeof e.t).toBe('number')
+        expect(typeof e.text).toBe('string')
+        expect((e.text as string).length).toBeGreaterThan(0)
+        expect(tags.has(e.tag as string)).toBe(true)
+      }
+      expect(lines[0].tag).toBe('title')
+      // 恰好 3 个场景: feature/demo-x / feature/demo-x / develop
+      const scenes = lines.filter((e) => e.tag === 'scene')
+      expect(scenes.map((s) => [s.n, s.total, s.branch])).toEqual([
+        [1, 3, 'feature/demo-x'],
+        [2, 3, 'feature/demo-x'],
+        [3, 3, 'develop'],
+      ])
+      expect(scenes.every((s) => typeof s.cmd === 'string' && (s.cmd as string).startsWith('git '))).toBe(true)
+      // 判定: 1 放行 + 2 拦截, 拦截行后紧跟 why/next
+      expect(lines.filter((e) => e.tag === 'allow').length).toBe(1)
+      expect(lines.filter((e) => e.tag === 'deny').length).toBe(2)
+      for (const [i, e] of lines.entries()) {
+        if (e.tag === 'deny') {
+          expect(lines[i + 1].tag).toBe('why')
+          expect(lines[i + 2].tag).toBe('next')
+        }
+      }
+      expect(lines.at(-2)?.tag).toBe('cleanup')
+      expect(lines.at(-1)?.tag).toBe('wire')
+    } finally {
+      rmSync(castDir, { recursive: true, force: true })
+    }
+  })
+
+  it('审计状态根隔离: 运行后恢复原值且原根零新增', async () => {
+    const stateX = mkdtempSync(join(tmpdir(), 'gfguard-cli-state-'))
+    const castDir = mkdtempSync(join(tmpdir(), 'gfguard-cli-cast-'))
+    const castPath = join(castDir, 'demo.cast.jsonl')
+    const prev = process.env.GITFLOW_GUARD_STATE_ROOT
+    process.env.GITFLOW_GUARD_STATE_ROOT = stateX
+    try {
+      const { code } = await captureStdout(() => main(['demo', '--cast', castPath]))
+      expect(code).toBe(0)
+      // demo 把状态根再指进沙箱内, 结束后必须恢复为调用方的值, 且 X 下零残留
+      expect(process.env.GITFLOW_GUARD_STATE_ROOT).toBe(stateX)
+      expect(readdirSync(stateX)).toEqual([])
+    } finally {
+      if (prev === undefined) delete process.env.GITFLOW_GUARD_STATE_ROOT
+      else process.env.GITFLOW_GUARD_STATE_ROOT = prev
+      rmSync(stateX, { recursive: true, force: true })
+      rmSync(castDir, { recursive: true, force: true })
+    }
+  })
+
+  it('git 不可用 → 返回 1, stderr 带诊断, 不留沙箱目录', async () => {
+    const before = demoSandboxes()
+    // 所有 git 调用一律失败: 模拟 git 缺失/损坏环境
+    const broken: Runner = { async run() { return { code: 128, stdout: '', stderr: 'fatal: not a git repository' } } }
+    const { code, text } = await captureConsoleError(() => main(['demo'], { runner: broken }))
+    expect(code).toBe(1)
+    expect(text).toContain('[gitflow-guard]')
+    expect(demoSandboxes()).toEqual(before)
+  })
+
+  it('i18n: cli.demo.* 九个 key 在 en/zh 双语就位', () => {
+    const keys = ['title', 'sandbox', 'scene', 'allow', 'deny', 'why', 'next', 'cleanup', 'wire'].map((k) => `cli.demo.${k}`)
+    for (const k of keys) {
+      expect(MESSAGE_KEYS).toContain(k)
+      // 未知 key 防御性原样返回 → "不等于 key 本身"即证明 zh 字典已实现
+      expect(makeT('zh')(k)).not.toBe(k)
     }
   })
 })

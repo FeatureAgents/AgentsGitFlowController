@@ -1,7 +1,8 @@
 // CLI: gitflow-guard status/audit/check(只读 + agent hook 门禁) / wire/setup(客户端默认 hook 接线)
 
 import { createInterface } from 'node:readline'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { classify } from './classify'
 import { loadConfig, roleMatches } from './config'
@@ -28,6 +29,7 @@ interface Flags {
   unwire?: boolean
   dryRun?: boolean
   yes?: boolean
+  cast?: string
 }
 
 function parseFlags(argv: string[]): Flags {
@@ -46,12 +48,14 @@ function parseFlags(argv: string[]): Flags {
     else if (a === '--unwire') flags.unwire = true
     else if (a === '--dry-run') flags.dryRun = true
     else if (a === '--yes') flags.yes = true
+    else if (a === '--cast') flags.cast = next()
     else if (a.startsWith('--repo=')) flags.repo = a.slice(7)
     else if (a.startsWith('--lines=')) flags.lines = Number(a.slice(8))
     else if (a.startsWith('--platform=')) flags.platform = a.slice('--platform='.length)
     else if (a.startsWith('--command=')) flags.command = a.slice('--command='.length)
     else if (a.startsWith('--locale=')) flags.locale = a.slice('--locale='.length)
     else if (a.startsWith('--client=')) flags.client = a.slice('--client='.length)
+    else if (a.startsWith('--cast=')) flags.cast = a.slice('--cast='.length)
   }
   return flags
 }
@@ -90,6 +94,7 @@ export async function main(argv: string[], opts: { runner?: Runner } = {}): Prom
     if (cmd === 'check') return await check(flags, runner)
     if (cmd === 'wire') return await wire(flags, runner)
     if (cmd === 'setup') return await setup(flags, runner)
+    if (cmd === 'demo') return await demo(flags, runner)
     const t = makeT(await resolveFrameworkLocale(flags, runner))
     console.error(`${t('cli.unknownCommand', { cmd: cmd ?? '' })}\n\n${t('usage.text')}`)
     return 1
@@ -332,6 +337,96 @@ async function setup(flags: Flags, runner: Runner): Promise<number> {
     }
   }
   return wireCore(client, scope, { yes: flags.yes, repoRoot }, t)
+}
+
+// —— demo: 30 秒真实演示 ——
+// 一次性沙箱仓库里用与 agent hook 同一条代码路径(evaluateCommand)现场演示 1 放行 + 2 拦截。
+// 审计状态根临时指进沙箱内(GITFLOW_GUARD_STATE_ROOT), 退出时沙箱整体删除 —— 用户目录零残留。
+
+const DEMO_SANDBOX_PREFIX = 'gfguard-demo-'
+const DEMO_BRANCH = 'feature/demo-x'
+/** 沙箱配置: develop=integration / main=archive 的典型 GitFlow 形态 */
+const DEMO_CONFIG = {
+  enabled: true,
+  featurePattern: 'feature/[\\w-]+',
+  branches: { integration: ['develop'], archive: ['main'] },
+}
+/** 三个场景: 常规提交放行; feature 上直推 integration 拦截; integration 上不经 PR 合入拦截 */
+const DEMO_SCENES = [
+  { branch: DEMO_BRANCH, cmd: 'git commit -m "feat: demo work"' },
+  { branch: DEMO_BRANCH, cmd: 'git push origin develop' },
+  { branch: 'develop', cmd: `git merge ${DEMO_BRANCH}` },
+] as const
+
+type DemoCastTag = 'title' | 'sandbox' | 'scene' | 'allow' | 'deny' | 'why' | 'next' | 'cleanup' | 'wire'
+
+type DemoCastEvent = { t: number; tag: DemoCastTag; text: string } & Partial<{
+  dir: string
+  n: number
+  total: number
+  branch: string
+  cmd: string
+}>
+
+async function demo(flags: Flags, runner: Runner): Promise<number> {
+  // demo 运行于沙箱仓库, 不读任何项目配置: 文案语言只认 --locale
+  const t = makeT(resolveLocale(flags.locale))
+  const cast: DemoCastEvent[] = []
+  const emit = (tag: DemoCastTag, text: string, extra: Omit<DemoCastEvent, 't' | 'tag' | 'text'> = {}) => {
+    console.log(text)
+    cast.push({ t: cast.length * 300, tag, text, ...extra })
+  }
+  const sandboxDir = await mkdtemp(join(tmpdir(), DEMO_SANDBOX_PREFIX))
+  const stateRootPrev = process.env.GITFLOW_GUARD_STATE_ROOT
+  process.env.GITFLOW_GUARD_STATE_ROOT = join(sandboxDir, '.guard-state')
+  try {
+    const git = async (args: string[]): Promise<void> => {
+      const r = await runner.run(args, sandboxDir)
+      if (r.code !== 0) throw new Error(`git ${args[0]} failed (${r.code}): ${(r.stderr || r.stdout).trim()}`)
+    }
+    // 造真实仓库: develop 初始提交 → feature/demo-x 一次提交
+    await git(['init', '-b', 'develop'])
+    await git(['config', 'user.email', 'demo@example.com'])
+    await git(['config', 'user.name', 'Demo'])
+    await writeFile(join(sandboxDir, 'gitflow-guard.config.json'), JSON.stringify(DEMO_CONFIG, null, 2), 'utf8')
+    await writeFile(join(sandboxDir, 'README.md'), '# demo sandbox\n', 'utf8')
+    await git(['add', '.'])
+    await git(['commit', '-m', 'init'])
+    await git(['checkout', '-b', DEMO_BRANCH])
+    await writeFile(join(sandboxDir, 'work.txt'), 'demo\n', 'utf8')
+    await git(['add', '.'])
+    await git(['commit', '-m', 'feat: demo work'])
+    // 以 git 权威路径为仓库根(Windows 临时目录可能是 8.3 短名, 见 AGENTS.md §7)
+    const repoRoot = await findRepoRoot(runner, sandboxDir)
+    if (!repoRoot) throw new Error('demo: sandbox is not a git repository')
+
+    emit('title', t('cli.demo.title'))
+    emit('sandbox', t('cli.demo.sandbox', { dir: sandboxDir }), { dir: sandboxDir })
+    for (const [i, scene] of DEMO_SCENES.entries()) {
+      if (scene.branch === 'develop') await git(['checkout', 'develop'])
+      emit('scene', t('cli.demo.scene', { n: String(i + 1), total: String(DEMO_SCENES.length), branch: scene.branch, cmd: scene.cmd }), { n: i + 1, total: DEMO_SCENES.length, branch: scene.branch, cmd: scene.cmd })
+      // 与 agent hook 完全同一守卫核心; 审计写入沙箱内状态根, 不落用户目录
+      const result = await evaluateCommand(scene.cmd, { repoRoot, runner, locale: resolveLocale(flags.locale) })
+      if (result.outcome === 'deny' && result.reason) {
+        emit('deny', t('cli.demo.deny'))
+        emit('why', t('cli.demo.why', { why: result.reason.why }))
+        emit('next', t('cli.demo.next', { next: result.reason.next }))
+      } else {
+        emit('allow', t('cli.demo.allow'))
+      }
+    }
+    emit('cleanup', t('cli.demo.cleanup'))
+    emit('wire', t('cli.demo.wire'))
+    if (flags.cast != null) {
+      await writeFile(flags.cast, cast.map((e) => JSON.stringify(e)).join('\n') + '\n', 'utf8')
+    }
+    return 0
+  } finally {
+    // 状态根恢复先于沙箱删除: 顺序无耦合, 但两者都必须执行
+    if (stateRootPrev === undefined) delete process.env.GITFLOW_GUARD_STATE_ROOT
+    else process.env.GITFLOW_GUARD_STATE_ROOT = stateRootPrev
+    await rm(sandboxDir, { recursive: true, force: true })
+  }
 }
 
 function readStdin(): Promise<string> {
