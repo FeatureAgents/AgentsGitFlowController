@@ -11,6 +11,18 @@ Você define suas próprias branches —
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## Veja funcionando — uma demonstração ao vivo de 30 segundos
+
+Sem tocar nos arquivos do seu projeto, sem deixar nada para trás — um único comando executa três cenas reais (1 passagem, 2 bloqueios) dentro de um repositório sandbox descartável e o apaga ao sair. A animação abaixo é gerada a partir da saída real desse comando — o mesmo núcleo de guarda que o hook do seu agente invoca:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — decisões reais de passagem/bloqueio em um repositório descartável real](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Para colocar depois o guardião na frente do seu agente, continue com [Início Rápido](#início-rápido--30-segundos-para-proteger-o-repositório).
+
 ---
 
 ## Índice
@@ -125,20 +137,6 @@ Agentes de codificação por IA trabalham diretamente no seu repositório. Eles 
 Este plugin dota a regra suave de um **portão mecânico**. Cada operação git que um agente tenta executar é validada contra o *estado real do seu repositório local*. Violações rotineiras são bloqueadas antes que o comando seja executado, com uma explicação do motivo e do próximo passo a ser tomado.
 
 Ninguém precisa se lembrar das regras — o guardião as verifica mecanicamente. A camada de texto é inerentemente best-effort: o que um agente determinado ainda pode fazer, veja [Limites reais](#o-que-ele-não-faz--limites-reais).
-
----
-
-## Veja funcionando — uma demonstração ao vivo de 30 segundos
-
-Sem tocar nos arquivos do seu projeto, sem deixar nada para trás — um único comando executa três cenas reais (1 passagem, 2 bloqueios) dentro de um repositório sandbox descartável e o apaga ao sair. A animação abaixo é gerada a partir da saída real desse comando — o mesmo núcleo de guarda que o hook do seu agente invoca:
-
-```bash
-npx gitflow-guard demo
-```
-
-![gitflow-guard demo — decisões reais de passagem/bloqueio em um repositório descartável real](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
-
-Para colocar depois o guardião na frente do seu agente, continue com [Início Rápido](#início-rápido--30-segundos-para-proteger-o-repositório).
 
 ---
 

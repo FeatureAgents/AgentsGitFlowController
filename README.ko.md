@@ -10,6 +10,18 @@ AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## 직접 확인하기 — 30초 라이브 데모
+
+프로젝트 파일을 건드리지 않고, 아무것도 남기지 않습니다 — 명령어 하나로 일회성 샌드박스 저장소 안에서 3개의 실제 장면(1 허용, 2 차단)을 실행하고 종료 시 삭제합니다. 아래 애니메이션은 그 명령어의 실제 출력에서 생성된 것으로 — 에이전트 훅이 호출하는 것과 동일한 가드 코어입니다:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — 실제 저장소 위의 실제 허용/차단 판정](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+확인 후 에이전트 앞에 가드를 두고 싶다면, [빠른 시작](#빠른-시작--30초-만에-저장소-보호하기)으로 이어가세요.
+
 ---
 
 ## 목차
@@ -124,20 +136,6 @@ AI 코딩 에이전트는 사용자의 저장소 내에서 직접 작업합니�
 본 플러그인은 소프트 규칙에 **기계적으로 작동하는 게이트**를 붙입니다. 에이전트가 시도하는 모든 Git 명령어는 *로컬 저장소의 실제 상태*를 기준으로 검증됩니다. 정형적인 위반은 명령어가 실행되기 전에 즉시 차단되며, 원인과 다음 조치 방법이 명확하게 안내됩니다.
 
 누구도 규칙을 억지로 기억할 필요가 없습니다 — 가드가 기계적으로 검증합니다. 텍스트 계층은 본질적으로 best-effort입니다: 의도적인 에이전트가 할 수 있는 일은 [명확한 한계](#제한-사항--명확한-한계) 참조.
-
----
-
-## 직접 확인하기 — 30초 라이브 데모
-
-프로젝트 파일을 건드리지 않고, 아무것도 남기지 않습니다 — 명령어 하나로 일회성 샌드박스 저장소 안에서 3개의 실제 장면(1 허용, 2 차단)을 실행하고 종료 시 삭제합니다. 아래 애니메이션은 그 명령어의 실제 출력에서 생성된 것으로 — 에이전트 훅이 호출하는 것과 동일한 가드 코어입니다:
-
-```bash
-npx gitflow-guard demo
-```
-
-![gitflow-guard demo — 실제 저장소 위의 실제 허용/차단 판정](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
-
-확인 후 에이전트 앞에 가드를 두고 싶다면, [빠른 시작](#빠른-시작--30초-만에-저장소-보호하기)으로 이어가세요.
 
 ---
 

@@ -11,6 +11,18 @@ You define your own branches —
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## See it work — a 30-second live demo
+
+No project files touched, nothing left behind — one command runs three real scenes (1 pass, 2 blocks) inside a throwaway sandbox repo and deletes it on exit. The output below is generated from that command's real run — the same guard core your agent's hook calls:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — real allow/deny decisions on a real throwaway repo](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+To put the guard in front of your agent afterwards, continue with [Quick Start](#quick-start--30-seconds-to-a-guarded-repo).
+
 ---
 
 ## Table of Contents
@@ -125,20 +137,6 @@ AI coding agents work in your repository. They are *told* — via system prompts
 This plugin turns the soft rule into a **mechanical gate**. Every git operation an agent attempts is checked against the *actual state of your local repository*. Routine violations are blocked before the command runs, with an explanation of why and what to do next.
 
 Nobody has to remember the rules — the guard checks them mechanically. (Text-layer and best-effort by nature: see [honest limits](#what-it-does-not-do--honest-limits) for what a determined agent can still do.)
-
----
-
-## See it work — a 30-second live demo
-
-No project files touched, nothing left behind — one command runs three real scenes (1 pass, 2 blocks) inside a throwaway sandbox repo and deletes it on exit. The output below is generated from that command's real run — the same guard core your agent's hook calls:
-
-```bash
-npx gitflow-guard demo
-```
-
-![gitflow-guard demo — real allow/deny decisions on a real throwaway repo](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
-
-To put the guard in front of your agent afterwards, continue with [Quick Start](#quick-start--30-seconds-to-a-guarded-repo).
 
 ---
 

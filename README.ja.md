@@ -10,6 +10,18 @@ AI コーディングエージェントのための、柔軟にカスタマイ�
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## 動かしてみる — 30秒のライブデモ
+
+プロジェクトのファイルには触れず、何も残しません — コマンド 1 つで使い捨てのサンドボックスリポジトリ内で 3 つの実シーン（1 許可、2 ブロック）を実行し、終了時に削除します。下のアニメーションはそのコマンドの実際の出力から生成されたもので — エージェントのフックが呼び出すのと同じガードコアです：
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — 実際のリポジトリ上の実際の許可/ブロック判定](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+見たあとにエージェントの前にガードを置きたい場合は、[クイックスタート](#クイックスタート--30秒でリポジトリを保護)へ。
+
 ---
 
 ## 目次
@@ -124,20 +136,6 @@ AI コーディングエージェントはリポジトリ内で直接作業し�
 本プラグインは、そのソフトな規則に **機械的に働くゲート** を付します。エージェントが試みるすべての Git 操作は、*ローカルリポジトリの実際の状態* に基づいて判定されます。定型的な違反はコマンド実行前に即座にブロックされ、理由と次の手順が通知されます。
 
 ルールを記憶し続ける必要はありません — ガードが機械的に判定します。テキスト層は本質的にベストエフォートです: 意図的なエージェントに何ができるかは[誠実な限界](#制限事項--誠実な限界)を参照。
-
----
-
-## 動かしてみる — 30秒のライブデモ
-
-プロジェクトのファイルには触れず、何も残しません — コマンド 1 つで使い捨てのサンドボックスリポジトリ内で 3 つの実シーン（1 許可、2 ブロック）を実行し、終了時に削除します。下のアニメーションはそのコマンドの実際の出力から生成されたもので — エージェントのフックが呼び出すのと同じガードコアです：
-
-```bash
-npx gitflow-guard demo
-```
-
-![gitflow-guard demo — 実際のリポジトリ上の実際の許可/ブロック判定](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
-
-見たあとにエージェントの前にガードを置きたい場合は、[クイックスタート](#クイックスタート--30秒でリポジトリを保護)へ。
 
 ---
 

@@ -11,6 +11,18 @@ Definisci i tuoi branch —
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## Vedilo all'opera — una demo dal vivo di 30 secondi
+
+Nessun tocco ai file del tuo progetto, nessun residuo — un solo comando esegue tre scene reali (1 passaggio, 2 blocchi) dentro un repository sandbox monouso e lo elimina all'uscita. L'animazione qui sotto è generata dall'output reale di quel comando — lo stesso nucleo di guardia che l'hook del tuo agente invoca:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — decisioni reali di passaggio/blocco su un repository monouso reale](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Per mettere poi il guardiano davanti al tuo agente, continua con [Guida rapida](#guida-rapida--30-secondi-per-proteggere-il-repository).
+
 ---
 
 ## Indice
@@ -125,20 +137,6 @@ Gli agenti di codifica IA operano nel tuo repository. A loro viene *detto* — t
 Questo plugin dota la regola debole di un **cancello meccanico**. Ogni operazione git tentata da un agente viene verificata rispetto allo *stato effettivo del tuo repository locale*. Le violazioni di routine vengono bloccate prima dell'esecuzione del comando, con una spiegazione del motivo e dei passi successivi da seguire.
 
 Nessuno deve ricordarsi le regole — il guardiano le verifica meccanicamente. Il livello di testo è intrinsecamente best-effort: ciò che un agente determinato può ancora fare, vedi [Limiti oggettivi](#cosa-non-fa--limiti-oggettivi).
-
----
-
-## Vedilo all'opera — una demo dal vivo di 30 secondi
-
-Nessun tocco ai file del tuo progetto, nessun residuo — un solo comando esegue tre scene reali (1 passaggio, 2 blocchi) dentro un repository sandbox monouso e lo elimina all'uscita. L'animazione qui sotto è generata dall'output reale di quel comando — lo stesso nucleo di guardia che l'hook del tuo agente invoca:
-
-```bash
-npx gitflow-guard demo
-```
-
-![gitflow-guard demo — decisioni reali di passaggio/blocco su un repository monouso reale](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
-
-Per mettere poi il guardiano davanti al tuo agente, continua con [Guida rapida](#guida-rapida--30-secondi-per-proteggere-il-repository).
 
 ---
 

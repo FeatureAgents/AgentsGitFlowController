@@ -11,6 +11,18 @@ Tú defines tus propias ramas —
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## Véalo en acción — una demostración en vivo de 30 segundos
+
+Sin tocar los archivos de tu proyecto, sin dejar nada atrás — un solo comando ejecuta tres escenas reales (1 pase, 2 bloqueos) dentro de un repositorio sandbox desechable y lo elimina al salir. La animación de abajo se genera a partir de la salida real de ese comando — el mismo núcleo de guardia que invoca el hook de tu agente:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — decisiones reales de pase/bloqueo en un repositorio desechable real](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Para poner el guardián delante de tu agente después, continúa con [Inicio Rápido](#inicio-rápido--30-segundos-para-proteger-tu-repositorio).
+
 ---
 
 ## Índice
@@ -125,20 +137,6 @@ Los agentes de programación con IA trabajan directamente en tu repositorio. A t
 Este plugin dota a la regla flexible de una **compuerta mecánica**. Cada operación de Git intentada por un agente se evalúa frente al *estado real de tu repositorio local*. Las infracciones rutinarias se bloquean antes de que el comando se ejecute, explicando el motivo y el siguiente paso a seguir.
 
 Nadie tiene que acordarse de las reglas — el guardián las verifica mecánicamente. La capa de texto es inherentemente best-effort: lo que un agente decidido aún puede hacer, véase [Límites honestos](#qué-no-hace--límites-honestos).
-
----
-
-## Véalo en acción — una demostración en vivo de 30 segundos
-
-Sin tocar los archivos de tu proyecto, sin dejar nada atrás — un solo comando ejecuta tres escenas reales (1 pase, 2 bloqueos) dentro de un repositorio sandbox desechable y lo elimina al salir. La animación de abajo se genera a partir de la salida real de ese comando — el mismo núcleo de guardia que invoca el hook de tu agente:
-
-```bash
-npx gitflow-guard demo
-```
-
-![gitflow-guard demo — decisiones reales de pase/bloqueo en un repositorio desechable real](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
-
-Para poner el guardián delante de tu agente después, continúa con [Inicio Rápido](#inicio-rápido--30-segundos-para-proteger-tu-repositorio).
 
 ---
 
