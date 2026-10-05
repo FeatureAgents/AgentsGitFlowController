@@ -3,7 +3,7 @@
 > **有没有受够了 agent 跳过你的合入流程?**
 
 一个可自由配置分支角色的流程守卫，为主流 AI 编码 agent 平台而生——[Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://github.com/opencode-ai/opencode)、[Antigravity](https://github.com/google-deepmind)、[CodeBuddy](https://codebuddy.ai)、[ZCode](https://zcode.ai)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、[Pi](https://github.com/mariozechner/pi)。  
-你自己定义分支——**集成分支**(feature 经 PR/MR 合入)、**预览分支**(环境终点)、**生产分支**、**归档分支**——每个角色各自配规则。agent 无法跳过流程,敏感合并始终留在你手上。
+你自己定义分支——**集成分支**(feature 经 PR/MR 合入)、**预览分支**(环境终点)、**生产分支**、**归档分支**——每个角色各自配规则。常规流程违规在执行前就被拦截,并给出明确的原因与下一步;敏感合并始终留在你手上。存心的 agent 仍可绕过文本层守卫——见[诚实的边界](#它不能做什么诚实的边界)。
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [许可证](LICENSE)
 
@@ -16,6 +16,7 @@
 
 - [快速开始——30 秒用上](#快速开始30-秒用上)
 - [为什么需要它——解决的问题](#为什么需要它解决的问题)
+- [看它干活——30 秒真机演示](#看它干活30-秒真机演示)
 - [适合谁——场景与团队](#适合谁场景与团队)
 - [它能做什么](#它能做什么)
 - [它不能做什么——诚实的边界](#它不能做什么诚实的边界)
@@ -120,9 +121,23 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 
 **这是软规则。** Agent 会跳过、重排、干脆"忘记"它——不是因为恶意,而是因为软指令对模型来说本来就是可选的。
 
-这个插件把软规则变成**硬机制**。agent 每次尝试的 git 操作都会对照*本地仓库的真实状态*检查;违规在命令执行前就被拦截,并给出原因和下一步。
+这个插件给软规则配上**机械执行的闸门**。agent 每次尝试的 git 操作都会对照*本地仓库的真实状态*检查;常规违规在命令执行前就被拦截,并给出原因和下一步。
 
-没人需要记得规则——规则被强制执行。
+没人需要记得规则——守卫机械地把关。文本层本质是尽力而为:存心的 agent 能做什么,见[诚实的边界](#它不能做什么诚实的边界)。
+
+---
+
+## 看它干活——30 秒真机演示
+
+不碰你的项目文件,不留任何东西——一条命令在一次性沙箱仓库里跑三个真实场景(1 放行,2 拦截),退出即删。下面的动画由该命令的真实输出生成——与你 agent hook 调用的是同一守卫核心:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — 真实仓库上真实的放行/拦截判定](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+看完之后想把守卫接到你的 agent 面前,继续看[快速开始](#快速开始30-秒用上)。
 
 ---
 

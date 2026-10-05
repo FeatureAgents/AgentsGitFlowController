@@ -4,7 +4,7 @@
 
 Ein konfigurierbarer Branch-Rollen-Guard für KI-Coding-Agenten — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) und [Pi](https://github.com/mariozechner/pi).
 Sie definieren Ihre eigenen Branches —
-**integration** (Features werden über PR/MR zusammengeführt), **preview** (Umgebungs-Endpunkte), **production**, **archive** — jeweils mit eigenen Aktualisierungsregeln. Agenten können den Flow nicht überspringen, und sensible Merges bleiben in Ihrer Hand.
+**integration** (Features werden über PR/MR zusammengeführt), **preview** (Umgebungs-Endpunkte), **production**, **archive** — jeweils mit eigenen Aktualisierungsregeln. Routineverstöße gegen den Flow werden vor der Ausführung blockiert — mit klarem Grund und nächsten Schritten; sensible Merges bleiben in Ihrer Hand. Ein entschlossener Agent kann eine Guard auf Textebene dennoch umgehen; siehe [Ehrliche Grenzen](#was-es-nicht-tut--ehrliche-grenzen).
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Lizenz](LICENSE)
 
@@ -17,6 +17,7 @@ Sie definieren Ihre eigenen Branches —
 
 - [Schnellstart — In 30 Sekunden zu einem geschützten Repository](#schnellstart--in-30-sekunden-zu-einem-geschützten-repository)
 - [Warum — Das Problem, das dieses Plugin löst](#warum--das-problem-das-dieses-plugin-löst)
+- [Sehen Sie es in Aktion — eine 30-Sekunden-Live-Demo](#sehen-sie-es-in-aktion--eine-30-sekunden-live-demo)
 - [Für wen dies gedacht ist — Szenarien & Teams](#für-wen-dies-gedacht-ist--szenarien--teams)
 - [Was es tut — Funktionen](#was-es-tut--funktionen)
 - [Was es NICHT tut — Ehrliche Grenzen](#was-es-nicht-tut--ehrliche-grenzen)
@@ -121,9 +122,23 @@ KI-Coding-Agenten arbeiten in Ihrem Repository. Ihnen wird — über System-Prom
 
 **Das ist eine weiche Regel.** Agenten überspringen sie, vertauschen die Reihenfolge oder „vergessen“ sie schlichtweg — nicht aus böser Absicht, sondern weil weiche Anweisungen für ein Sprachmodell unverbindlich sind.
 
-Dieses Plugin verwandelt die weiche Regel in einen **harten Mechanismus**. Jede Git-Operation, die ein Agent versucht, wird gegen den *tatsächlichen Zustand Ihres lokalen Repositories* geprüft. Verstöße werden blockiert, bevor der Befehl ausgeführt wird — inklusive einer Erklärung des Grundes und der nächsten Schritte.
+Dieses Plugin rüstet die weiche Regel mit einem **mechanisch arbeitenden Gate** aus. Jede Git-Operation, die ein Agent versucht, wird gegen den *tatsächlichen Zustand Ihres lokalen Repositories* geprüft. Routineverstöße werden blockiert, bevor der Befehl ausgeführt wird — inklusive einer Erklärung des Grundes und der nächsten Schritte.
 
-Niemand muss sich an die Regeln erinnern — die Regeln werden technisch durchgesetzt.
+Niemand muss sich an die Regeln erinnern — der Guard prüft sie mechanisch. Die Textebene ist naturgemäß Best-Effort: was ein entschlossener Agent dennoch tun kann, siehe [Ehrliche Grenzen](#was-es-nicht-tut--ehrliche-grenzen).
+
+---
+
+## Sehen Sie es in Aktion — eine 30-Sekunden-Live-Demo
+
+Kein Berühren Ihrer Projektdateien, nichts bleibt zurück — ein Befehl führt drei echte Szenen (1 Durchlass, 2 Blockierungen) in einem Wegwerf-Sandbox-Repository aus und löscht es beim Beenden. Die Animation unten ist aus der echten Ausgabe dieses Befehls erzeugt — derselbe Guard-Kern, den der Hook Ihres Agents aufruft:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — echte Durchlass-/Blockierungsentscheidungen in einem echten Wegwerf-Repository](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Wenn Sie danach den Guard vor Ihren Agent stellen möchten, weiter mit [Schnellstart](#schnellstart--in-30-sekunden-zu-einem-geschützten-repository).
 
 ---
 

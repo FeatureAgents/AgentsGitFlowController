@@ -4,7 +4,7 @@
 
 Un guardiano configurabile per i ruoli dei branch Git per agenti di codifica IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) e [Pi](https://github.com/mariozechner/pi).
 Definisci i tuoi branch —
-**integration** (le feature confluiscono tramite PR/MR), **preview** (endpoint di ambiente), **production**, **archive** — ciascuno con le proprie regole di aggiornamento. Gli agenti non possono aggirare il flusso e i merge critici rimangono nelle tue mani.
+**integration** (le feature confluiscono tramite PR/MR), **preview** (endpoint di ambiente), **production**, **archive** — ciascuno con le proprie regole di aggiornamento. Le violazioni di routine del flusso vengono bloccate prima dell'esecuzione, con motivo e passi successivi chiari; e i merge critici rimangono nelle tue mani. Un agente determinato può comunque aggirare una guardia a livello di testo; vedi [Limiti oggettivi](#cosa-non-fa--limiti-oggettivi).
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Licenza](LICENSE)
 
@@ -17,6 +17,7 @@ Definisci i tuoi branch —
 
 - [Guida rapida — 30 secondi per proteggere il repository](#guida-rapida--30-secondi-per-proteggere-il-repository)
 - [Perché — Il problema risolto da questo plugin](#perché--il-problema-risolto-da-questo-plugin)
+- [Vedilo all'opera — una demo dal vivo di 30 secondi](#vedilo-allopera--una-demo-dal-vivo-di-30-secondi)
 - [A chi è rivolto — Scenari e team](#a-chi-è-rivolto--scenari-e-team)
 - [Cosa fa — Funzionalità](#cosa-fa--funzionalità)
 - [Cosa NON fa — Limiti oggettivi](#cosa-non-fa--limiti-oggettivi)
@@ -121,9 +122,23 @@ Gli agenti di codifica IA operano nel tuo repository. A loro viene *detto* — t
 
 **Questa è una regola debole (soft rule).** Gli agenti la saltano, ne modificano l'ordine o semplicemente la "dimenticano" — non per malizia, ma perché le istruzioni testuali sono opzionali per un modello linguistico.
 
-Questo plugin trasforma la regola debole in un **meccanismo rigido (hard mechanism)**. Ogni operazione git tentata da un agente viene verificata rispetto allo *stato effettivo del tuo repository locale*. Le violazioni vengono bloccate prima dell'esecuzione del comando, con una spiegazione del motivo e dei passi successivi da seguire.
+Questo plugin dota la regola debole di un **cancello meccanico**. Ogni operazione git tentata da un agente viene verificata rispetto allo *stato effettivo del tuo repository locale*. Le violazioni di routine vengono bloccate prima dell'esecuzione del comando, con una spiegazione del motivo e dei passi successivi da seguire.
 
-Nessuno deve ricordarsi le regole — le regole vengono applicate forzatamente.
+Nessuno deve ricordarsi le regole — il guardiano le verifica meccanicamente. Il livello di testo è intrinsecamente best-effort: ciò che un agente determinato può ancora fare, vedi [Limiti oggettivi](#cosa-non-fa--limiti-oggettivi).
+
+---
+
+## Vedilo all'opera — una demo dal vivo di 30 secondi
+
+Nessun tocco ai file del tuo progetto, nessun residuo — un solo comando esegue tre scene reali (1 passaggio, 2 blocchi) dentro un repository sandbox monouso e lo elimina all'uscita. L'animazione qui sotto è generata dall'output reale di quel comando — lo stesso nucleo di guardia che l'hook del tuo agente invoca:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — decisioni reali di passaggio/blocco su un repository monouso reale](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Per mettere poi il guardiano davanti al tuo agente, continua con [Guida rapida](#guida-rapida--30-secondi-per-proteggere-il-repository).
 
 ---
 

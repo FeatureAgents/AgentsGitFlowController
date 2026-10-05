@@ -4,7 +4,7 @@
 
 A configurable branch-role guard for AI coding agents — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), and [Pi](https://github.com/mariozechner/pi).
 You define your own branches —
-**integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Agents can't skip the flow, and sensitive merges stay in your hands.
+**integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Routine flow violations are blocked before they run, with a clear why/next — and sensitive merges stay in your hands. A determined agent can still evade a text-layer guard; see [honest limits](#what-it-does-not-do--honest-limits).
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [License](LICENSE)
 
@@ -17,6 +17,7 @@ You define your own branches —
 
 - [Quick Start — 30 seconds to a guarded repo](#quick-start--30-seconds-to-a-guarded-repo)
 - [Why — the problem this plugin solves](#why--the-problem-this-plugin-solves)
+- [See it work — a 30-second live demo](#see-it-work--a-30-second-live-demo)
 - [Who this is for — scenarios & teams](#who-this-is-for--scenarios--teams)
 - [What it does — capabilities](#what-it-does--capabilities)
 - [What it does NOT do — honest limits](#what-it-does-not-do--honest-limits)
@@ -121,9 +122,23 @@ AI coding agents work in your repository. They are *told* — via system prompts
 
 **That is a soft rule.** Agents skip it, reorder it, or simply "forget" it — not out of malice, but because soft instructions are optional to a model.
 
-This plugin turns the soft rule into a **hard mechanism**. Every git operation an agent attempts is checked against the *actual state of your local repository*. Violations are blocked before the command runs, with an explanation of why and what to do next.
+This plugin turns the soft rule into a **mechanical gate**. Every git operation an agent attempts is checked against the *actual state of your local repository*. Routine violations are blocked before the command runs, with an explanation of why and what to do next.
 
-Nobody has to remember the rules — the rules are enforced.
+Nobody has to remember the rules — the guard checks them mechanically. (Text-layer and best-effort by nature: see [honest limits](#what-it-does-not-do--honest-limits) for what a determined agent can still do.)
+
+---
+
+## See it work — a 30-second live demo
+
+No project files touched, nothing left behind — one command runs three real scenes (1 pass, 2 blocks) inside a throwaway sandbox repo and deletes it on exit. The output below is generated from that command's real run — the same guard core your agent's hook calls:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — real allow/deny decisions on a real throwaway repo](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+To put the guard in front of your agent afterwards, continue with [Quick Start](#quick-start--30-seconds-to-a-guarded-repo).
 
 ---
 
