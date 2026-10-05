@@ -11,6 +11,18 @@ Vous définissez vos propres branches —
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## Voyez-le à l'œuvre — une démo live de 30 secondes
+
+Aucune modification de vos fichiers de projet, aucun résidu — une seule commande exécute trois scènes réelles (1 passage, 2 blocages) dans un dépôt bac à sable jetable et le supprime en quittant. L'animation ci-dessous est générée à partir de la sortie réelle de cette commande — le même noyau de garde que celui que le hook de votre agent appelle :
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — décisions réelles de passage/blocage sur un dépôt jetable réel](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Pour placer ensuite le garde devant votre agent, continuez avec [Démarrage rapide](#démarrage-rapide--30-secondes-pour-protéger-un-dépôt).
+
 ---
 
 ## Table des matières
@@ -125,20 +137,6 @@ Les agents de codage IA travaillent directement au sein de votre dépôt. Il leu
 Ce plugin dote la règle souple d'un **verrou mécanique**. Chaque opération Git tentée par un agent est confrontée à *l'état réel de votre dépôt local*. Les infractions routinières sont bloquées avant l'exécution de la commande, avec une explication claire du motif et de la marche à suivre.
 
 Personne n'a besoin de se remémorer les règles — le garde les vérifie mécaniquement. Le niveau texte reste du best-effort par nature : ce qu'un agent déterminé peut encore faire, voir [Limites honnêtes](#ce-quil-ne-fait-pas--limites-honnêtes).
-
----
-
-## Voyez-le à l'œuvre — une démo live de 30 secondes
-
-Aucune modification de vos fichiers de projet, aucun résidu — une seule commande exécute trois scènes réelles (1 passage, 2 blocages) dans un dépôt bac à sable jetable et le supprime en quittant. L'animation ci-dessous est générée à partir de la sortie réelle de cette commande — le même noyau de garde que celui que le hook de votre agent appelle :
-
-```bash
-npx gitflow-guard demo
-```
-
-![gitflow-guard demo — décisions réelles de passage/blocage sur un dépôt jetable réel](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
-
-Pour placer ensuite le garde devant votre agent, continuez avec [Démarrage rapide](#démarrage-rapide--30-secondes-pour-protéger-un-dépôt).
 
 ---
 

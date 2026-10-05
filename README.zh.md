@@ -10,6 +10,18 @@
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## 看它干活——30 秒真机演示
+
+不碰你的项目文件,不留任何东西——一条命令在一次性沙箱仓库里跑三个真实场景(1 放行,2 拦截),退出即删。下面的动画由该命令的真实输出生成——与你 agent hook 调用的是同一守卫核心:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — 真实仓库上真实的放行/拦截判定](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+看完之后想把守卫接到你的 agent 面前,继续看[快速开始](#快速开始30-秒用上)。
+
 ---
 
 ## 目录
@@ -124,20 +136,6 @@ AI 编码 agent 在你的仓库里工作。它通过系统提示词、项目智�
 这个插件给软规则配上**机械执行的闸门**。agent 每次尝试的 git 操作都会对照*本地仓库的真实状态*检查;常规违规在命令执行前就被拦截,并给出原因和下一步。
 
 没人需要记得规则——守卫机械地把关。文本层本质是尽力而为:存心的 agent 能做什么,见[诚实的边界](#它不能做什么诚实的边界)。
-
----
-
-## 看它干活——30 秒真机演示
-
-不碰你的项目文件,不留任何东西——一条命令在一次性沙箱仓库里跑三个真实场景(1 放行,2 拦截),退出即删。下面的动画由该命令的真实输出生成——与你 agent hook 调用的是同一守卫核心:
-
-```bash
-npx gitflow-guard demo
-```
-
-![gitflow-guard demo — 真实仓库上真实的放行/拦截判定](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
-
-看完之后想把守卫接到你的 agent 面前,继续看[快速开始](#快速开始30-秒用上)。
 
 ---
 

@@ -3,6 +3,10 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.1.2
+
+- docs(readme): move the "See it work — a 30-second live demo" section above the fold — the demo section (animated SVG + one-command reproduction) now sits right after the badges and before the Table of Contents in all 11 language READMEs, instead of after the Why section where it took two screens of scrolling to reach; structure moved verbatim, checker constants unchanged (still 45 headings / 7 tables / 21 code blocks / 18 TOC anchors) —— README demo 段上移到首屏："看它干活——30 秒真机演示"段（动画 SVG + 一条命令复现）从 Why 段之后移到徽章之下、目录之上，11 语言同步；此前要滚两三屏才能看到，现在打开首页即见；结构原样平移，校验器常量不变（仍为 45 标题 / 7 表格 / 21 代码块 / 18 TOC 锚点）。
+
 ## 0.1.1
 
 - feat(cli): add `gitflow-guard demo` — a 30-second live demo that builds a throwaway real-git sandbox repo, runs three real scenes through the same `evaluateCommand` core the agent hooks call (1 allow, 2 denials with the actual why/next), then deletes the sandbox; audit state is redirected inside the sandbox via `GITFLOW_GUARD_STATE_ROOT` for the run, so nothing is left in the user's home or state directories; `--cast <file>` emits the run as a JSONL event stream; usage text updated in both locales —— 新增 `gitflow-guard demo`：30 秒真机演示——在一次性沙箱仓库里用与 agent hook 完全同一的 `evaluateCommand` 核心跑三个真实场景（1 放行、2 拦截，拦截附真实 why/next），退出即删；演示期间经 `GITFLOW_GUARD_STATE_ROOT` 把审计状态根指进沙箱，用户主目录与状态目录零残留；`--cast <文件>` 把本次运行落成 JSONL 事件流；双语文案与 usage 同步更新。

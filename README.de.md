@@ -11,6 +11,18 @@ Sie definieren Ihre eigenen Branches —
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## Sehen Sie es in Aktion — eine 30-Sekunden-Live-Demo
+
+Kein Berühren Ihrer Projektdateien, nichts bleibt zurück — ein Befehl führt drei echte Szenen (1 Durchlass, 2 Blockierungen) in einem Wegwerf-Sandbox-Repository aus und löscht es beim Beenden. Die Animation unten ist aus der echten Ausgabe dieses Befehls erzeugt — derselbe Guard-Kern, den der Hook Ihres Agents aufruft:
+
+```bash
+npx gitflow-guard demo
+```
+
+![gitflow-guard demo — echte Durchlass-/Blockierungsentscheidungen in einem echten Wegwerf-Repository](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Wenn Sie danach den Guard vor Ihren Agent stellen möchten, weiter mit [Schnellstart](#schnellstart--in-30-sekunden-zu-einem-geschützten-repository).
+
 ---
 
 ## Inhaltsverzeichnis
@@ -125,20 +137,6 @@ KI-Coding-Agenten arbeiten in Ihrem Repository. Ihnen wird — über System-Prom
 Dieses Plugin rüstet die weiche Regel mit einem **mechanisch arbeitenden Gate** aus. Jede Git-Operation, die ein Agent versucht, wird gegen den *tatsächlichen Zustand Ihres lokalen Repositories* geprüft. Routineverstöße werden blockiert, bevor der Befehl ausgeführt wird — inklusive einer Erklärung des Grundes und der nächsten Schritte.
 
 Niemand muss sich an die Regeln erinnern — der Guard prüft sie mechanisch. Die Textebene ist naturgemäß Best-Effort: was ein entschlossener Agent dennoch tun kann, siehe [Ehrliche Grenzen](#was-es-nicht-tut--ehrliche-grenzen).
-
----
-
-## Sehen Sie es in Aktion — eine 30-Sekunden-Live-Demo
-
-Kein Berühren Ihrer Projektdateien, nichts bleibt zurück — ein Befehl führt drei echte Szenen (1 Durchlass, 2 Blockierungen) in einem Wegwerf-Sandbox-Repository aus und löscht es beim Beenden. Die Animation unten ist aus der echten Ausgabe dieses Befehls erzeugt — derselbe Guard-Kern, den der Hook Ihres Agents aufruft:
-
-```bash
-npx gitflow-guard demo
-```
-
-![gitflow-guard demo — echte Durchlass-/Blockierungsentscheidungen in einem echten Wegwerf-Repository](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
-
-Wenn Sie danach den Guard vor Ihren Agent stellen möchten, weiter mit [Schnellstart](#schnellstart--in-30-sekunden-zu-einem-geschützten-repository).
 
 ---
 
