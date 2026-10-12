@@ -472,6 +472,7 @@ gitflow-guard wire --client cursor --project --yes
   // Pi — .pi/settings.json (extensions 路徑相對於 .pi 進行解析)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  全域安裝（一次涵蓋所有專案）：把同一檔案放到 `~/.pi/agent/extensions/gitflow-guard.ts`，在 `~/.pi/agent/settings.json` 登記，並在 `~/.pi/agent` 內安裝本套件（`npm i agents-gitflow-guard`；MSYS 下 `ln -s` 會退化成複製，Windows 請用 PowerShell junction）。擴充以 `node <隨包 runner>` 啟動守衛，不依賴 PATH、不需全域 npm 安裝——Windows 同樣可用。
 
 ### 3. 從源碼安裝與本地開發 (From Source)
 

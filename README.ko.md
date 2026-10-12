@@ -473,6 +473,7 @@ gitflow-guard wire --client cursor --project --yes
   // Pi — .pi/settings.json (extensions 경로는 .pi를 기준으로 해석됨)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  사용자 수준 설치(모든 프로젝트에 한 번에 적용): 같은 파일을 `~/.pi/agent/extensions/gitflow-guard.ts`에 두고, `~/.pi/agent/settings.json`에 등록한 뒤 `~/.pi/agent` 안에 패키지를 설치합니다(`npm i agents-gitflow-guard`. MSYS에서는 `ln -s`가 복사로 동작하므로 Windows에서는 PowerShell junction을 사용하세요). 확장은 `node <동봉 runner>`로 가드를 실행하므로 PATH나 전역 npm 설치가 필요 없습니다 — Windows에서도 동작합니다.
 
 ### 3. 소스코드 직접 빌드 및 로컬 개발 (From Source)
 

@@ -396,7 +396,7 @@ async function demo(flags: Flags, runner: Runner): Promise<number> {
     await writeFile(join(sandboxDir, 'work.txt'), 'demo\n', 'utf8')
     await git(['add', '.'])
     await git(['commit', '-m', 'feat: demo work'])
-    // 以 git 权威路径为仓库根(Windows 临时目录可能是 8.3 短名, 见 AGENTS.md §7)
+    // 以 git 权威路径为仓库根(Windows 临时目录可能是 8.3 短名, 见 AGENTS.md 第 7 节)
     const repoRoot = await findRepoRoot(runner, sandboxDir)
     if (!repoRoot) throw new Error('demo: sandbox is not a git repository')
 
@@ -475,7 +475,7 @@ async function check(flags: Flags, runner: Runner): Promise<number> {
     const loaded = await loadConfig(repoRoot)
     strict = loaded.strict === true || loaded.config?.strict === true
 
-    // 配置存在但损坏/校验失败(整改 §1.2 B/E): 默认 stderr 一行告警后放行(不破坏工具管道), strict 下 fail-closed;
+    // 配置存在但损坏/校验失败(整改第 1.2 节 B/E): 默认 stderr 一行告警后放行(不破坏工具管道), strict 下 fail-closed;
     // 文件不存在 / 显式 enabled=false 属用户主动状态(opt-in), 维持静默。
     if (!loaded.config?.enabled) {
       if (loaded.errors.length > 0) {

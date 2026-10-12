@@ -70,7 +70,7 @@ describe('wire: runner 自锚定(BUG-REPORT-wire-runner-deployment 回归)', () 
   })
 })
 
-describe('wire: §16 回归 —— 仅回收因摘除守卫而变空的条目(非破坏性)', () => {
+describe('wire: 第 16 节回归 —— 仅回收因摘除守卫而变空的条目(非破坏性)', () => {
   /** 三种 JSON 客户端形态的"数组落点": wrap 造完整文件对象, read 从解析对象取回条目数组 */
   const shapes = [
     {
@@ -703,7 +703,7 @@ describe('wire: 客户端规格表', () => {
   })
 })
 
-describe('wire: JSONC 注释与既有 hook 细粒度保留 (§16)', () => {
+describe('wire: JSONC 注释与既有 hook 细粒度保留 (第 16 节)', () => {
   it('配置文件含 JSONC 注释: wire 与 unwire 均不损坏注释与排版', async () => {
     const dir = tempDir()
     const path = join(dir, '.claude/settings.json')

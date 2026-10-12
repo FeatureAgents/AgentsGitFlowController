@@ -1,6 +1,6 @@
 // 跨平台 hook 适配层: 解析各家工具 stdin payload → 统一 {command, cwd, event}; 按平台编码 deny
 // 只以各平台官方 hook 文档为准, 自行实现; 拿不准的 wire 格式在真机核验后定稿。
-// 范围注记(AGENTS.md §8.1 例外): HookPlatform 仅覆盖 stdin-hook 类平台(claude/codex/antigravity/opencode/codebuddy/zcode/cursor)。
+// 范围注记(AGENTS.md 第 8 节例外说明): HookPlatform 仅覆盖 stdin-hook 类平台(claude/codex/antigravity/opencode/codebuddy/zcode/cursor)。
 // DSH 与 Pi 是进程内接入, 不在本层:
 // - DSH 挂载经 patch.yml + dsh.bundle.patch, 拦截经 src/index.ts 的 apply() 监听 tools/pre-execute、
 //   以返回值 {kind:'deny',reason} 表达, 协议记载见 .agents/hooks/references/dsh.md;

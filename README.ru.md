@@ -473,6 +473,7 @@ gitflow-guard wire --client cursor --project --yes
   // Pi — .pi/settings.json (пути расширений разрешаются относительно .pi)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  Установка на уровне пользователя (сразу для всех проектов): скопируйте тот же файл в `~/.pi/agent/extensions/gitflow-guard.ts`, зарегистрируйте его в `~/.pi/agent/settings.json` и установите пакет внутри `~/.pi/agent` (`npm i agents-gitflow-guard`; в MSYS `ln -s` только копирует — в Windows используйте junction PowerShell). Расширение запускает гейт как `node <встроенный runner>`: ни записи в PATH, ни глобальной установки npm не требуется — включая Windows.
 
 ### 3. Сборка из исходников и локальная разработка
 
