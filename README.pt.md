@@ -612,12 +612,10 @@ Se esta ferramenta evitar que sua equipe sofra com um atalho indevido, uma contr
 
 ## Roadmap
 
-Recursos futuros e áreas sob exploração ativa:
+Esta seção descreve a direção do projeto — uma intenção, não uma promessa:
 
-- **Novas integrações de agentes**: Pesquisar e adaptar a hooks/extensões de agentes emergentes (ex.: Windsurf, novas CLIs de agentes).
-- **Agregação de auditoria**: Sincronização de trilhas de auditoria entre máquinas e formatos de exportação para conformidade em nível de equipe.
-- **Predefinições de fluxo de trabalho**: Presets de configuração prontos para uso para fluxos Git comuns (desenvolvimento baseado em tronco, configurações corporativas multi-ambiente).
-- **Barreiras rígidas em CI**: Hooks nativos de pipeline de CI e integração de verificação de PR, mantendo execução local com zero dependências.
+- **Foco — correção em primeiro lugar**: manter o gate existente preciso e previsível (os agentes, as formas de comando e as regras documentados nesta página) e validá-lo em repositórios reais.
+- **Não planejado**: novas integrações de agentes, bloqueio rígido na CI, sincronização de auditorias entre máquinas e obtenção de políticas remotas. O guard permanece local e com zero dependências, configurado apenas a partir deste repositório; a proteção de branches no servidor continua sendo a fronteira final.
 
 Para recursos lançados e histórico de versões, veja [CHANGELOG.md](CHANGELOG.md).
 

@@ -612,12 +612,10 @@ Se evita al tuo team una scorciatoia rischiosa, il pulsante per il caffè in cim
 
 ## Roadmap
 
-Funzionalità future e aree in corso di esplorazione attiva:
+Questa sezione descrive la direzione del progetto: un'intenzione, non una promessa:
 
-- **Integrazioni con nuovi agenti**: Ricerca e adattamento a hook/estensioni di agenti emergenti (ad es. Windsurf, nuove CLI per agenti).
-- **Aggregazione degli audit**: Sincronizzazione dei log di audit tra macchine diverse e formati di esportazione per la conformità a livello di team.
-- **Preset di workflow**: Preset di configurazione pronti all'uso per i flussi di branching Git più comuni (sviluppo basato su trunk, configurazioni enterprise multi-ambiente).
-- **Gate vincolanti in CI**: Hook nativi per pipeline CI e integrazione con i controlli delle PR, preservando l'esecuzione locale a zero dipendenze.
+- **Priorità — prima la correttezza**: mantenere il gate esistente accurato e prevedibile (gli agenti, le forme dei comandi e le regole documentate in questa pagina) e validarlo su repository reali.
+- **Non previsto**: nuove integrazioni con agenti, gate vincolanti lato CI, sincronizzazione degli audit tra macchine e recupero di policy remote. Il guard resta locale e a zero dipendenze, configurato solo da questo repository; la protezione dei branch lato server resta il confine finale.
 
 Per le funzionalità rilasciate e la cronologia delle versioni, consulta [CHANGELOG.md](CHANGELOG.md).
 

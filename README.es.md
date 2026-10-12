@@ -613,12 +613,10 @@ Si le ahorra a tu equipo un incidente por un atajo no deseado, el botón de caf�
 
 ## Hoja de Ruta
 
-Capacidades futuras y áreas bajo exploración activa:
+Esta sección describe la dirección del proyecto: una intención, no una promesa:
 
-- **Nuevas integraciones de agentes**: investigación y adaptación a hooks/extensiones de nuevos agentes (ej. Windsurf, nuevas CLI de agentes).
-- **Agregación de auditorías**: sincronización de registros de auditoría entre máquinas y formatos de exportación para cumplimiento normativo de equipos.
-- **Preajustes de flujo de trabajo**: preajustes de configuración listos para usar según flujos de ramas comunes de Git (desarrollo basado en tronco, configuraciones empresariales multientorno).
-- **Comprobación estricta en CI**: hooks nativos para pipelines de CI e integración con verificaciones de PR manteniendo la ejecución local con cero dependencias.
+- **Enfoque — primero la corrección**: mantener la precisión y previsibilidad del guard existente (los agentes, las formas de comando y las reglas documentados en esta página) y validarlo en repositorios reales.
+- **No planificado**: nuevas integraciones de agentes, bloqueo estricto en CI, sincronización de auditorías entre máquinas y descarga de políticas remotas. El guard sigue siendo local y sin dependencias, y se configura únicamente desde este repositorio; la protección de ramas en tu servidor sigue siendo la frontera final.
 
 Para conocer las funciones publicadas y el historial de versiones, consulta [CHANGELOG.md](CHANGELOG.md).
 
