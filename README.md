@@ -639,7 +639,7 @@ npm run test:all        # typecheck + unit tests + platform matrix + git matrix 
 ```
 
 - **Quality Rule**: Every logic change requires a 0-error typecheck, all tests green, and a passing `verify:matrix`.
-- **Client Additions**: When adding support for a new agent platform, follow the synchronization checklist in [AGENTS.md](AGENTS.md) §8.
+- **Client Additions**: When adding support for a new agent platform, follow the synchronization checklist in [AGENTS.md](AGENTS.md) section 8.
 
 ---
 

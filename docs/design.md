@@ -1,6 +1,6 @@
 # agents-gitflow-guard 设计规格(现行)
 
-> 状态: **唯一现行规格**, 描述 0.0.13 起的角色驱动实现(含本文 §10 的存储修订)。
+> 状态: **唯一现行规格**, 描述 0.0.13 起的角色驱动实现(含本文 第 10 节的存储修订)。
 > v0(permit/confirm 特许制)设计定稿已被 0.0.2 角色驱动模型整体取代, 原文仅存于 git 历史
 > (`git show 0.0.12:docs/design.md`); 演进记录见 `CHANGELOG.md`。用户侧文档以双语 README 为准。
 > 实机验证与测试证据: 见 `docs/e2e/TestResult/`。
@@ -15,7 +15,7 @@ agent 在多分支流程(feature → 预览/集成分支 → 发布分支)中**�
 |---|---|---|
 | AGENTS.md 注入 / Skills | 🟡 软 | 模型可忽略或漏加载 |
 | 服务端分支保护(GitHub/GitLab 设置) | 🔴 硬 | 管推送面, 不管 agent 本地动作与平台操作时序 |
-| **本插件(命令文本门禁)** | 🔴🔴 最贴近 | 文本解析 best-effort(§14 如实记载边界) |
+| **本插件(命令文本门禁)** | 🔴🔴 最贴近 | 文本解析 best-effort(第 14 节如实记载边界) |
 
 ## 2. 目标与非目标
 
@@ -33,7 +33,7 @@ agent 在多分支流程(feature → 预览/集成分支 → 发布分支)中**�
 - ❌ 多机状态同步(审计单机存储, v2)。
 - ❌ 主动弹窗通知。
 - ❌ 替代 AGENTS.md/Skill 软层(软层给完整指引, 本插件做最后硬兜底)。
-- ❌ GitHub Copilot 接入(原生 allow/deny/ask 权限已覆盖; 见 AGENTS.md §8 例外)。
+- ❌ GitHub Copilot 接入(原生 allow/deny/ask 权限已覆盖; 见 AGENTS.md 第 8 节例外)。
 
 ## 3. 架构总览
 
@@ -133,7 +133,7 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 
 | 场景 | 行为 |
 |---|---|
-| 无配置文件 | **内置默认生效**(integration=develop, archive=main; 默认开启语义, 见 §2.1) |
+| 无配置文件 | **内置默认生效**(integration=develop, archive=main; 默认开启语义, 见 第 2.1 节) |
 | `"enabled": false` | 静默关闭(显式关闭路径) |
 | JSON 损坏 / 字段校验失败 | stderr 一行告警(不再静默), 门禁放行; exit 仍 0 不破坏工具管道 |
 | `"strict": true` | 上述异常改为 fail-closed(拦截), 高风险仓库选用 |
@@ -198,7 +198,7 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 ## 12. 测试策略
 
 - **单元/集成**(vitest, 无需特定 agent 宿主环境): classify(对抗语料)、gate、config(校验/strict)、i18n(键一致性)、repo、index(evaluateCommand 编排/降级路径)、cli(status/audit/check/--locale)、platform(各平台 stdin-hook extract/detect/encode)、stateDir(确定性/隔离性/XDG 重定向)。
-- **accuracy-audit 语料**: §1.1 对抗样本(shell 包装、git 形态、组合旗标)固化为回归清单。
+- **accuracy-audit 语料**: 第 1.1 节对抗样本(shell 包装、git 形态、组合旗标)固化为回归清单。
 - **复测矩阵** `npm run verify:matrix` 十节 A–J: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity / Pi 扩展 / CodeBuddy / ZCode / Cursor——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段); wire 装配类断言进一步在**无 bin/ 的干净临时仓库**实弹执行生成的钩子命令(防「指针在、程序不在」的静默 MODULE_NOT_FOUND 回归)。
 - **铁律**: `npm run typecheck`(0 错)+ `npm test`(全绿)+ `npm run verify:matrix`(全绿)才算完成。CI 矩阵 ubuntu/macOS/Windows × Node 22/24。
 
@@ -240,5 +240,5 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 
 1. 文本解析 best-effort: 已实测穿透文本层的混淆形态与两条本地不可防通道(forge API 直连、解释器子进程内嵌)记录于 README 局限节; **服务端分支保护是最终边界**, 本插件叠加在其内侧的时序防线。
 2. 分支正则由项目作者编写, 注意避免灾难性回溯(README 有提示); 非法正则在加载期报错。
-3. 审计单机存储(§10), 多机协同需 v2 同步。
+3. 审计单机存储(第 10 节), 多机协同需 v2 同步。
 4. 插件改动需重新构建(`npm run build`)，DSH 需重启宿主进程；核心逻辑全部纯函数 + 配置驱动, 把「改代码」压到最少。

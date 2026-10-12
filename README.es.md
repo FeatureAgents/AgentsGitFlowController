@@ -639,7 +639,7 @@ npm run test:all        # typecheck + pruebas unitarias + matriz de plataformas 
 ```
 
 - **Regla de calidad**: cualquier cambio de lógica requiere una verificación de tipos sin errores (0 errores), todas las pruebas en verde y superar `verify:matrix`.
-- **Incorporación de clientes**: al añadir soporte para una nueva plataforma de agente, sigue la lista de verificación de sincronización en [AGENTS.md](AGENTS.md) §8.
+- **Incorporación de clientes**: al añadir soporte para una nueva plataforma de agente, sigue la lista de verificación de sincronización en [AGENTS.md](AGENTS.md) sección 8.
 
 ---
 
