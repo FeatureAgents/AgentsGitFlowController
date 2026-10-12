@@ -21,7 +21,7 @@ Execute this workflow before touching **any content files** in this repository. 
 
 4. Report a one-line summary to the user: original branch / commit lag / newly derived feature branch name.
 
-## Branch Rules Digest (Authoritative text in AGENTS.md §4)
+## Branch Rules Digest (Authoritative text in AGENTS.md section 4)
 
 - All work branches derive from the **latest `origin/develop`**; local `develop` remains untouched.
 - Direct `commit` / `push` to `develop` is strictly forbidden; `develop` evolves exclusively through GitHub PR merges.

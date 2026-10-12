@@ -637,7 +637,7 @@ npm run test:all        # 类型检查 + 单测 + 平台矩阵 + git 矩阵 + re
 ```
 
 - **质量铁律**: 任何逻辑改动必须通过类型检查（0 错误）、单测全绿及连续复测矩阵（`verify:matrix`）。
-- **客户端接入规范**: 接入新 Agent 平台时，需遵循 [AGENTS.md](AGENTS.md) §8 中的同步清单。
+- **客户端接入规范**: 接入新 Agent 平台时，需遵循 [AGENTS.md](AGENTS.md) 第 8 节中的同步清单。
 
 ---
 

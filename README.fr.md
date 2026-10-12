@@ -639,7 +639,7 @@ npm run test:all      # vérification de types + tests unitaires + matrice de pl
 ```
 
 - **Règle de qualité** : toute modification logique exige une vérification de types sans erreur (0 erreur), l'ensemble des tests au vert et une validation complète de `verify:matrix`.
-- **Ajout de clients** : lors de l'ajout d'une nouvelle plateforme d'agent, suivez rigoureusement la liste de contrôle de synchronisation dans [AGENTS.md](AGENTS.md) §8.
+- **Ajout de clients** : lors de l'ajout d'une nouvelle plateforme d'agent, suivez rigoureusement la liste de contrôle de synchronisation dans [AGENTS.md](AGENTS.md) section 8.
 
 ---
 

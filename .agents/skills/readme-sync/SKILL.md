@@ -31,7 +31,7 @@ Load this skill whenever updating **documentation, user-facing features, configu
 ## Trigger Scenarios
 
 - Any edit to `README.md` or `README.zh.md` (adding/updating sections, tables, FAQs, examples, or rules).
-- Adding support for a new AI Agent client platform (AGENTS.md §8 checklist).
+- Adding support for a new AI Agent client platform (AGENTS.md section 8 checklist).
 - Changing command classification, gate evaluation logic, or default configuration models.
 - Updating release version pins or installation guidance.
 

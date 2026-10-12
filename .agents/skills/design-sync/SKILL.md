@@ -18,7 +18,7 @@ Load this skill before implementing **any feature extension or behavioral change
 1. **Locate Changes**: Identify which architectural layer and file the extension belongs to (refer to the mapping table below) before editing code.
 2. **Update `docs/design.md`** (Authoritative Specification): Update corresponding sections including the guard matrix, classifier hardening surface, platform protocol table, configuration schema, and test strategies.
 3. **Update `docs/design/<client>.md`** (Per-Client Implementation Details): Update files for affected clients. If changes involve the shared pipeline (`evaluateCommand` core), review the relevant sections across all client files.
-4. **Update `.agents/hooks/references/<client>.md`** (Protocol Quick Reference): Keep in strict parity with wire artifacts and `platform.ts` encoding (AGENTS.md §8 checklist item 4).
+4. **Update `.agents/hooks/references/<client>.md`** (Protocol Quick Reference): Keep in strict parity with wire artifacts and `platform.ts` encoding (AGENTS.md section 8 checklist item 4).
 5. **Consistency Self-Check**:
    - Verify `encodeDeny` and `extractHookPayload` in `src/platform.ts` match reference docs and the `docs/design.md` encoding table verbatim.
    - Verify `COMMANDS` / templates in `src/wire.ts` match reference doc examples.

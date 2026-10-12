@@ -639,7 +639,7 @@ npm run test:all        # Typecheck + Unit-Tests + Plattform-Matrix + Git-Matrix
 ```
 
 - **Qualitätsregel**: Jede Logikänderung erfordert einen fehlerfreien Typecheck (0 Fehler), alle Tests im grünen Bereich und ein erfolgreiches `verify:matrix`.
-- **Client-Erweiterungen**: Wenn Sie Unterstützung für eine neue Agenten-Plattform hinzufügen, befolgen Sie die Synchronisierungs-Checkliste in [AGENTS.md](AGENTS.md) §8.
+- **Client-Erweiterungen**: Wenn Sie Unterstützung für eine neue Agenten-Plattform hinzufügen, befolgen Sie die Synchronisierungs-Checkliste in [AGENTS.md](AGENTS.md) Abschnitt 8.
 
 ---
 
