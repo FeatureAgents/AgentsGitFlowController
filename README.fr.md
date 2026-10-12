@@ -613,12 +613,10 @@ S'il vous évite un incident de production ou un raccourci malheureux, le bouton
 
 ## Feuille de route
 
-Fonctionnalités futures et axes de recherche actuellement explorés :
+Cette section décrit l'orientation du projet — une intention, pas une promesse :
 
-- **Intégrations de nouveaux agents** : étude et adaptation aux nouveaux systèmes de hooks/extensions d'agents (ex. Windsurf, nouveaux CLI d'agents).
-- **Agrégation d'audits** : synchronisation des journaux d'audit entre machines et formats d'export de conformité pour les équipes.
-- **Préréglages de flux** : préréglages de configuration prêts à l'emploi pour les modèles de branches courants (Trunk-based development, déploiements multi-environnements d'entreprise).
-- **Verrouillage strict en CI** : hooks natifs pour pipelines CI et intégration des vérifications de PR tout en conservant une exécution locale sans dépendance.
+- **Priorité — la justesse d'abord** : maintenir l'exactitude et la prévisibilité du garde-fou existant (les agents, les formes de commandes et les règles documentés sur cette page) et le valider sur des dépôts réels.
+- **Non prévu** : nouvelles intégrations d'agents, verrouillage strict côté CI, synchronisation multi-machines des audits et récupération de politiques distantes. Le garde-fou reste local et sans dépendance, configuré uniquement depuis ce dépôt ; la protection de branches côté serveur reste la frontière finale.
 
 Pour consulter la liste des fonctionnalités publiées et l'historique des versions, voir [CHANGELOG.md](CHANGELOG.md).
 

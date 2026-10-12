@@ -613,12 +613,10 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 
 ## Roadmap
 
-Future capabilities and areas under active exploration:
+This section states the project's direction — intent, not promises:
 
-- **New agent integrations**: Research and adapt to emerging agent hooks/extensions (e.g. Windsurf, emerging agent CLIs).
-- **Audit aggregation**: Cross-machine audit trail synchronization and team-level compliance export formats.
-- **Workflow presets**: Ready-to-use configuration presets for common Git branching flows (Trunk-based development, multi-environment enterprise setups).
-- **CI hard-gating**: Native CI pipeline hooks and PR check integration while keeping zero-dependency local execution.
+- **Focus — correctness first**: keep the existing gate accurate and predictable (the clients, command forms, and rules documented on this page), and validate it in everyday repositories.
+- **Not planned**: new agent integrations, CI-side hard gating, cross-machine audit synchronization, and remote policy fetching. The guard stays local and zero-dependency, configured only from this repository; branch protection on your server remains the final boundary.
 
 For shipped features and release history, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -632,7 +630,7 @@ npm test                # unit tests: classify / gate / config / cli / repo / pl
 npm run typecheck       # tsc --noEmit, 0 errors
 npm run build           # tsdown → lib/ (CLI and plugin share the build)
 npm run check:pins      # assert package.json version matches the CHANGELOG heading and any README version pins
-npm run check:readmes   # assert all 11 READMEs stay structurally symmetric (44 headings / 7 tables / 17 TOC items)
+npm run check:readmes   # assert all 11 READMEs stay structurally symmetric (45 headings / 7 tables / 18 TOC items)
 npm run verify:matrix   # continuous cross-agent regression: DSH logic + zh-locale + multi-client hooks + Pi extension
 npm run test:git-matrix # 169-case git decision matrix against real repositories
 npm run test:realflow   # feature-branch lifecycle end-to-end against a real remote

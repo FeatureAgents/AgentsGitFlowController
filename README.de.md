@@ -613,12 +613,10 @@ Wenn es Ihrem Team eine schiefgegangene Abkürzung erspart, wird der Kaffee-Butt
 
 ## Roadmap
 
-Zukünftige Funktionen und Bereiche unter aktiver Evaluierung:
+Dieser Abschnitt beschreibt die Ausrichtung des Projekts – eine Absicht, kein Versprechen:
 
-- **Neue Agenten-Integrationen**: Erforschung und Anpassung an neue Agenten-Hooks/Erweiterungen (z. B. Windsurf, neu entstehende Agenten-CLIs).
-- **Audit-Aggregation**: Rechnerübergreifende Synchronisierung von Audit-Trails und Exportformate für Compliance auf Teamebene.
-- **Workflow-Presets**: Gebrauchsfertige Konfigurations-Presets für gängige Git-Branching-Modelle (Trunk-Based Development, Multi-Umgebungs-Enterprise-Setups).
-- **CI-Hard-Gating**: Native CI-Pipeline-Hooks und PR-Check-Integration unter Beibehaltung der abhängigkeitsfreien lokalen Ausführung.
+- **Fokus – Korrektheit zuerst**: Das bestehende Gate bleibt präzise und vorhersagbar (die auf dieser Seite dokumentierten Agenten, Kommandoformen und Regeln) und wird in alltäglichen Repositories validiert.
+- **Nicht geplant**: neue Agenten-Integrationen, Hard-Gating in der CI, rechnerübergreifende Audit-Synchronisierung und das Abrufen externer Richtlinien. Der Guard bleibt lokal und abhängigkeitsfrei; konfiguriert wird ausschließlich aus diesem Repository. Der Branch-Schutz auf Ihrem Server bleibt die letzte Grenze.
 
 Für bereits veröffentlichte Funktionen und die Versionshistorie siehe [CHANGELOG.md](CHANGELOG.md).
 

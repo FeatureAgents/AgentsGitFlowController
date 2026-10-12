@@ -3,6 +3,11 @@
 本仓库/包统一为 **`agents-gitflow-guard`**(放弃旧包名, 旧包已不维护)。
 自 0.0.12 起条目改为**中英双语**(国际化发布面); 历史条目保留中文不追溯。
 
+## 0.1.3
+
+- docs(readme): replace the stale roadmap with an honest scope statement — the Roadmap section no longer lists "new agent integrations", "cross-machine audit aggregation", "workflow presets" or "CI hard-gating" as future work; it now states the project's direction (correctness and real-world validation of the existing gate first) and what it deliberately does not plan (new agent integrations, CI-side hard gating, cross-machine audit synchronization, remote policy fetching), so the public page no longer advertises capabilities the project has decided against —— README 路线图改为诚实的范围声明：不再把"更多 Agent 平台接入 / 跨机器审计汇总 / 场景化流程预设 / CI 硬门禁"列为未来计划，改为写明项目方向（先把现有门禁的正确性与真实验证做好）与明确不计划的事项（新 Agent 平台接入、CI 侧硬门禁、跨机器审计同步、远程策略拉取），公开页面不再宣传已被否决的能力。
+- docs(readme): align the Development section's structure counts with the structure checker (45 headings / 7 tables / 18 TOC items) —— 开发段的结构数字与结构校验器对齐（45 标题 / 7 表格 / 18 TOC 项）。
+
 ## 0.1.2
 
 - docs(readme): move the "See it work — a 30-second live demo" section above the fold — the demo section (animated SVG + one-command reproduction) now sits right after the badges and before the Table of Contents in all 11 language READMEs, instead of after the Why section where it took two screens of scrolling to reach; structure moved verbatim, checker constants unchanged (still 45 headings / 7 tables / 21 code blocks / 18 TOC anchors) —— README demo 段上移到首屏："看它干活——30 秒真机演示"段（动画 SVG + 一条命令复现）从 Why 段之后移到徽章之下、目录之上，11 语言同步；此前要滚两三屏才能看到，现在打开首页即见；结构原样平移，校验器常量不变（仍为 45 标题 / 7 表格 / 21 代码块 / 18 TOC 锚点）。
