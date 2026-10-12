@@ -473,6 +473,7 @@ gitflow-guard wire --client cursor --project --yes
   // Pi — .pi/settings.json (extensions のパスは .pi からの相対パスで解決されます)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  ユーザー単位のインストール（全プロジェクトに一括適用）：同じファイルを `~/.pi/agent/extensions/gitflow-guard.ts` に置き、`~/.pi/agent/settings.json` に登録し、`~/.pi/agent` 内に本パッケージをインストールします（`npm i agents-gitflow-guard`。MSYS の `ln -s` はコピーになるため、Windows では PowerShell の junction を使用）。拡張は `node <同梱 runner>` でガードを起動するため、PATH もグローバル npm インストールも不要です — Windows でも動作します。
 
 ### 3. ソースコードからのインストールと開発 (From Source)
 

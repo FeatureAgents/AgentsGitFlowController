@@ -114,10 +114,10 @@ describe('accuracy: 门禁判定刁难样本(集成=develop, 归档=main)', () =
   })
 })
 
-// —— 对抗回归语料: 来自 docs/整改.md §1.1 实测(24 样本中被静默放行的部分), 逐项收编 ——
+// —— 对抗回归语料: 来自 docs/整改.md 第 1.1 节实测(24 样本中被静默放行的部分), 逐项收编 ——
 const isPushTo = (dst: string) => (c: { kind: string; dst?: string | null }) => c.kind === 'push' && c.dst === dst
 
-describe('accuracy: 对抗语料(整改 §1.1)—— shell 包装', () => {
+describe('accuracy: 对抗语料(整改第 1.1 节)—— shell 包装', () => {
   const cfg = config()
 
   it('sh -c / bash -lc 脚本文本递归分类', () => {
@@ -182,7 +182,7 @@ describe('accuracy: 对抗语料(整改 §1.1)—— shell 包装', () => {
   })
 })
 
-describe('accuracy: 对抗语料(整改 §1.1)—— git 全局选项', () => {
+describe('accuracy: 对抗语料(整改第 1.1 节)—— git 全局选项', () => {
   it('子命令前的全局选项剥离后再取子命令', () => {
     expect(classify('git -C . push origin develop')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
     expect(classify('git --git-dir=.git push origin develop')[0]).toMatchObject({ kind: 'push', dst: 'develop' })
@@ -196,7 +196,7 @@ describe('accuracy: 对抗语料(整改 §1.1)—— git 全局选项', () => {
   })
 })
 
-describe('accuracy: 对抗语料(整改 §1.1)—— git 形态第二批(通配/pull/plumbing)', () => {
+describe('accuracy: 对抗语料(整改第 1.1 节)—— git 形态第二批(通配/pull/plumbing)', () => {
   const cfg = config()
 
   it('通配 refspec 视为推送全部分支, 按 --all 同级拦截', () => {

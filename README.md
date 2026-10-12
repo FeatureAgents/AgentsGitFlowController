@@ -474,6 +474,7 @@ The other three CLI clients use the same hook shape — `wire` writes their file
   // Pi — .pi/settings.json (extensions resolve relative to .pi)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  User-level install (all projects at once): copy the same file to `~/.pi/agent/extensions/gitflow-guard.ts`, list it in `~/.pi/agent/settings.json`, and install the package inside `~/.pi/agent` (`npm i agents-gitflow-guard` — under MSYS a plain `ln -s` copies, so use a PowerShell junction on Windows). The extension starts the guard as `node <bundled runner>`, so no PATH entry and no global npm install are involved — Windows included.
 
 ### 3. From Source & Local Development
 

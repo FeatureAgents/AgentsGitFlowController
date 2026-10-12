@@ -474,6 +474,7 @@ Les trois autres clients CLI utilisent la même forme de hook — `wire` écrit 
   // Pi — .pi/settings.json (les extensions se résolvent relativement à .pi)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  Installation au niveau utilisateur (tous les projets d'un coup) : copiez le même fichier dans `~/.pi/agent/extensions/gitflow-guard.ts`, déclarez-le dans `~/.pi/agent/settings.json` et installez le paquet dans `~/.pi/agent` (`npm i agents-gitflow-guard` ; sous MSYS, `ln -s` copie — utilisez une jonction PowerShell sous Windows). L'extension lance le garde-fou via `node <runner embarqué>` : aucune entrée PATH ni installation npm globale n'est requise — Windows inclus.
 
 ### 3. Depuis les sources et développement local
 
