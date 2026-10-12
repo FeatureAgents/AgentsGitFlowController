@@ -24,7 +24,7 @@
 - **发布(全自动化)**：bump 叠加在**待合并的内容 PR 分支**上(`npm version patch`, 版本提交落在该分支; feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ 用户在 GitHub 合并该 PR(内容+changelog+版本号一次带进 develop)→ **CI 自动检测新版本 → 全量矩阵校验 → 自动在 develop 最新 commit 打 annotated tag 并推送 → 自动 npm publish 与创建 GitHub Release**
   —— 零本地命令发布: 无需在本地手动打 tag 或推送, CI 自动闭环发版
   —— 仅当内容已合入后的纯补发(如版本同步)才开独立 `feature/release-<版本>` PR
-  —— 本地 develop 永不直接变更(§4); develop 的一切演进只经 GitHub 的 PR 合并产生
+  —— 本地 develop 永不直接变更(第 4 节); develop 的一切演进只经 GitHub 的 PR 合并产生
   —— CI 自动: 校验 package.json 与 CHANGELOG → 完整矩阵测试 → 自动打 tag → npm publish (--provenance) → GitHub Release (带 CHANGELOG 提取说明)
   —— 前提: 已在 npmjs.com 为该包注册 trusted publisher(org=FeatureAgents, repo=AgentsGitFlowController, workflow=release.yml); 认证由 GitHub Actions 的 OIDC 短命身份提供, **无需 `NPM_TOKEN`**(见 .github/workflows/release.yml 注释)
 
@@ -143,3 +143,24 @@ AgentsGitFlowController/
 7. **package.json**: `description` 的客户端清单追加;`keywords` 补搜索词。
 8. **CHANGELOG**: 记一条 feat。
 9. **QA 三连**: `npm run typecheck`(0 错) + `npm test`(全绿) + `npm run verify:matrix`(全绿)。
+
+## 9. 项目范围(做什么 / 不做什么)
+
+> 权威全文: `docs/design.md` 的「2. 目标与非目标」。本节是给每次新会话的摘要; 两者冲突时以 `design.md` 为准, 并同步修正本节。
+
+**做什么**
+- 门禁正确性: 命令识别、角色判定、worktree 守卫的准确与可预期; 拦截必须带 why/next 引导。
+- 文档如实: README、设计文档、客户端接线说明必须与实现一致; 发现过期表述即修。
+- 真实可用: 已支持客户端(含 Windows)的安装与接线必须真正可用; 可验证的 demo 与诚实边界优先于新功能。
+- 测试回归: 改动伴随测试; 单测、决策矩阵、复测矩阵、E2E 全绿。
+
+**不做什么(明确不做, 不必再提案)**
+- ❌ 新客户端平台接入(Windsurf 等) —— 先把现有 9 个做实。
+- ❌ CI 侧硬门禁 / PR check 联动 —— CI 状态只记日志参考; 服务端分支保护是最终边界。
+- ❌ 跨机器审计同步、团队策略远程拉取(`extends: URL`) —— SSRF 与供应链面, 零需求。
+- ❌ 文件系统拦截(`rm -rf`、`.env` 保护) —— 同一套文本启发式, 命令空间更大、绕过面更广。
+- ❌ MCP Server 作为拦截层 —— MCP 是 agent 主动调用的工具, 拦不住原生 shell; 只能定位为规则查询。
+- ❌ GitHub Copilot 接入 —— 原生权限系统已覆盖(见第 8 节的例外说明)。
+- ❌ 新增语言文档 —— 11 语言是维护上限。
+
+**决策规则**: 新增任何能力前先回答两问 —— ① 它修的是真实用户路径上的真实阻塞吗? ② 它能帮项目拿到第一个外部使用者吗? 两问皆否 → 不做。当前阶段优先可信度与可用性, 不是功能数量。
