@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createPiExtension, evaluateCommand, guardCommand, resolveRunnerPath } from '../lib/index.mjs'
+import { createPiExtension, evaluateCommand, guardCommand, resolvePiBin, resolveRunnerPath } from '../lib/index.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BIN = join(ROOT, 'bin', 'gitflow-guard.mjs')
@@ -93,7 +93,7 @@ function runCheck(platform, payload, cwd) {
   }
 }
 
-/** 跑 bin 的 check 且不带 --platform: 覆盖 detectPlatform 自动判别路径(§8-5 / §15) */
+/** 跑 bin 的 check 且不带 --platform: 覆盖 detectPlatform 自动判别路径(第 8 节第 5 条 / 第 15 节) */
 function runCheckAuto(payload, cwd) {
   try {
     const out = execFileSync('node', [BIN, 'check'], { input: payload, cwd, encoding: 'utf8' })
@@ -282,9 +282,14 @@ console.log('[F] OpenCode hook (--platform opencode 协议层 + wire 插件装�
 console.log('[G] Pi extension (tool_call block contract, real CLI)')
 {
   const repo = tempRepo(CONFIG)
+  // 默认执行器必须在任何机器上可启动: 临时清掉覆盖变量, 走 resolvePiBin() 的默认分支
+  const savedBin = process.env.GITFLOW_GUARD_BIN
+  delete process.env.GITFLOW_GUARD_BIN
   try {
-    // 真实 wire: 扩展以 node 直接跑本仓库 bin, 不再注入 run
-    const extension = createPiExtension({ bin: [process.execPath, BIN] })
+    // 默认执行器回归(PI-D4): 不注入 bin/run —— 扩展必须自己以 node + 随包 runner 启动
+    const defaultBin = resolvePiBin()
+    check('默认执行器: [process.execPath, 随包 runner]', defaultBin[0] === process.execPath && defaultBin[1] === BIN, JSON.stringify(defaultBin))
+    const extension = createPiExtension()
     let handler
     extension({ on: (_event, h) => (handler = h) })
     const evt = (command) => ({ toolName: 'bash', input: { command } })
@@ -302,6 +307,7 @@ console.log('[G] Pi extension (tool_call block contract, real CLI)')
     const skip = await handler({ toolName: 'read', input: { command: 'git push origin develop' } }, ctx)
     check('放行: 非 bash/powershell 工具', skip === undefined, JSON.stringify(skip))
   } finally {
+    if (savedBin !== undefined) process.env.GITFLOW_GUARD_BIN = savedBin
     rmSync(repo, { recursive: true, force: true })
   }
 }

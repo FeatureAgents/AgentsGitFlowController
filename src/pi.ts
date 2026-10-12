@@ -1,4 +1,4 @@
-// Pi 扩展适配层: 进程内拦截(与 DSH 同为 stdin-hook 例外, 见 AGENTS.md §8):
+// Pi 扩展适配层: 进程内拦截(与 DSH 同为 stdin-hook 例外, 见 AGENTS.md 第 8 节):
 // Pi 没有 stdin payload / exit code 协议 —— 拦截经项目扩展(.pi/settings.json → extensions)监听
 // tool_call 事件, 以返回值 { block: true, reason } 表达拒绝。
 // 协议依据: earendil-works/pi-mono 官方扩展文档(pi.dev/docs/extensions), 记载见 .agents/hooks/references/pi.md。
@@ -6,6 +6,7 @@
 // 运行时由 Pi 的 jiti 注入实例, 不 import 任何 Pi 包。
 
 import { execFile } from 'node:child_process'
+import { resolveRunnerPath } from './wire'
 
 /** Pi 官方 tool_call 事件(只读提取, 与官方 ExtensionAPI 的 ToolCallEvent 对齐) */
 export interface PiToolCallEvent {
@@ -45,10 +46,20 @@ export interface PiRunResult {
 export interface PiExtensionOptions {
   /** 拦截哪些工具的命令文本(默认 bash / powershell, 与 DSH 插件 toolNames 同口径) */
   toolNames?: string[]
-  /** 守卫 CLI 可执行(默认 GITFLOW_GUARD_BIN 环境变量 → gitflow-guard); 可为 [node, path] 形式 */
+  /** 守卫 CLI 可执行(默认见 resolvePiBin: node + 随包 runner; 可为 [node, path] 形式) */
   bin?: string | string[]
   /** 命令执行器(测试注入; 默认真实 execFile) */
   run?: (argv: string[], cwd: string) => Promise<PiRunResult>
+}
+
+/** 默认执行器: `node <随包 runner 绝对路径>` —— 不经 PATH、不依赖 npm shim。
+ *  原因(Windows 实证 2026-10-06): PATH 上的 `gitflow-guard` 是无扩展名 shim 或 `.cmd`,
+ *  不带 shell 的 `execFile` 启动不了 → spawn 失败被降级路径吞掉 → 守卫静默失效。
+ *  `GITFLOW_GUARD_BIN` 仍可覆盖(指向自定义可执行)。 */
+export function resolvePiBin(env: NodeJS.ProcessEnv = process.env): string[] {
+  const override = env.GITFLOW_GUARD_BIN
+  if (override) return [override]
+  return [process.execPath, resolveRunnerPath()]
 }
 
 // 快路径: 无 git 系关键词不 spawn; 权威判定仍在守卫内核(CLI check 的 classify 快路径)
@@ -74,8 +85,8 @@ function execFileResult(cmd: string, args: string[], cwd: string): Promise<PiRun
  */
 export function createPiExtension(opts: PiExtensionOptions = {}): (pi: PiExtensionAPI) => void {
   const toolNames = new Set(opts.toolNames ?? ['bash', 'powershell'])
-  const bin = opts.bin ?? process.env.GITFLOW_GUARD_BIN ?? 'gitflow-guard'
-  const run = opts.run ?? ((argv, cwd) => execFileResult(Array.isArray(bin) ? bin[0] : bin, [...(Array.isArray(bin) ? bin.slice(1) : []), ...argv], cwd))
+  const bin = Array.isArray(opts.bin) ? opts.bin : opts.bin != null ? [opts.bin] : resolvePiBin()
+  const run = opts.run ?? ((argv, cwd) => execFileResult(bin[0] ?? '', [...bin.slice(1), ...argv], cwd))
 
   return (pi: PiExtensionAPI): void => {
     pi.on('tool_call', async (event, ctx) => {
