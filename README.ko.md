@@ -2,7 +2,7 @@
 
 > **AI 에이전트가 GitFlow 규칙을 무단으로 건너뛰는 문제로 고민하고 계신가요?**
 
-AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 플러그인 — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 및 [Pi](https://github.com/mariozechner/pi) 지원.  
+AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 플러그인 — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.z.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 및 [Pi](https://pi.dev) 지원.  
 자신만의 브랜치 역할을 자유롭게 정의하세요 — **integration** (PR/MR을 통해 feature 통합), **preview** (스테이징/테스트 환경 엔드포인트), **production** (운영), **archive** (아카이브) — 각각 고유한 업데이트 규칙을 설정할 수 있습니다. 정형적인 흐름 위반은 실행 전에 차단되고, 명확한 원인과 다음 조치가 안내됩니다. 민감한 머지 권한은 확실하게 사람의 손에 유지됩니다. 의도적인 에이전트는 여전히 텍스트 계층 가드를 우회할 수 있습니다 —— [명확한 한계](#제한-사항--명확한-한계) 참조.
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [라이선스](LICENSE)
@@ -26,9 +26,9 @@ npx gitflow-guard demo
 
 ## 목차
 
+- [직접 확인하기 — 30초 라이브 데모](#직접-확인하기--30초-라이브-데모)
 - [빠른 시작 — 30초 만에 저장소 보호하기](#빠른-시작--30초-만에-저장소-보호하기)
 - [도입 배경 — 이 플러그인이 해결하는 문제](#도입-배경--이-플러그인이-해결하는-문제)
-- [직접 확인하기 — 30초 라이브 데모](#직접-확인하기--30초-라이브-데모)
 - [대상 사용자 — 활용 시나리오 및 팀](#대상-사용자--활용-시나리오-및-팀)
 - [주요 기능 — 지원하는 동작](#주요-기능--지원하는-동작)
 - [제한 사항 — 명확한 한계](#제한-사항--명확한-한계)
@@ -522,7 +522,6 @@ npm link
 - **사전 이벤트만 인터셉트**: 명령어 실행 *전*에 차단이 완료되므로 사후 정리나 권한 토큰 회수 작업이 전혀 필요하지 않습니다.
 - **PATH 및 바이너리 확인**: 전역 설치 시 `gitflow-guard` 바이너리가 제공됩니다. `wire`는 모든 hook을 설치된 패키지 자체 runner의 절대 경로에 고정하므로, 에이전트 러너가 대화형 `PATH`를 상속받지 못하더라도 hook이 계속 정상 작동합니다.
 - **기본 활성화**: 별도의 설정 파일 없이도 내장 기본값(`integration: ["develop"]`, `archive: ["main"]`)이 즉시 적용되며, 커스텀 설정은 딥 머지됩니다.
-- **안전한 배선**: `gitflow-guard wire`는 기존의 다른 Hook을 보존하며 멱등하게 병합하고(재실행 시 구버전 gitflow-guard 항목은 현재 형식으로 마이그레이션됨), `--unwire`를 통해 해당 가드 항목만을 정확하게 제거합니다.
 
 ---
 
@@ -576,7 +575,7 @@ npm link
 
 불완전한 추측 설정이 잘못 적용되는 일은 절대 없습니다. 유효성 검사 에러가 발생하면 해당 프로젝트의 가드가 비활성화되고 에러 상세가 보고됩니다.
 
-자주 발생하는 실수: 기본 역할과 동일한 브랜치 이름으로 덮어쓰기(예: 기본 archive가 `main`인 상태에서 `main`을 integration으로 설정 — 명시적 중복 에러이므로 다른 역할도 함께 덮어쓰거나 제거해야 함), 동일한 브랜치를 2개의 역할에 중복 지정(거부), 컴파일할 수 없는 `featurePattern`(유효하지 않은 정규식으로 거부). 에러 안내는 매우 명확하며 설정 파일은 단순한 JSON 객체 하나이므로 30초 내에 수정할 수 있습니다.
+에러 안내는 매우 명확하며 설정 파일은 단순한 JSON 객체 하나이므로 30초 내에 수정할 수 있습니다.
 
 ---
 
@@ -591,8 +590,6 @@ npm link
 ### 라이선스 및 비용은 어떻게 되나요?
 
 MIT 라이선스로 배포되는 무료 오픈소스입니다. 아무런 조건 없이 자유롭게 사용, 수정, 배포할 수 있으며, 유일한 의무는 저작권 고지를 유지하는 것입니다.
-
-본 도구가 팀의 치명적인 워크플로우 실수를 방지하는 데 도움이 되었다면 페이지 상단의 커피 후원을 환영합니다 (의무 사항은 아닙니다). [라이선스](#라이선스)를 참조하세요.
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **有没有受够了 agent 跳过你的合入流程?**
 
-一个可自由配置分支角色的流程守卫，为主流 AI 编码 agent 平台而生——[Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://github.com/opencode-ai/opencode)、[Antigravity](https://github.com/google-deepmind)、[CodeBuddy](https://codebuddy.ai)、[ZCode](https://zcode.ai)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、[Pi](https://github.com/mariozechner/pi)。  
+一个可自由配置分支角色的流程守卫，为主流 AI 编码 agent 平台而生——[Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://opencode.ai)、[Antigravity](https://antigravity.google)、[CodeBuddy](https://codebuddy.ai)、[ZCode](https://zcode.z.ai)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、[Pi](https://pi.dev)。  
 你自己定义分支——**集成分支**(feature 经 PR/MR 合入)、**预览分支**(环境终点)、**生产分支**、**归档分支**——每个角色各自配规则。常规流程违规在执行前就被拦截,并给出明确的原因与下一步;敏感合并始终留在你手上。存心的 agent 仍可绕过文本层守卫——见[诚实的边界](#它不能做什么诚实的边界)。
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [许可证](LICENSE)
@@ -26,9 +26,9 @@ npx gitflow-guard demo
 
 ## 目录
 
+- [看它干活——30 秒真机演示](#看它干活30-秒真机演示)
 - [快速开始——30 秒用上](#快速开始30-秒用上)
 - [为什么需要它——解决的问题](#为什么需要它解决的问题)
-- [看它干活——30 秒真机演示](#看它干活30-秒真机演示)
 - [适合谁——场景与团队](#适合谁场景与团队)
 - [它能做什么](#它能做什么)
 - [它不能做什么——诚实的边界](#它不能做什么诚实的边界)
@@ -521,7 +521,6 @@ npm link
 - **仅拦截前置事件**: 门禁在命令执行*前*完成拦截，无需后置清理或消耗特许令牌。
 - **PATH 与二进制解析**: 全局安装提供 `gitflow-guard` 二进制。`wire` 会把每个 hook 锚定到安装包自身 runner 的绝对路径，因此即使 Agent 子进程未继承你的交互式 `PATH`，hook 依然可用。
 - **开箱即用**: 内置默认配置（`integration: ["develop"]`, `archive: ["main"]`）无需额外文件即生效；自定义配置自动深度合并。
-- **安全接线**: `gitflow-guard wire` 幂等合并配置且不影响已有 Hook（重跑 wire 会把旧版 gitflow-guard 条目迁移为当前形态）；`--unwire` 精确移除对应条目。
 
 ---
 
@@ -575,7 +574,7 @@ npm link
 
 半吊子配置绝不会意外生效:任何校验错误都会让该项目的守卫禁用并上报错误。
 
-常见错误:覆盖的角色与默认角色同名(如把 `main` 设为 integration 而默认 archive 仍是 `main`——显式重叠报错,需一并覆盖或去掉另一角色)、同一个分支被配到两个角色里(显式拒绝)、`featurePattern` 写不成合法正则(报错)。失败提示很明确,文件又是一个 JSON 对象,通常三十秒改好。
+失败提示很明确,文件又是一个 JSON 对象,通常三十秒改好。
 
 ---
 
@@ -590,8 +589,6 @@ npm link
 ### 许可证 / 收费?
 
 MIT,免费,无条件。随便用、随便改、随便发,唯一义务是保留版权声明。
-
-如果它帮你挡掉了一次抄近路,页顶的咖啡按钮欢迎但绝不要求。见[许可证](#许可证)。
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **¿Cansado de que los agentes de IA ignoren tu GitFlow?**
 
-Un guardián configurable para roles de ramas Git, diseñado para agentes de programación con IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) y [Pi](https://github.com/mariozechner/pi).
+Un guardián configurable para roles de ramas Git, diseñado para agentes de programación con IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.z.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) y [Pi](https://pi.dev).
 Tú defines tus propias ramas —
 **integration** (las funcionalidades se integran mediante PR/MR), **preview** (entornos de prueba), **production**, **archive** — cada una con sus propias reglas de actualización. Las infracciones rutinarias del flujo se bloquean antes de ejecutarse, con el motivo y el siguiente paso claros; y los merges críticos permanecen en tus manos. Un agente decidido puede aún eludir una capa de texto; véase [Límites honestos](#qué-no-hace--límites-honestos).
 
@@ -27,9 +27,9 @@ Para poner el guardián delante de tu agente después, continúa con [Inicio Rá
 
 ## Índice
 
+- [Véalo en acción — una demostración en vivo de 30 segundos](#véalo-en-acción--una-demostración-en-vivo-de-30-segundos)
 - [Inicio Rápido — 30 segundos para proteger tu repositorio](#inicio-rápido--30-segundos-para-proteger-tu-repositorio)
 - [Por qué — El problema que resuelve este plugin](#por-qué--el-problema-que-resuelve-este-plugin)
-- [Véalo en acción — una demostración en vivo de 30 segundos](#véalo-en-acción--una-demostración-en-vivo-de-30-segundos)
 - [Para quién es esto — Escenarios y equipos](#para-quién-es-esto--escenarios-y-equipos)
 - [Qué hace — Capacidades](#qué-hace--capacidades)
 - [Qué NO hace — Límites honestos](#qué-no-hace--límites-honestos)
@@ -523,7 +523,6 @@ npm link
 - **Ejecución previa a la herramienta (Pre-tool)**: Solo se intercepta el evento previo a la herramienta; el guardián bloquea *antes* de que los comandos se ejecuten, por lo que no se necesitan hooks posteriores ni pasos de limpieza de permisos.
 - **Resolución del binario en PATH**: La instalación global (`npm i -g`) proporciona el binario `gitflow-guard`. `wire` ancla cada hook a la ruta absoluta del runner del propio paquete instalado, de modo que el hook sigue funcionando incluso cuando el ejecutor del agente no hereda tu `PATH` interactivo.
 - **Habilitado por defecto**: Los valores predeterminados integrados (`integration: ["develop"]`, `archive: ["main"]`) entran en vigor sin ningún archivo de configuración. Las configuraciones personalizadas en `gitflow-guard.config.json` se aplican por fusión profunda sobre estos valores.
-- **Conexión no destructiva**: `gitflow-guard wire` fusiona las configuraciones de hooks de forma idempotente sin modificar los hooks existentes (las entradas antiguas de gitflow-guard se migran a la forma actual al volver a ejecutar), y `wire --unwire` elimina únicamente la entrada del guardián.
 
 ---
 
@@ -577,7 +576,7 @@ Los bloqueos están reservados para: (1) escrituras directas en ramas de roles p
 
 Una configuración mal definida nunca se aplica por accidente: cualquier error de validación desactiva el guardián para ese proyecto y reporta los fallos.
 
-Errores comunes: redefinir un rol con el mismo nombre de rama que un rol predeterminado (ej. mapear `main` como integración mientras el archivo predeterminado sigue siendo `main` — un error explícito de superposición; redefine o elimina el otro rol también), superponer una misma rama en dos roles diferentes (rechazado), o un `featurePattern` que no compila (rechazado por regex no válida). El aviso de error es claro y el archivo es un único objeto JSON, por lo que la corrección normalmente toma menos de medio minuto.
+El aviso de error es claro y el archivo es un único objeto JSON, por lo que la corrección normalmente toma menos de medio minuto.
 
 ---
 
@@ -592,8 +591,6 @@ No se escribe nada en disco, no se contacta a ningún servidor remoto y no se re
 ### ¿Licencia / coste?
 
 MIT, gratuito, sin condiciones. Úsalo, modifícalo, distribúyelo — la única obligación es conservar el aviso de derechos de autor.
-
-Si le ahorra a tu equipo un incidente por un atajo no deseado, el botón de café en la parte superior de esta página es bienvenido, aunque nunca obligatorio. Ver [Licencia](#licencia).
 
 ---
 

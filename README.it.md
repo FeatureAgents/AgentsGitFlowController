@@ -2,7 +2,7 @@
 
 > **Sei stanco che gli agenti IA ignorino il tuo GitFlow?**
 
-Un guardiano configurabile per i ruoli dei branch Git per agenti di codifica IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) e [Pi](https://github.com/mariozechner/pi).
+Un guardiano configurabile per i ruoli dei branch Git per agenti di codifica IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.z.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) e [Pi](https://pi.dev).
 Definisci i tuoi branch —
 **integration** (le feature confluiscono tramite PR/MR), **preview** (endpoint di ambiente), **production**, **archive** — ciascuno con le proprie regole di aggiornamento. Le violazioni di routine del flusso vengono bloccate prima dell'esecuzione, con motivo e passi successivi chiari; e i merge critici rimangono nelle tue mani. Un agente determinato può comunque aggirare una guardia a livello di testo; vedi [Limiti oggettivi](#cosa-non-fa--limiti-oggettivi).
 
@@ -27,9 +27,9 @@ Per mettere poi il guardiano davanti al tuo agente, continua con [Guida rapida](
 
 ## Indice
 
+- [Vedilo all'opera — una demo dal vivo di 30 secondi](#vedilo-allopera--una-demo-dal-vivo-di-30-secondi)
 - [Guida rapida — 30 secondi per proteggere il repository](#guida-rapida--30-secondi-per-proteggere-il-repository)
 - [Perché — Il problema risolto da questo plugin](#perché--il-problema-risolto-da-questo-plugin)
-- [Vedilo all'opera — una demo dal vivo di 30 secondi](#vedilo-allopera--una-demo-dal-vivo-di-30-secondi)
 - [A chi è rivolto — Scenari e team](#a-chi-è-rivolto--scenari-e-team)
 - [Cosa fa — Funzionalità](#cosa-fa--funzionalità)
 - [Cosa NON fa — Limiti oggettivi](#cosa-non-fa--limiti-oggettivi)
@@ -522,7 +522,6 @@ npm link
 - **Esecuzione pre-tool**: Viene intercettato solo l'evento pre-tool; il guardiano blocca *prima* dell'esecuzione dei comandi, pertanto non sono necessari hook post-tool o fasi di pulizia dei permessi.
 - **Risoluzione di PATH per gli eseguibili**: L'installazione globale (`npm i -g`) fornisce l'eseguibile `gitflow-guard`. `wire` ancora ogni hook al percorso assoluto del runner del pacchetto installato, quindi l'hook continua a funzionare anche quando l'ambiente di esecuzione dell'agente non eredita il tuo `PATH` interattivo.
 - **Abilitato per impostazione predefinita**: I valori predefiniti integrati (`integration: ["develop"]`, `archive: ["main"]`) hanno effetto senza alcun file di configurazione. Le configurazioni personalizzate in `gitflow-guard.config.json` vengono applicate tramite deep-merge sui valori predefiniti.
-- **Collegamento non distruttivo**: `gitflow-guard wire` unisce le configurazioni degli hook in modo idempotente senza modificare gli hook esistenti (le voci gitflow-guard legacy vengono migrate alla forma attuale alla riesecuzione), e `wire --unwire` rimuove unicamente la voce del guardiano.
 
 ---
 
@@ -576,7 +575,7 @@ I blocchi sono riservati a: (1) scritture dirette sui branch con ruoli protetti 
 
 Una configurazione definita a metà non viene mai applicata accidentalmente: qualsiasi errore di convalida disattiva il guardiano per quel progetto e segnala gli errori.
 
-Errori frequenti: sovrascrivere un ruolo con lo stesso nome di branch di un ruolo predefinito (ad es. `main` come integration mentre l'archive predefinito è ancora `main` — un esplicito errore di sovrapposizione; sovrascrivi o rimuovi anche l'altro ruolo), associare uno stesso branch a due ruoli (respinto) e un `featurePattern` che non compila (respinto come regex non valida). L'errore viene segnalato in modo evidente e il file è un singolo oggetto JSON, pertanto la correzione richiede solitamente una trentina di secondi.
+L'errore viene segnalato in modo evidente e il file è un singolo oggetto JSON, pertanto la correzione richiede solitamente una trentina di secondi.
 
 ---
 
@@ -591,8 +590,6 @@ Non viene scritto nulla, nessun server remoto viene contattato e non è richiest
 ### Licenza / costi?
 
 MIT, gratuito, senza vincoli. Usalo, modificalo, distribuiscilo — l'unico obbligo è mantenere l'avviso di copyright.
-
-Se evita al tuo team una scorciatoia rischiosa, il pulsante per il caffè in cima a questa pagina è gradito ma mai obbligatorio. Vedere [Licenza](#licenza).
 
 ---
 

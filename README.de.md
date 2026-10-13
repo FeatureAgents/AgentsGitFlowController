@@ -2,7 +2,7 @@
 
 > **Sind Sie es leid, dass KI-Agenten Ihren GitFlow umgehen?**
 
-Ein konfigurierbarer Branch-Rollen-Guard für KI-Coding-Agenten — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) und [Pi](https://github.com/mariozechner/pi).
+Ein konfigurierbarer Branch-Rollen-Guard für KI-Coding-Agenten — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.z.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) und [Pi](https://pi.dev).
 Sie definieren Ihre eigenen Branches —
 **integration** (Features werden über PR/MR zusammengeführt), **preview** (Umgebungs-Endpunkte), **production**, **archive** — jeweils mit eigenen Aktualisierungsregeln. Routineverstöße gegen den Flow werden vor der Ausführung blockiert — mit klarem Grund und nächsten Schritten; sensible Merges bleiben in Ihrer Hand. Ein entschlossener Agent kann eine Guard auf Textebene dennoch umgehen; siehe [Ehrliche Grenzen](#was-es-nicht-tut--ehrliche-grenzen).
 
@@ -27,9 +27,9 @@ Wenn Sie danach den Guard vor Ihren Agent stellen möchten, weiter mit [Schnells
 
 ## Inhaltsverzeichnis
 
+- [Sehen Sie es in Aktion — eine 30-Sekunden-Live-Demo](#sehen-sie-es-in-aktion--eine-30-sekunden-live-demo)
 - [Schnellstart — In 30 Sekunden zu einem geschützten Repository](#schnellstart--in-30-sekunden-zu-einem-geschützten-repository)
 - [Warum — Das Problem, das dieses Plugin löst](#warum--das-problem-das-dieses-plugin-löst)
-- [Sehen Sie es in Aktion — eine 30-Sekunden-Live-Demo](#sehen-sie-es-in-aktion--eine-30-sekunden-live-demo)
 - [Für wen dies gedacht ist — Szenarien & Teams](#für-wen-dies-gedacht-ist--szenarien--teams)
 - [Was es tut — Funktionen](#was-es-tut--funktionen)
 - [Was es NICHT tut — Ehrliche Grenzen](#was-es-nicht-tut--ehrliche-grenzen)
@@ -523,7 +523,6 @@ npm link
 - **Pre-Tool-Ausführung**: Nur das Pre-Tool-Ereignis wird abgefangen; der Guard blockiert, *bevor* Befehle ausgeführt werden, sodass keine Post-Tool-Hooks oder Permit-Bereinigungsschritte erforderlich sind.
 - **Binary PATH-Auflösung**: Die globale Installation (`npm i -g`) stellt das Binary `gitflow-guard` bereit. `wire` verankert jeden Hook am absoluten Pfad des Runners des installierten Pakets selbst, sodass der Hook auch dann weiterhin funktioniert, wenn der Agent-Runner Ihren interaktiven `PATH` nicht erbt.
 - **Standardmäßig aktiviert**: Die integrierten Standardwerte (`integration: ["develop"]`, `archive: ["main"]`) greifen ohne jede Konfigurationsdatei. Eigene Konfigurationen in `gitflow-guard.config.json` werden per Deep-Merge über die Standardwerte gelegt.
-- **Zerstörungsfreie Verdrahtung**: `gitflow-guard wire` führt Hook-Konfigurationen idempotent zusammen, ohne bestehende Hooks zu verändern (veraltete gitflow-guard-Einträge werden bei erneuter Ausführung zur aktuellen Form migriert), und `wire --unwire` entfernt ausschließlich den Guard-Eintrag.
 
 ---
 
@@ -577,7 +576,7 @@ Die Blockierungen sind reserviert für: (1) direkte Schreibvorgänge auf geschü
 
 Ein halb erratenes Setup wird niemals versehentlich angewendet: Jeder Validierungsfehler deaktiviert den Guard für dieses Projekt und meldet die Fehler.
 
-Häufige Fehler: Das Überschreiben einer Rolle mit demselben Branch-Namen wie eine Standardrolle (z. B. `main` als Integration, während das Standardarchiv noch `main` ist — ein expliziter Überschneidungsfehler; überschreiben oder entfernen Sie die andere Rolle ebenfalls), das Zuordnen eines Branch zu zwei Rollen (abgelehnt) und ein `featurePattern`, das sich nicht kompilieren lässt (als ungültiger Regex abgelehnt). Die Fehlermeldung ist unübersehbar und die Datei besteht aus einem einzigen JSON-Objekt, sodass die Korrektur meist in dreißig Sekunden erledigt ist.
+Die Fehlermeldung ist unübersehbar und die Datei besteht aus einem einzigen JSON-Objekt, sodass die Korrektur meist in dreißig Sekunden erledigt ist.
 
 ---
 
@@ -592,8 +591,6 @@ Es wird nichts geschrieben, kein Remote kontaktiert und keine Funktion des Hosti
 ### Lizenz / Kosten?
 
 MIT, kostenlos, ohne Bedingungen. Nutzen Sie es, modifizieren Sie es, liefern Sie es aus — die einzige Verpflichtung besteht im Beibehalten des Urheberrechtshinweises.
-
-Wenn es Ihrem Team eine schiefgegangene Abkürzung erspart, wird der Kaffee-Button oben auf dieser Seite geschätzt, ist aber niemals erforderlich. Siehe [Lizenz](#lizenz).
 
 ---
 

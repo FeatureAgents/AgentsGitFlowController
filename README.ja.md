@@ -2,7 +2,7 @@
 
 > **AI エージェントが勝手に GitFlow をスキップするのにうんざりしていませんか？**
 
-AI コーディングエージェントのための、柔軟にカスタマイズ可能なブランチ役割ガードプラグイン — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://github.com/opencode-ai/opencode)、[Antigravity](https://github.com/google-deepmind)、[CodeBuddy](https://codebuddy.ai)、[ZCode](https://zcode.ai)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、[Pi](https://github.com/mariozechner/pi) をサポート。  
+AI コーディングエージェントのための、柔軟にカスタマイズ可能なブランチ役割ガードプラグイン — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://opencode.ai)、[Antigravity](https://antigravity.google)、[CodeBuddy](https://codebuddy.ai)、[ZCode](https://zcode.z.ai)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、[Pi](https://pi.dev) をサポート。  
 ブランチの役割は自由に定義可能 — **integration**（PR/MR 経由で feature をマージ）、**preview**（検証環境用エンドポイント）、**production**（本番）、**archive**（アーカイブ）— それぞれに独自の更新ルールを設定できます。定型的なフロー違反は実行前にブロックされ、理由と次の手順が明確に示されます。重要なマージ権限は確実に人間の手に残ります。意図的なエージェントがテキスト層のガードを迂回する可能性は残ります —— 詳細は[誠実な限界](#制限事項--誠実な限界)を参照。
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [ライセンス](LICENSE)
@@ -26,9 +26,9 @@ npx gitflow-guard demo
 
 ## 目次
 
+- [動かしてみる — 30秒のライブデモ](#動かしてみる--30秒のライブデモ)
 - [クイックスタート — 30秒でリポジトリを保護](#クイックスタート--30秒でリポジトリを保護)
 - [導入の理由 — このプラグインが解決する課題](#導入の理由--このプラグインが解決する課題)
-- [動かしてみる — 30秒のライブデモ](#動かしてみる--30秒のライブデモ)
 - [対象ユーザー — 利用シナリオとチーム](#対象ユーザー--利用シナリオとチーム)
 - [主な機能 — できること](#主な機能--できること)
 - [制限事項 — 誠実な限界](#制限事項--誠実な限界)
@@ -522,7 +522,6 @@ npm link
 - **事前イベントのみをインターセプト**: コマンド実行*前*にブロックを行うため、事後のクリーンアップやパーミットトークンの消費処理は一切不要です。
 - **PATH とバイナリの解決**: グローバルインストールにより `gitflow-guard` バイナリが提供されます。`wire` はすべてのフックを、インストール済みパッケージ自身の runner の絶対パスにアンカーするため、エージェントの実行環境が対話型の `PATH` を継承していない場合でもフックは動作し続けます。
 - **初期状態で有効**: 組み込みデフォルト設定（`integration: ["develop"]`, `archive: ["main"]`）により、設定ファイルなしで即座に機能します。カスタム設定は自動的にディープマージされます。
-- **非破壊的な配線**: `gitflow-guard wire` は既存のフックに影響を与えることなく安全にマージし（再実行時、旧形式の gitflow-guard エントリは現行形式にマイグレーションされ）、`--unwire` で正確に対象エントリのみを削除します。
 
 ---
 
@@ -576,7 +575,7 @@ npm link
 
 不完全な推測設定が誤って適用されることは決してありません。バリデーションエラーが発生した場合、そのプロジェクトのガードは無効化され、エラー内容がレポートされます。
 
-よくあるミス：デフォルトの役割と同じブランチ名でオーバーライドすること（例: デフォルトの archive が `main` のまま `main` を integration に設定する — 明示的な重複エラーとなります。もう一方の役割も明示的に上書きまたは削除してください）、同一ブランチを 2 つの役割に重複設定すること（拒否）、コンパイルできない `featurePattern`（無効な正規表現として拒否）。エラーは明確に通知され、ファイルはシンプルな 1 つの JSON オブジェクトであるため、通常は 30 秒程度で修正できます。
+エラーは明確に通知され、ファイルはシンプルな 1 つの JSON オブジェクトであるため、通常は 30 秒程度で修正できます。
 
 ---
 
@@ -591,8 +590,6 @@ npm link
 ### ライセンス / 費用について
 
 MIT ライセンスで提供されており、完全無料・無条件で利用できます。使用、改変、再配布は自由であり、唯一の義務は著作権表示を保持することです。
-
-もしこのツールがチームの開発フローにおける誤操作を未然に防ぐのに役立ちましたら、ページ上部のコーヒーボタンよりご支援いただけると幸いです（必須ではありません）。[ライセンス](#ライセンス) を参照してください。
 
 ---
 
