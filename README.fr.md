@@ -2,7 +2,7 @@
 
 > **Vous en avez assez que les agents IA contournent votre GitFlow ?**
 
-Un garde-fou configurable pour les rôles de branches Git, conçu pour les agents de codage IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) et [Pi](https://github.com/mariozechner/pi).
+Un garde-fou configurable pour les rôles de branches Git, conçu pour les agents de codage IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.z.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) et [Pi](https://pi.dev).
 Vous définissez vos propres branches —
 **integration** (les fonctionnalités sont intégrées via PR/MR), **preview** (environnements de test), **production**, **archive** — chacune avec ses propres règles de mise à jour. Les infractions routinières au flux sont bloquées avant exécution, avec un motif et la marche à suivre clairement indiqués — et les fusions sensibles restent entre vos mains. Un agent déterminé peut toujours contourner un garde au niveau texte ; voir [Limites honnêtes](#ce-quil-ne-fait-pas--limites-honnêtes).
 
@@ -27,9 +27,9 @@ Pour placer ensuite le garde devant votre agent, continuez avec [Démarrage rapi
 
 ## Table des matières
 
+- [Voyez-le à l'œuvre — une démo live de 30 secondes](#voyez-le-à-lœuvre--une-démo-live-de-30-secondes)
 - [Démarrage rapide — 30 secondes pour protéger un dépôt](#démarrage-rapide--30-secondes-pour-protéger-un-dépôt)
 - [Pourquoi — Le problème résolu par ce plugin](#pourquoi--le-problème-résolu-par-ce-plugin)
-- [Voyez-le à l'œuvre — une démo live de 30 secondes](#voyez-le-à-loeuvre--une-démo-live-de-30-secondes)
 - [À qui s'adresse ce plugin — Scénarios et équipes](#à-qui-sadresse-ce-plugin--scénarios-et-équipes)
 - [Ce qu'il fait — Fonctionnalités](#ce-quil-fait--fonctionnalités)
 - [Ce qu'il ne fait PAS — Limites honnêtes](#ce-quil-ne-fait-pas--limites-honnêtes)
@@ -523,7 +523,6 @@ npm link
 - **Exécution avant outil (Pre-tool)** : Seul l'événement précédant l'outil est intercepté ; le garde bloque *avant* l'exécution des commandes, éliminant le besoin de hooks postérieurs ou d'étapes de nettoyage de permissions.
 - **Résolution du binaire dans le PATH** : L'installation globale (`npm i -g`) fournit le binaire `gitflow-guard`. `wire` ancre chaque hook au chemin absolu du runner du paquet installé, de sorte que le hook continue de fonctionner même lorsque l'exécuteur de l'agent n'hérite pas de votre `PATH` interactif.
 - **Activé par défaut** : Les valeurs par défaut intégrées (`integration: ["develop"]`, `archive: ["main"]`) prennent effet sans aucun fichier de configuration. Les configurations personnalisées dans `gitflow-guard.config.json` sont appliquées par fusion profonde sur ces valeurs.
-- **Liaison non destructive** : `gitflow-guard wire` fusionne les configurations de hooks de manière idempotente sans modifier les hooks existants (les anciennes entrées gitflow-guard sont migrées vers la forme actuelle lors d'une relance), et `wire --unwire` retire uniquement l'entrée du garde.
 
 ---
 
@@ -577,7 +576,7 @@ Les blocages sont strictement réservés à : (1) l'écriture directe sur des br
 
 Une configuration incertaine ou mal renseignée n'est jamais appliquée par défaut : la moindre erreur de validation désactive le garde pour le projet concerné et consigne les erreurs.
 
-Erreurs fréquentes : redéfinir un rôle avec le même nom de branche qu'un rôle par défaut (par exemple assigner `main` à integration alors que l'archive par défaut est toujours `main` — ce qui constitue une erreur de chevauchement explicite ; il convient de redéfinir ou de retirer l'autre rôle également), assigner une même branche à deux rôles différents (rejeté), ou fournir un `featurePattern` invalide (rejeté pour regex incorrecte). Le message d'erreur est explicite et le fichier ne comporte qu'un unique objet JSON, ce qui permet généralement une correction en moins de trente secondes.
+Le message d'erreur est explicite et le fichier ne comporte qu'un unique objet JSON, ce qui permet généralement une correction en moins de trente secondes.
 
 ---
 
@@ -592,8 +591,6 @@ Aucune donnée n'est écrite, aucun serveur distant n'est contacté et aucune fo
 ### Licence / Coût ?
 
 MIT, gratuit, libre de droits. Utilisez-le, modifiez-le, distribuez-le — la seule condition est de conserver la mention de copyright.
-
-S'il vous évite un incident de production ou un raccourci malheureux, le bouton pour offrir un café en haut de cette page est apprécié mais nullement obligatoire. Voir [Licence](#licence).
 
 ---
 

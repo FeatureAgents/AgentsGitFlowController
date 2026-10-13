@@ -2,7 +2,7 @@
 
 > **Você está cansado de agentes ignorando o seu GitFlow?**
 
-Um guardião configurável de funções de branch para agentes de codificação por IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) e [Pi](https://github.com/mariozechner/pi).
+Um guardião configurável de funções de branch para agentes de codificação por IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.z.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) e [Pi](https://pi.dev).
 Você define suas próprias branches —
 **integration** (features são mescladas via PR/MR), **preview** (endpoints de ambiente), **production**, **archive** — cada uma com suas próprias regras de atualização. Violações rotineiras do fluxo são bloqueadas antes da execução, com motivo claro e próximo passo; e os merges sensíveis permanecem em suas mãos. Um agente determinado ainda pode contornar uma guarda na camada de texto; veja [Limites reais](#o-que-ele-não-faz--limites-reais).
 
@@ -27,9 +27,9 @@ Para colocar depois o guardião na frente do seu agente, continue com [Início R
 
 ## Índice
 
+- [Veja funcionando — uma demonstração ao vivo de 30 segundos](#veja-funcionando--uma-demonstração-ao-vivo-de-30-segundos)
 - [Início Rápido — 30 segundos para proteger o repositório](#início-rápido--30-segundos-para-proteger-o-repositório)
 - [Por que — O problema que este plugin resolve](#por-que--o-problema-que-este-plugin-resolve)
-- [Veja funcionando — uma demonstração ao vivo de 30 segundos](#veja-funcionando--uma-demonstração-ao-vivo-de-30-segundos)
 - [Para quem é indicado — Cenários e equipes](#para-quem-é-indicado--cenários-e-equipes)
 - [O que ele faz — Recursos](#o-que-ele-faz--recursos)
 - [O que ele NÃO faz — Limites reais](#o-que-ele-não-faz--limites-reais)
@@ -522,7 +522,6 @@ npm link
 - **Execução pré-ferramenta**: Apenas o evento pré-ferramenta é interceptado; o guardião bloqueia *antes* que os comandos sejam executados, eliminando a necessidade de hooks pós-ferramenta ou etapas de limpeza de permissões.
 - **Resolução de PATH para o executável**: A instalação global (`npm i -g`) provê o binário `gitflow-guard`. O `wire` ancora cada hook ao caminho absoluto do runner do próprio pacote instalado, então o hook continua funcionando mesmo quando o runner do agente não herda o seu `PATH` interativo.
 - **Ativo por padrão**: Os padrões integrados (`integration: ["develop"]`, `archive: ["main"]`) entram em vigor sem nenhum arquivo de configuração. Configurações personalizadas em `gitflow-guard.config.json` são mescladas via deep-merge sobre os padrões.
-- **Conexão não destrutiva**: `gitflow-guard wire` mescla as configurações de hook de forma idempotente sem alterar hooks existentes (entradas legadas do gitflow-guard são migradas para a forma atual ao reexecutar), e `wire --unwire` remove apenas a entrada do guardião.
 
 ---
 
@@ -576,7 +575,7 @@ Os bloqueios são reservados para: (1) gravações diretas em branches de funç�
 
 Uma configuração mal definida nunca é aplicada por acidente: qualquer erro de validação desativa o guardião para aquele projeto e reporta os erros.
 
-Erros comuns: sobrescrever uma função com o mesmo nome de branch de uma função padrão (ex.: mapear `main` para integration enquanto o archive padrão permanece `main` — um erro explícito de sobreposição; cubra ou remova a outra função também), atribuir a mesma branch a duas funções diferentes (rejeitado) e fornecer um `featurePattern` inválido (rejeitado por erro de regex). O erro é destacado de forma clara e o arquivo consiste em um único objeto JSON, tornando a correção uma tarefa de poucos segundos.
+O erro é destacado de forma clara e o arquivo consiste em um único objeto JSON, tornando a correção uma tarefa de poucos segundos.
 
 ---
 
@@ -591,8 +590,6 @@ Nada é gravado, nenhum servidor remoto é contatado e nenhum recurso de serviç
 ### Licença / custo?
 
 MIT, gratuito, sem amarras. Use, modifique, distribua — a única obrigação é manter o aviso de direitos autorais.
-
-Se esta ferramenta evitar que sua equipe sofra com um atalho indevido, uma contribuição de café no topo desta página é apreciada, mas nunca obrigatória. Veja [Licença](#licença).
 
 ---
 

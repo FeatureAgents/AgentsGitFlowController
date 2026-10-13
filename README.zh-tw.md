@@ -2,7 +2,7 @@
 
 > **有沒有受夠了 AI Agent 隨意跳過你的 GitFlow 合併流程？**
 
-一個可自由配置分支角色的流程守衛，專為主流 AI 寫碼 Agent 平台而生 —— [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://github.com/opencode-ai/opencode)、[Antigravity](https://github.com/google-deepmind)、[CodeBuddy](https://codebuddy.ai)、[ZCode](https://zcode.ai)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 與 [Pi](https://github.com/mariozechner/pi)。  
+一個可自由配置分支角色的流程守衛，專為主流 AI 寫碼 Agent 平台而生 —— [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://opencode.ai)、[Antigravity](https://antigravity.google)、[CodeBuddy](https://codebuddy.ai)、[ZCode](https://zcode.z.ai)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 與 [Pi](https://pi.dev)。  
 你自己定義分支 —— **集成分支**（feature 經 PR/MR 合入）、**預覽分支**（環境端點）、**生產分支**、**歸檔分支** —— 每個角色各自配置規則。常規流程違規在執行前就被攔截，並給出明確的原因與下一步；敏感合併始終留在你手上。存心的 Agent 仍可繞過文字層守衛 —— 見[誠實的邊界](#它不能做什麼--誠實的邊界)。
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [授權條款](LICENSE)
@@ -26,9 +26,9 @@ npx gitflow-guard demo
 
 ## 目錄
 
+- [看它實際攔截 — 30 秒真機演示](#看它實際攔截--30-秒真機演示)
 - [快速開始 — 30 秒上手](#快速開始--30-秒上手)
 - [為什麼需要它 — 解決的問題](#為什麼需要它--解決的問題)
-- [看它實際攔截 — 30 秒真機演示](#看它實際攔截--30-秒真機演示)
 - [適合誰 — 場景與團隊](#適合誰--場景與團隊)
 - [它能做什麼](#它能做什麼)
 - [它不能做什麼 — 誠實的邊界](#它不能做什麼--誠實的邊界)
@@ -521,7 +521,6 @@ npm link
 - **僅攔截前置事件**：門禁在指令執行*前*即完成攔截，無需事後清理或消耗特許權杖。
 - **PATH 與二進位解析**：全域安裝提供 `gitflow-guard` 執行檔。`wire` 會將每個 hook 錨定到安裝套件自身 runner 的絕對路徑，因此即使 Agent 子進程未繼承你的互動式 `PATH`，hook 依然可用。
 - **開箱即用**：內建預設配置（`integration: ["develop"]`, `archive: ["main"]`）無需額外建立檔案即生效；自訂配置自動執行深度合併。
-- **安全接線**：`gitflow-guard wire` 具備冪等性，安全合併配置且不影響現有其他 Hook（重跑 wire 會把舊版 gitflow-guard 條目遷移為當前形態）；`--unwire` 精準移除對應條目。
 
 ---
 
@@ -575,7 +574,7 @@ npm link
 
 半吊子的錯誤配置絕不會意外生效：任何校驗錯誤都會讓該專案的守衛回退為禁用狀態並回報錯誤詳情。
 
-常見錯誤：覆蓋的角色與預設角色同名（例如將 `main` 設定為 integration，而預設的 archive 依然是 `main` —— 此為明確的重疊報錯，需一併覆蓋或移除另一角色）、同一個分支被重複配置到兩個角色中（明確拒絕）、`featurePattern` 無法編譯為合法正則表達式（報錯）。錯誤提示非常明確，且檔案僅為一個單純的 JSON 物件，通常三十秒內即可修正完畢。
+錯誤提示非常明確，且檔案僅為一個單純的 JSON 物件，通常三十秒內即可修正完畢。
 
 ---
 
@@ -590,8 +589,6 @@ npm link
 ### 授權條款 / 是否收費？
 
 MIT 授權，免費開源，無任何附加條件。隨意使用、修改、分發，唯一的義務是保留原著作權聲明。
-
-如果它曾幫助你或你的團隊避免了一次不當操作，歡迎透過頁面頂部的按鈕請作者喝杯咖啡，但這絕非強制要求。詳見[授權條款](#授權條款)。
 
 ---
 
