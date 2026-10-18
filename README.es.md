@@ -16,7 +16,7 @@ Tú defines tus propias ramas —
 Sin tocar los archivos de tu proyecto, sin dejar nada atrás — un solo comando ejecuta tres escenas reales (1 pase, 2 bloqueos) dentro de un repositorio sandbox desechable y lo elimina al salir. La animación de abajo se genera a partir de la salida real de ese comando — el mismo núcleo de guardia que invoca el hook de tu agente:
 
 ```bash
-npx gitflow-guard demo
+npx agents-gitflow-guard demo
 ```
 
 ![gitflow-guard demo — decisiones reales de pase/bloqueo en un repositorio desechable real](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)

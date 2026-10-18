@@ -16,7 +16,7 @@ You define your own branches —
 No project files touched, nothing left behind — one command runs three real scenes (1 pass, 2 blocks) inside a throwaway sandbox repo and deletes it on exit. The output below is generated from that command's real run — the same guard core your agent's hook calls:
 
 ```bash
-npx gitflow-guard demo
+npx agents-gitflow-guard demo
 ```
 
 ![gitflow-guard demo — real allow/deny decisions on a real throwaway repo](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)

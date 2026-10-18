@@ -16,7 +16,7 @@ Vous définissez vos propres branches —
 Aucune modification de vos fichiers de projet, aucun résidu — une seule commande exécute trois scènes réelles (1 passage, 2 blocages) dans un dépôt bac à sable jetable et le supprime en quittant. L'animation ci-dessous est générée à partir de la sortie réelle de cette commande — le même noyau de garde que celui que le hook de votre agent appelle :
 
 ```bash
-npx gitflow-guard demo
+npx agents-gitflow-guard demo
 ```
 
 ![gitflow-guard demo — décisions réelles de passage/blocage sur un dépôt jetable réel](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)

@@ -15,7 +15,7 @@ AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 
 프로젝트 파일을 건드리지 않고, 아무것도 남기지 않습니다 — 명령어 하나로 일회성 샌드박스 저장소 안에서 3개의 실제 장면(1 허용, 2 차단)을 실행하고 종료 시 삭제합니다. 아래 애니메이션은 그 명령어의 실제 출력에서 생성된 것으로 — 에이전트 훅이 호출하는 것과 동일한 가드 코어입니다:
 
 ```bash
-npx gitflow-guard demo
+npx agents-gitflow-guard demo
 ```
 
 ![gitflow-guard demo — 실제 저장소 위의 실제 허용/차단 판정](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)

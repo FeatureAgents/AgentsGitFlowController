@@ -31,7 +31,7 @@ function fixtureLines(): CastEvent[] {
     { t: 2700, tag: 'why', text: '      why: integration branch develop is updated via PR' },
     { t: 3000, tag: 'next', text: '      next: gh pr create --base develop' },
     { t: 3300, tag: 'cleanup', text: '  sandbox deleted — no files left behind' },
-    { t: 3600, tag: 'wire', text: '  Put the guard in front of your agent: npx gitflow-guard wire' },
+    { t: 3600, tag: 'wire', text: '  Put the guard in front of your agent: npx agents-gitflow-guard wire' },
   ]
 }
 

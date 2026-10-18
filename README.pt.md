@@ -16,7 +16,7 @@ Você define suas próprias branches —
 Sem tocar nos arquivos do seu projeto, sem deixar nada para trás — um único comando executa três cenas reais (1 passagem, 2 bloqueios) dentro de um repositório sandbox descartável e o apaga ao sair. A animação abaixo é gerada a partir da saída real desse comando — o mesmo núcleo de guarda que o hook do seu agente invoca:
 
 ```bash
-npx gitflow-guard demo
+npx agents-gitflow-guard demo
 ```
 
 ![gitflow-guard demo — decisões reais de passagem/bloqueio em um repositório descartável real](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)

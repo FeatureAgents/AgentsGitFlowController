@@ -16,7 +16,7 @@ Sie definieren Ihre eigenen Branches —
 Kein Berühren Ihrer Projektdateien, nichts bleibt zurück — ein Befehl führt drei echte Szenen (1 Durchlass, 2 Blockierungen) in einem Wegwerf-Sandbox-Repository aus und löscht es beim Beenden. Die Animation unten ist aus der echten Ausgabe dieses Befehls erzeugt — derselbe Guard-Kern, den der Hook Ihres Agents aufruft:
 
 ```bash
-npx gitflow-guard demo
+npx agents-gitflow-guard demo
 ```
 
 ![gitflow-guard demo — echte Durchlass-/Blockierungsentscheidungen in einem echten Wegwerf-Repository](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)

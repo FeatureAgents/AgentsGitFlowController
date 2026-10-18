@@ -15,7 +15,7 @@ AI コーディングエージェントのための、柔軟にカスタマイ�
 プロジェクトのファイルには触れず、何も残しません — コマンド 1 つで使い捨てのサンドボックスリポジトリ内で 3 つの実シーン（1 許可、2 ブロック）を実行し、終了時に削除します。下のアニメーションはそのコマンドの実際の出力から生成されたもので — エージェントのフックが呼び出すのと同じガードコアです：
 
 ```bash
-npx gitflow-guard demo
+npx agents-gitflow-guard demo
 ```
 
 ![gitflow-guard demo — 実際のリポジトリ上の実際の許可/ブロック判定](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)

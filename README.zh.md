@@ -15,7 +15,7 @@
 不碰你的项目文件,不留任何东西——一条命令在一次性沙箱仓库里跑三个真实场景(1 放行,2 拦截),退出即删。下面的动画由该命令的真实输出生成——与你 agent hook 调用的是同一守卫核心:
 
 ```bash
-npx gitflow-guard demo
+npx agents-gitflow-guard demo
 ```
 
 ![gitflow-guard demo — 真实仓库上真实的放行/拦截判定](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
