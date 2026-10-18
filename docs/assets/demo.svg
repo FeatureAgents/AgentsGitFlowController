@@ -12,20 +12,20 @@
 <g data-frame="1" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.0511;0.1023" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#8b949e" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#8b949e" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#8b949e" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#8b949e" xml:space="preserve">      on exit)</text>
 </g>
 <g data-frame="2" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.1023;0.1705" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 </g>
 <g data-frame="3" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.1705;0.2216" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#3fb950" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#3fb950" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#3fb950" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#3fb950" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#3fb950" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#3fb950" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -33,7 +33,7 @@
 <g data-frame="4" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.2216;0.2898" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -42,7 +42,7 @@
 <g data-frame="5" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.2898;0.3466" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -52,7 +52,7 @@
 <g data-frame="6" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.3466;0.4261" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -63,7 +63,7 @@
 <g data-frame="7" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.4261;0.5057" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -77,7 +77,7 @@
 <g data-frame="8" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.5057;0.5739" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#e6edf3" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -92,7 +92,7 @@
 <g data-frame="9" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.5739;0.6307" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#f85149" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -108,7 +108,7 @@
 <g data-frame="10" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.6307;0.7102" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#ffa657" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -125,7 +125,7 @@
 <g data-frame="11" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.7102;0.7898" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#7ee787" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -143,7 +143,7 @@
 <g data-frame="12" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible;hidden" keyTimes="0;0.7898;0.8636" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#8b949e" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#8b949e" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#8b949e" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#8b949e" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#8b949e" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#8b949e" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -163,7 +163,7 @@
 <g data-frame="13" visibility="hidden">
 <animate attributeName="visibility" values="hidden;visible" keyTimes="0;0.8636" dur="35.2s" calcMode="discrete" repeatCount="indefinite"/>
 <text x="22" y="62" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">[gitflow-guard] demo — watch the guard decide on a real throwaway repo</text>
-<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-BHKWcA (a real git repo — deleted</text>
+<text x="22" y="81" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">sandbox: C:\Users\Kean\AppData\Local\Temp\gfguard-demo-4iieN2 (a real git repo — deleted</text>
 <text x="22" y="100" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">      on exit)</text>
 <text x="22" y="119" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">  scene 1/3 — on feature/demo-x: git commit -m &quot;feat: demo work&quot;</text>
 <text x="22" y="138" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">    → ALLOW (exit 0) — the command may run</text>
@@ -179,7 +179,7 @@
 <text x="22" y="328" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">      next: Push the feature branch first, then open a PR/MR into develop.</text>
 <text x="22" y="347" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">sandbox deleted — no files left behind. That was the real guard core, the same code your</text>
 <text x="22" y="366" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">      agent&apos;s hook calls.</text>
-<text x="22" y="385" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">Put the guard in front of your agent:  npx gitflow-guard wire --client</text>
+<text x="22" y="385" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">Put the guard in front of your agent:  npx agents-gitflow-guard wire --client</text>
 <text x="22" y="404" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#58a6ff" xml:space="preserve">      &lt;claude|codex|cursor|...&gt; --project</text>
 </g>
 </svg>

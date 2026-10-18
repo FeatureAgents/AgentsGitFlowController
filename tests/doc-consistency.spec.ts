@@ -2,10 +2,11 @@
 // 背景(实证): 决策矩阵用例数从 135 增到 169 后, 11 语言 README 与 E2E 文档长期仍写 135;
 // 每个客户端的"官方协议 / 测试用例 / 实机证据"三处文档没有统一入口, 缺证据也不会被发现。
 //
-// 校验范围(与 CHANGELOG 0.0.50 的 test(docs) 条目一一对应, 不得夸大):
+// 校验范围(与 CHANGELOG 0.0.50 的 test(docs) 条目及后续扩充一一对应, 不得夸大):
 //   1. 矩阵用例数: 11 语言 README + docs/e2e/README.md + docs/e2e/pi.md 必须提到该数且等于事实源;
 //   2. 客户端索引: docs/e2e/README.md 的索引行与 WIRE_CLIENTS 双向一致, 链接可解析, 证据列与实际文件一致;
-//   3. AGENTS.md 中"仓库目录路径"存在(根目录文件名、占位符、构建产物不在范围内, 见 PATH_REFS 注释)。
+//   3. AGENTS.md 中"仓库目录路径"存在(根目录文件名、占位符、构建产物不在范围内, 见 PATH_REFS 注释);
+//   4. npx 包名与 bin 入口对齐: package.json#bin 必须同时暴露包名与短名命令, 11 语言 README 与 demo.svg 的 npx 调用必须写已发布包名而非不存在的裸 gitflow-guard。
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -154,5 +155,32 @@ describe('文档一致性: AGENTS.md 路径引用', () => {
     // 下界守卫: 提取规则写坏时(正则为空、AGENTS.md 改写), 这条必须变红而不是静默通过
     expect(unique.length, 'AGENTS.md 受检路径数过少, 提取规则可能已失效').toBeGreaterThanOrEqual(15)
     expect(unique.filter((p) => !existsSync(join(REPO_ROOT, p)))).toEqual([])
+  })
+})
+
+describe('文档一致性: npx 包名与 bin 入口对齐', () => {
+  const pkg = JSON.parse(read('package.json')) as { name: string; bin: Record<string, string> }
+
+  it('package.json#bin 同时暴露包名(供 npx 解析)与短名 gitflow-guard(供全局/本地 CLI 调用)', () => {
+    expect(pkg.name).toBe('agents-gitflow-guard')
+    expect(pkg.bin).toEqual({
+      'gitflow-guard': 'bin/gitflow-guard.mjs',
+      'agents-gitflow-guard': 'bin/gitflow-guard.mjs',
+    })
+    expect(existsSync(join(REPO_ROOT, pkg.bin['agents-gitflow-guard']))).toBe(true)
+  })
+
+  for (const file of REQUIRED_README_FILES) {
+    it(`${file} 首屏 demo 使用真实包名 npx agents-gitflow-guard demo, 不含未注册包名 npx gitflow-guard`, () => {
+      const content = read(file)
+      expect(content).toContain('npx agents-gitflow-guard demo')
+      expect(content).not.toMatch(/\bnpx\s+gitflow-guard\b/)
+    })
+  }
+
+  it('docs/assets/demo.svg 渲染的 wire 引导使用真实包名 npx agents-gitflow-guard', () => {
+    const svg = read('docs/assets/demo.svg')
+    expect(svg).toContain('npx agents-gitflow-guard wire')
+    expect(svg).not.toMatch(/\bnpx\s+gitflow-guard\b/)
   })
 })

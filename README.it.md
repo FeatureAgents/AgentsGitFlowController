@@ -16,7 +16,7 @@ Definisci i tuoi branch —
 Nessun tocco ai file del tuo progetto, nessun residuo — un solo comando esegue tre scene reali (1 passaggio, 2 blocchi) dentro un repository sandbox monouso e lo elimina all'uscita. L'animazione qui sotto è generata dall'output reale di quel comando — lo stesso nucleo di guardia che l'hook del tuo agente invoca:
 
 ```bash
-npx gitflow-guard demo
+npx agents-gitflow-guard demo
 ```
 
 ![gitflow-guard demo — decisioni reali di passaggio/blocco su un repository monouso reale](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)

@@ -804,12 +804,17 @@ describe('cli: demo(30 秒真实演示, 用户目录零残留)', () => {
     expect(demoSandboxes()).toEqual(before)
   })
 
-  it('i18n: cli.demo.* 九个 key 在 en/zh 双语就位', () => {
+  it('i18n: cli.demo.* 九个 key 在 en/zh 双语就位, 且 wire 引导使用真实 npm 包名 npx agents-gitflow-guard', () => {
     const keys = ['title', 'sandbox', 'scene', 'allow', 'deny', 'why', 'next', 'cleanup', 'wire'].map((k) => `cli.demo.${k}`)
     for (const k of keys) {
       expect(MESSAGE_KEYS).toContain(k)
       // 未知 key 防御性原样返回 → "不等于 key 本身"即证明 zh 字典已实现
       expect(makeT('zh')(k)).not.toBe(k)
+    }
+    for (const locale of ['en', 'zh'] as const) {
+      const wireText = makeT(locale)('cli.demo.wire')
+      expect(wireText).toContain('npx agents-gitflow-guard wire')
+      expect(wireText).not.toMatch(/\bnpx\s+gitflow-guard\b/)
     }
   })
 })
