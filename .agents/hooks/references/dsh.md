@@ -12,6 +12,7 @@ DSH is the only client that does **not** go through the stdin-payload / exit-cod
 
 - `apply(ctx)` registers a listener on the `tools/pre-execute` event.
 - The command text is read from `exec.arguments.command`; non-matching tool names and non-git repos fall through to `next()`.
+- The repository and current branch are resolved in the directory the command actually runs in, not the session directory (`exec.agent.session.header.cwd`): the tool call's `workdir` argument (or `cwd`; relative to the session directory), then any leading `cd <dir>` / `pushd <dir>` joined by `&&`, `;` or a newline, then the `git -C <dir>` global options of the first gated git command (`resolveCommandCwd` in `src/classify.ts`). A step that cannot be resolved statically (`$VAR`, command substitution, `~`, `cd -`, `popd`, globs, subshells, a `cd` followed by `||` / `|` / `&`) falls back to the starting directory, and a resolved directory outside any repository falls back to the session directory's repository.
 - Deny is expressed **via the return value**: `{ kind: 'deny', reason: '<formatted two-line message>' }` — no exit code, no stdout JSON.
 - Allow is expressed by calling `next()` (pipeline continuation).
 

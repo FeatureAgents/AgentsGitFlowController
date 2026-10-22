@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { classify } from '../src/classify'
+import { resolve } from 'node:path'
+import { classify, resolveCommandCwd } from '../src/classify'
 
 /** 便捷断言: 只关心首条命令的分类 */
 function first(command: string, currentBranch: string | null = 'feature/dev-x-01') {
@@ -530,5 +531,61 @@ describe('classify: Shell 分隔符切分(单 &, ;, |, ||, && 与重定向保护
   })
 })
 
+describe('resolveCommandCwd: 受门禁 git 段实际运行目录的静态推演', () => {
+  const S = resolve('/s/main')
+  const WT = resolve('/s/wt')
 
+  it('无 cd / -C → 起点目录', () => {
+    expect(resolveCommandCwd('git merge develop', S)).toBe(S)
+    expect(resolveCommandCwd('npm test && git push origin develop', S)).toBe(S)
+  })
 
+  it('前导 cd / pushd(绝对 / 相对 / 引号 / -- / 链式 / 点段规范化)', () => {
+    expect(resolveCommandCwd(`cd ${WT} && git merge develop`, S)).toBe(WT)
+    expect(resolveCommandCwd('cd ../wt && git merge develop', S)).toBe(WT)
+    expect(resolveCommandCwd(`pushd "${WT}"; git merge develop`, S)).toBe(WT)
+    expect(resolveCommandCwd(`cd -- ${WT} && git merge develop`, S)).toBe(WT)
+    expect(resolveCommandCwd('cd .. && cd wt\ngit merge develop', S)).toBe(WT)
+    expect(resolveCommandCwd('cd ../wt/./../wt && git merge develop', S)).toBe(WT)
+  })
+
+  it('以首个受门禁的段为准: 只读 git 段不截断推演, 其后的 cd 不回溯', () => {
+    expect(resolveCommandCwd('git status && cd ../wt && git merge develop', S)).toBe(WT)
+    expect(resolveCommandCwd('git merge develop && cd ../wt', S)).toBe(S)
+  })
+
+  it('git -C(全局选项之后 / 多个逐个相对解析 / 赋值前缀 / 以 cd 结果为起点)', () => {
+    expect(resolveCommandCwd(`git -C ${WT} merge develop`, S)).toBe(WT)
+    expect(resolveCommandCwd(`git --no-pager -c core.pager=cat -C ${WT} merge develop`, S)).toBe(WT)
+    expect(resolveCommandCwd('git -C .. -C wt merge develop', S)).toBe(WT)
+    expect(resolveCommandCwd(`GIT_EDITOR=true git -C ${WT} merge develop`, S)).toBe(WT)
+    expect(resolveCommandCwd('cd .. && git -C wt merge develop', S)).toBe(WT)
+  })
+
+  it('无法静态确定 → 起点目录', () => {
+    for (const cmd of [
+      'cd $WT && git merge develop',
+      'cd "${WT}" && git merge develop',
+      'cd `pwd`/../wt && git merge develop',
+      'cd $(git rev-parse --show-toplevel)/../wt && git merge develop',
+      'cd ~/wt && git merge develop',
+      'cd - && git merge develop',
+      'cd && git merge develop',
+      'popd && git merge develop',
+      'cd ../w* && git merge develop',
+      '(cd ../wt && git merge develop)',
+      '{ cd ../wt; git merge develop; }',
+      'cd ../wt || git merge develop',
+      'cd ../wt | git merge develop',
+      'cd ../wt & git merge develop',
+      'git -C "$WT" merge develop',
+      'cd ../wt && git -C $X merge develop',
+    ]) {
+      expect(resolveCommandCwd(cmd, S), cmd).toBe(S)
+    }
+  })
+
+  it('经包装器调用的 git: 只应用此前的 cd, 不解析包装内的 -C', () => {
+    expect(resolveCommandCwd('cd ../wt && env git -C /x merge develop', S)).toBe(WT)
+  })
+})
