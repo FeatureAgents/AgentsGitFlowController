@@ -92,6 +92,12 @@ const en: Dict = {
   'aliasSmuggle.why': () => 'Alias defined through an out-of-band channel (--config-env / GIT_CONFIG_KEY_*)',
   'aliasSmuggle.next': () =>
     'Define it with `-c alias.<name>=<value>` so the guard can classify it, or run the underlying command directly.',
+  'segmentCwdMismatch.why': () => 'Guarded git segments in one command would run in different directories',
+  'segmentCwdMismatch.next': () =>
+    'Split the command and run each part on its own, or drop the directory redirection (cd / git -C).',
+  'segmentCwdUnknown.why': () => 'Cannot statically determine where a guarded git segment in this command would run',
+  'segmentCwdUnknown.next': () =>
+    'Split the command and run each part on its own, or drop the directory redirection (cd / git -C).',
   'deny.header': (v) => `[gitflow-guard] blocked: ${v.why}`,
   'deny.next': (v) => `Next: ${v.next}`,
 
@@ -246,6 +252,10 @@ const zh: Dict = {
   'aliasSmuggle.why': () => '别名经带外通道定义(--config-env / GIT_CONFIG_KEY_*)',
   'aliasSmuggle.next': () =>
     '请改用 `-c alias.<名>=<值>` 定义别名以便守卫识别, 或直接运行底层命令',
+  'segmentCwdMismatch.why': () => '单条命令里多个受门禁 git 段将在不同目录运行',
+  'segmentCwdMismatch.next': () => '请把命令拆开逐条执行, 或去掉目录重定向(cd / git -C)',
+  'segmentCwdUnknown.why': () => '单条命令里存在无法静态确定运行目录的受门禁段',
+  'segmentCwdUnknown.next': () => '请把命令拆开逐条执行, 或去掉目录重定向(cd / git -C)',
   'deny.header': (v) => `[gitflow-guard] 已拦截: ${v.why}`,
   'deny.next': (v) => `下一步: ${v.next}`,
 
