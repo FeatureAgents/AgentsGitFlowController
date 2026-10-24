@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -530,5 +530,88 @@ describe('stateDir: 运行时数据存用户级全局目录(仓库外)', () => {
     } finally {
       rmSync(base, { recursive: true, force: true })
     }
+  })
+})
+
+describe('apply: 按命令实际运行的目录判定(workdir 参数 / cd / git -C, 真实 git 集成)', () => {
+  // 主检出停在归档分支 main, linked worktree 停在 feature 分支; 默认配置(main=archive, mergeBy=user)。
+  // 会话目录(header.cwd)只是 shell 的起点: 命令可经 workdir 参数、前导 cd 或 git -C 在另一个检出里运行,
+  // 门禁必须按命令真正所在的检出判定当前分支。
+  type PreExecuteHandler = (exec: unknown, next: () => Promise<unknown>) => Promise<unknown>
+  const execFileP = promisify(execFile)
+  let base = ''
+  let main = ''
+  let wt = ''
+  let handler: PreExecuteHandler | undefined
+  const next = async () => 'allowed'
+  const run = (sessionCwd: string, args: Record<string, unknown>) =>
+    handler!({ name: 'bash', arguments: args, agent: { session: { header: { cwd: sessionCwd } } } }, next)
+
+  beforeAll(async () => {
+    base = mkdtempSync(join(tmpdir(), 'gfguard-workdir-'))
+    main = join(base, 'main')
+    wt = join(base, 'wt')
+    mkdirSync(main, { recursive: true })
+    const g = (args: string[], cwd: string) => execFileP('git', args, { cwd })
+    await g(['init', '-b', 'main'], main)
+    await g(['config', 'user.email', 't@example.com'], main)
+    await g(['config', 'user.name', 'T'], main)
+    writeFileSync(join(main, 'f.txt'), 'x')
+    await g(['add', '.'], main)
+    await g(['commit', '-m', 'init'], main)
+    await g(['worktree', 'add', wt, '-b', 'feature/wt'], main)
+    const ctx = {
+      on: (event: string, fn: PreExecuteHandler) => {
+        if (event === 'tools/pre-execute') handler = fn
+      },
+    }
+    apply(ctx as unknown as Context)
+  })
+
+  afterAll(() => {
+    rmSync(base, { recursive: true, force: true })
+  })
+
+  it('基线: 会话目录即命令目录 —— main 上 merge 拒绝, feature worktree 上 merge 放行', async () => {
+    expect(await run(main, { command: 'git merge develop' })).toMatchObject({ kind: 'deny' })
+    expect(await run(wt, { command: 'git merge develop' })).toBe('allowed')
+  })
+
+  it('workdir 参数: 会话在 main, 命令在 feature worktree 运行 → 放行(不再误判为 merge 进 main)', async () => {
+    expect(await run(main, { command: 'git merge develop', workdir: wt })).toBe('allowed')
+    // 相对 workdir 按会话目录解析
+    expect(await run(main, { command: 'git merge develop', workdir: '../wt' })).toBe('allowed')
+  })
+
+  it('workdir 参数: 会话在 feature worktree, 命令在 main 运行 → 拒绝(不再被会话分支放过)', async () => {
+    expect(await run(wt, { command: 'git merge feature/wt', workdir: main })).toMatchObject({ kind: 'deny' })
+    expect(await run(wt, { command: 'git merge feature/wt', cwd: main })).toMatchObject({ kind: 'deny' })
+  })
+
+  it('前导 cd / pushd: 按切换后的目录判定', async () => {
+    expect(await run(main, { command: `cd ${wt} && git merge develop` })).toBe('allowed')
+    expect(await run(main, { command: `pushd "${wt}" && git merge develop` })).toBe('allowed')
+    expect(await run(wt, { command: `cd ${main} && git merge feature/wt` })).toMatchObject({ kind: 'deny' })
+    expect(await run(wt, { command: `cd .. ; cd main && git status && git merge feature/wt` })).toMatchObject({ kind: 'deny' })
+  })
+
+  it('git -C: 按 -C 指向的目录判定(相对路径以 workdir 为起点)', async () => {
+    expect(await run(main, { command: `git -C ${wt} merge develop` })).toBe('allowed')
+    expect(await run(wt, { command: `git -C ${main} merge feature/wt` })).toMatchObject({ kind: 'deny' })
+    expect(await run(wt, { command: 'git -C main merge feature/wt', workdir: base })).toMatchObject({ kind: 'deny' })
+  })
+
+  it('无法静态解析的目录($VAR / ~ / cd - / 子 shell / || 之后) → 回落到会话目录, 与修复前判定一致', async () => {
+    expect(await run(main, { command: 'cd $WT && git merge develop' })).toMatchObject({ kind: 'deny' })
+    expect(await run(main, { command: 'cd ~/wt && git merge develop' })).toMatchObject({ kind: 'deny' })
+    expect(await run(main, { command: 'cd - && git merge develop' })).toMatchObject({ kind: 'deny' })
+    expect(await run(main, { command: `(cd ${wt} && git merge develop)` })).toMatchObject({ kind: 'deny' })
+    expect(await run(main, { command: `cd ${wt} || git merge develop` })).toMatchObject({ kind: 'deny' })
+    expect(await run(main, { command: `git -C "$WT" merge develop` })).toMatchObject({ kind: 'deny' })
+  })
+
+  it('解析出的目录不在任何仓库内 → 回落到会话目录的仓库判定(不因目录错误而放行)', async () => {
+    expect(await run(main, { command: 'git merge develop', workdir: join(base, 'missing') })).toMatchObject({ kind: 'deny' })
+    expect(await run(main, { command: `cd ${join(base, 'missing')}; git merge develop` })).toMatchObject({ kind: 'deny' })
   })
 })

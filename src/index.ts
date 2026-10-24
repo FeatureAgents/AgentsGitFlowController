@@ -4,10 +4,10 @@ import { appendFile, mkdir } from 'node:fs/promises'
 import { realpathSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
-import { classify } from './classify'
+import { classify, resolveCommandCwd } from './classify'
 import { loadConfig } from './config'
 import { decide } from './gate'
 import { makeT, resolveLocale } from './i18n'
@@ -251,6 +251,13 @@ function commandText(exec: ToolExecution): string {
   return typeof args?.command === 'string' ? args.command : ''
 }
 
+/** 工具调用自带的工作目录参数(DSH bash / pwsh 的 workdir, 兼容 cwd); 相对路径按会话目录解析, 缺省即会话目录 */
+function toolWorkdir(exec: ToolExecution, sessionCwd: string): string {
+  const args = exec.arguments as { workdir?: unknown; cwd?: unknown } | undefined
+  const wd = [args?.workdir, args?.cwd].find((v): v is string => typeof v === 'string' && v.trim() !== '')
+  return wd == null ? sessionCwd : resolve(sessionCwd, wd)
+}
+
 export function formatDeny(locale: Locale, why: string, next: string): string {
   const t = makeT(locale)
   return `${t('deny.header', { why })}\n${t('deny.next', { next })}`
@@ -267,8 +274,11 @@ export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
       // 快路径: 非 git 系命令直接放行, 不触发任何 git 查询(与 CLI check 的快路径同口径)
       const segments = classify(command)
       if (segments.length === 0 || segments.every((s) => s.kind === 'other')) return next()
-      const cwd = exec.agent?.session.header.cwd ?? process.cwd()
-      const repoRoot = await findRepoRoot(runner, cwd)
+      // 按命令实际运行的目录判定(workdir 参数 → 前导 cd → git -C), 而非会话目录: 二者可能是不同的 worktree / 仓库。
+      // 推演出的目录不在任何仓库内(目录不存在、cd 失败后 ; 续跑等)时回落到会话目录的仓库, 不因目录推演而放行
+      const sessionCwd = exec.agent?.session.header.cwd ?? process.cwd()
+      const cwd = resolveCommandCwd(command, toolWorkdir(exec, sessionCwd))
+      const repoRoot = (await findRepoRoot(runner, cwd)) ?? (cwd === sessionCwd ? null : await findRepoRoot(runner, sessionCwd))
       if (!repoRoot) return next()
 
       const result = await evaluateCommand(command, { repoRoot, runner })

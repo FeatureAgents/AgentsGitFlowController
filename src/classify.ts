@@ -1,5 +1,6 @@
 // 命令识别层: 解析 agent 的 git/gh/gitflow-guard 命令文本, 输出结构化分类(纯函数)
 
+import { resolve } from 'node:path'
 import type { Classified, ClassifyContext, GuardCliClassified, LocalMergeClassified, PrCreateClassified, PrMergeClassified, PushClassified } from './types'
 
 /**
@@ -76,6 +77,61 @@ function classifyDepth(command: string, ctx: ClassifyContext, depth: number, sco
   ]
 }
 
+/** 改变后续段工作目录的 shell 内建(popd 的目标取决于目录栈, 无法静态确定) */
+const CD_COMMANDS: ReadonlySet<string> = new Set(['cd', 'pushd', 'popd'])
+/** cd 之后经这些分隔符衔接的段在 cd 后的目录运行; || / | / & 之后的段不继承(仅在 cd 失败时执行, 或 cd 跑在子 shell 里) */
+const CD_CARRY_OPS: ReadonlySet<string> = new Set(['&&', ';', '\n'])
+
+/**
+ * 推演命令中受门禁的 git 段实际运行的目录(纯函数, 只做静态解析; 不访问文件系统):
+ * 自起点 cwd 依次应用该段之前的 cd / pushd, 再应用该段自身的 git -C(可多个, 逐个相对解析, 与 git 一致)。
+ * 「受门禁的段」= 首个分类结果含非 other 的段, 与门禁实际判定的段一致。
+ * 任何一步无法静态确定($VAR / 反引号 / ~ / cd - / 无参 cd / popd / 通配符 / 子 shell 与命令组 /
+ * || | & 之后的段)即整体返回起点 cwd —— 与只按会话目录判定的旧行为一致, 不会因猜测目录而放行。
+ */
+export function resolveCommandCwd(command: string, cwd: string): string {
+  let dir = cwd
+  for (const { text, op } of splitWithOperators(command)) {
+    if (text.startsWith('(') || text.startsWith('{')) return cwd
+    const tokens = tokenize(text)
+    let i = 0
+    while (i < tokens.length && /^[\w-][\w.-]*=/.test(tokens[i])) i++
+    const name = normalizeCommandName(tokens[i] ?? '')
+    if (CD_COMMANDS.has(name)) {
+      const args = tokens.slice(i + 1)
+      if (args[0] === '--') args.shift()
+      const target = name !== 'popd' && args.length === 1 ? staticDir(args[0]) : null
+      if (target == null || !CD_CARRY_OPS.has(op)) return cwd
+      dir = resolve(dir, target)
+      continue
+    }
+    if (!classify(text).some((c) => c.kind !== 'other')) continue
+    // 受门禁的段: 直接调用 git 时应用全局选项里的 -C; 经包装器(env/sudo/sh -c 等)调用时只认此前的 cd
+    if (name !== 'git') return dir
+    for (let j = i + 1; j < tokens.length; j++) {
+      const a = tokens[j]
+      if (a === '-C') {
+        const target = staticDir(tokens[j + 1])
+        if (target == null) return cwd
+        dir = resolve(dir, target)
+        j++
+      } else if (GIT_VALUE_OPTIONS.has(a)) {
+        j++
+      } else if (!GIT_BARE_OPTIONS.has(a) && !/^--[\w-]+=/.test(a)) {
+        break
+      }
+    }
+    return dir
+  }
+  return dir
+}
+
+/** 可静态确定的目录参数; 含变量 / 命令替换 / 家目录 / 通配符或以 - 开头时返回 null */
+function staticDir(arg: string | undefined): string | null {
+  if (!arg || arg.startsWith('-') || arg.startsWith('~') || /[$`*?[]/.test(arg)) return null
+  return arg
+}
+
 /** 提取反引号与 $() 内层命令文本一并送分类(单引号内不展开, 与 shell 语义一致); 外层文本剥离内嵌段后返回 */
 function extractNested(command: string): { plain: string; nested: string[] } {
   const nested: string[] = []
@@ -122,11 +178,16 @@ function extractNested(command: string): { plain: string; nested: string[] } {
 
 /** 引号与转义感知拆分: 保护 "..." 与 '...' 内的 && / || / | / ; / & / 换行, 独立切分各个子命令 */
 function splitSegments(command: string): string[] {
-  const segments: string[] = []
+  return splitWithOperators(command).map((s) => s.text)
+}
+
+/** 同 splitSegments, 每段附带结束它的分隔符(命令末尾为 ''), 供 resolveCommandCwd 判断后续段是否继承 cd */
+function splitWithOperators(command: string): { text: string; op: string }[] {
+  const segments: { text: string; op: string }[] = []
   let current = ''
   let quote: string | null = null
-  const push = () => {
-    if (current.trim()) segments.push(current.trim())
+  const push = (op: string) => {
+    if (current.trim()) segments.push({ text: current.trim(), op })
     current = ''
   }
   for (let i = 0; i < command.length; i++) {
@@ -154,17 +215,17 @@ function splitSegments(command: string): string[] {
       continue
     }
     if (ch === '&' && command[i + 1] === '&') {
-      push()
+      push('&&')
       i++
       continue
     }
     if (ch === '|' && command[i + 1] === '|') {
-      push()
+      push('||')
       i++
       continue
     }
     if (ch === ';' || ch === '\n' || ch === '|') {
-      push()
+      push(ch)
       continue
     }
     if (ch === '&') {
@@ -173,13 +234,13 @@ function splitSegments(command: string): string[] {
       const prevChar = i > 0 ? command[i - 1] : ''
       const isRedirectFd = prevChar === '>' || prevChar === '<'
       if (!isRedirectOut && !isRedirectFd) {
-        push()
+        push('&')
         continue
       }
     }
     current += ch
   }
-  push()
+  push('')
   return segments
 }
 
@@ -561,6 +622,10 @@ function collectAlias(kv: string | undefined, out: Map<string, string>): void {
   if (m) out.set(m[1].toLowerCase(), m[2])
 }
 
+/** git 全局选项: 带值(下一参数是它的值) / 不带值 —— stripGlobalOptions 与 resolveCommandCwd 共用 */
+const GIT_VALUE_OPTIONS: ReadonlySet<string> = new Set(['-C', '-c', '--config-env', '--git-dir', '--work-tree', '--namespace', '--super-prefix'])
+const GIT_BARE_OPTIONS: ReadonlySet<string> = new Set(['--bare', '--no-pager', '--no-optional-locks', '--paginate', '--no-replace-objects', '--literal-pathspecs', '-p', '-P'])
+
 /**
  * 剥离子命令前的全局选项(-C <path> / -c <k=v> / --git-dir 等), 否则 git -C . push 会被判 other。
  * 同时收集 -c 定义的别名: git -c alias.z=push z origin main 等价于 git push origin main,
@@ -568,17 +633,15 @@ function collectAlias(kv: string | undefined, out: Map<string, string>): void {
  * 含 `=` 值的长选项一律跳过: 白名单之外的(如 --exec-path=/x)同样不应让子命令定位失败。
  */
 function stripGlobalOptions(args: string[]): { rest: string[]; aliases: Map<string, string> } {
-  const WITH_VALUE: ReadonlySet<string> = new Set(['-C', '-c', '--config-env', '--git-dir', '--work-tree', '--namespace', '--super-prefix'])
-  const BARE: ReadonlySet<string> = new Set(['--bare', '--no-pager', '--no-optional-locks', '--paginate', '--no-replace-objects', '--literal-pathspecs', '-p', '-P'])
   const aliases = new Map<string, string>()
   let i = 0
   while (i < args.length) {
     const a = args[i]
-    if (BARE.has(a) || /^--[\w-]+=/.test(a)) {
+    if (GIT_BARE_OPTIONS.has(a) || /^--[\w-]+=/.test(a)) {
       i++
       continue
     }
-    if (WITH_VALUE.has(a)) {
+    if (GIT_VALUE_OPTIONS.has(a)) {
       if (a === '-c') collectAlias(args[i + 1], aliases)
       i += 2
       continue
