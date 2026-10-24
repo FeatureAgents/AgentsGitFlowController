@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -536,16 +536,38 @@ describe('stateDir: 运行时数据存用户级全局目录(仓库外)', () => {
 describe('apply: 按命令实际运行的目录判定(workdir 参数 / cd / git -C, 真实 git 集成)', () => {
   // 主检出停在归档分支 main, linked worktree 停在 feature 分支; 默认配置(main=archive, mergeBy=user)。
   // 会话目录(header.cwd)只是 shell 的起点: 命令可经 workdir 参数、前导 cd 或 git -C 在另一个检出里运行,
-  // 门禁必须按命令真正所在的检出判定当前分支。
+  // 门禁必须按命令真正所在的检出判定当前分支; 多段目录不一致或无法静态确定时一律拒绝。
   type PreExecuteHandler = (exec: unknown, next: () => Promise<unknown>) => Promise<unknown>
   const execFileP = promisify(execFile)
   let base = ''
   let main = ''
   let wt = ''
+  let auditDir = ''
   let handler: PreExecuteHandler | undefined
-  const next = async () => 'allowed'
-  const run = (sessionCwd: string, args: Record<string, unknown>) =>
-    handler!({ name: 'bash', arguments: args, agent: { session: { header: { cwd: sessionCwd } } } }, next)
+  let nextCalls = 0
+  const next = async () => {
+    nextCalls++
+    return 'passed-through'
+  }
+  const run = (sessionCwd: string, args: Record<string, unknown>) => {
+    nextCalls = 0
+    return handler!({ name: 'bash', arguments: args, agent: { session: { header: { cwd: sessionCwd } } } }, next)
+  }
+  const expectAllow = async (sessionCwd: string, args: Record<string, unknown>) => {
+    const res = await run(sessionCwd, args)
+    expect(res).toBe('passed-through')
+    expect(nextCalls).toBe(1)
+  }
+  const expectDeny = async (
+    sessionCwd: string,
+    args: Record<string, unknown>,
+    reasonPattern: RegExp = /\[gitflow-guard\]/,
+  ) => {
+    const res = (await run(sessionCwd, args)) as { kind?: string; reason?: string } | undefined
+    expect(res?.kind).toBe('deny')
+    expect(res?.reason).toMatch(reasonPattern)
+    expect(nextCalls).toBe(0)
+  }
 
   beforeAll(async () => {
     base = mkdtempSync(join(tmpdir(), 'gfguard-workdir-'))
@@ -560,6 +582,7 @@ describe('apply: 按命令实际运行的目录判定(workdir 参数 / cd / git 
     await g(['add', '.'], main)
     await g(['commit', '-m', 'init'], main)
     await g(['worktree', 'add', wt, '-b', 'feature/wt'], main)
+    auditDir = await stateDir(main)
     const ctx = {
       on: (event: string, fn: PreExecuteHandler) => {
         if (event === 'tools/pre-execute') handler = fn
@@ -568,50 +591,158 @@ describe('apply: 按命令实际运行的目录判定(workdir 参数 / cd / git 
     apply(ctx as unknown as Context)
   })
 
+  afterEach(() => {
+    if (auditDir) rmSync(auditDir, { recursive: true, force: true })
+  })
+
   afterAll(() => {
+    if (auditDir) rmSync(auditDir, { recursive: true, force: true })
     rmSync(base, { recursive: true, force: true })
   })
 
   it('基线: 会话目录即命令目录 —— main 上 merge 拒绝, feature worktree 上 merge 放行', async () => {
-    expect(await run(main, { command: 'git merge develop' })).toMatchObject({ kind: 'deny' })
-    expect(await run(wt, { command: 'git merge develop' })).toBe('allowed')
+    await expectDeny(main, { command: 'git merge develop' }, /archive/i)
+    await expectAllow(wt, { command: 'git merge develop' })
   })
 
   it('workdir 参数: 会话在 main, 命令在 feature worktree 运行 → 放行(不再误判为 merge 进 main)', async () => {
-    expect(await run(main, { command: 'git merge develop', workdir: wt })).toBe('allowed')
+    await expectAllow(main, { command: 'git merge develop', workdir: wt })
     // 相对 workdir 按会话目录解析
-    expect(await run(main, { command: 'git merge develop', workdir: '../wt' })).toBe('allowed')
+    await expectAllow(main, { command: 'git merge develop', workdir: '../wt' })
   })
 
   it('workdir 参数: 会话在 feature worktree, 命令在 main 运行 → 拒绝(不再被会话分支放过)', async () => {
-    expect(await run(wt, { command: 'git merge feature/wt', workdir: main })).toMatchObject({ kind: 'deny' })
-    expect(await run(wt, { command: 'git merge feature/wt', cwd: main })).toMatchObject({ kind: 'deny' })
+    await expectDeny(wt, { command: 'git merge feature/wt', workdir: main }, /archive/i)
+    await expectDeny(wt, { command: 'git merge feature/wt', cwd: main }, /archive/i)
   })
 
-  it('前导 cd / pushd: 按切换后的目录判定', async () => {
-    expect(await run(main, { command: `cd ${wt} && git merge develop` })).toBe('allowed')
-    expect(await run(main, { command: `pushd "${wt}" && git merge develop` })).toBe('allowed')
-    expect(await run(wt, { command: `cd ${main} && git merge feature/wt` })).toMatchObject({ kind: 'deny' })
-    expect(await run(wt, { command: `cd .. ; cd main && git status && git merge feature/wt` })).toMatchObject({ kind: 'deny' })
+  it('前导 cd / pushd: 按切换后的目录判定(切 wt 放行 / 切 main 拒绝)', async () => {
+    await expectAllow(main, { command: `cd ${wt} && git merge develop` })
+    await expectAllow(main, { command: `pushd "${wt}" && git merge develop` })
+    await expectDeny(wt, { command: `cd ${main} && git merge feature/wt` }, /archive/i)
+    await expectDeny(wt, { command: 'cd .. ; cd main && git status && git merge feature/wt' }, /archive/i)
   })
 
-  it('git -C: 按 -C 指向的目录判定(相对路径以 workdir 为起点)', async () => {
-    expect(await run(main, { command: `git -C ${wt} merge develop` })).toBe('allowed')
-    expect(await run(wt, { command: `git -C ${main} merge feature/wt` })).toMatchObject({ kind: 'deny' })
-    expect(await run(wt, { command: 'git -C main merge feature/wt', workdir: base })).toMatchObject({ kind: 'deny' })
+  it('git -C: 按 -C 指向的目录判定(相对路径以 workdir 为起点, wt 放行 / main 拒绝)', async () => {
+    await expectAllow(main, { command: `git -C ${wt} merge develop` })
+    await expectDeny(wt, { command: `git -C ${main} merge feature/wt` }, /archive/i)
+    await expectDeny(wt, { command: 'git -C main merge feature/wt', workdir: base }, /archive/i)
   })
 
-  it('无法静态解析的目录($VAR / ~ / cd - / 子 shell / || 之后) → 回落到会话目录, 与修复前判定一致', async () => {
-    expect(await run(main, { command: 'cd $WT && git merge develop' })).toMatchObject({ kind: 'deny' })
-    expect(await run(main, { command: 'cd ~/wt && git merge develop' })).toMatchObject({ kind: 'deny' })
-    expect(await run(main, { command: 'cd - && git merge develop' })).toMatchObject({ kind: 'deny' })
-    expect(await run(main, { command: `(cd ${wt} && git merge develop)` })).toMatchObject({ kind: 'deny' })
-    expect(await run(main, { command: `cd ${wt} || git merge develop` })).toMatchObject({ kind: 'deny' })
-    expect(await run(main, { command: `git -C "$WT" merge develop` })).toMatchObject({ kind: 'deny' })
+  it('双向不一致(不同受门禁段落在不同目录) → 拒绝', async () => {
+    // 会话在功能工作树 wt, 首段 -C <main>、次段无 -C → 拒绝
+    await expectDeny(wt, { command: `git -C ${main} merge develop && git push origin feature/x` }, /different directories/i)
+    // 会话在归档检出 main, 首段 -C <wt>、次段无 -C → 拒绝
+    await expectDeny(main, { command: `git -C ${wt} merge develop && git merge develop` }, /different directories/i)
+    // 会话在功能工作树 wt, 首段无 -C、次段 -C <main> → 拒绝
+    await expectDeny(wt, { command: `git push origin feature/wt && git -C ${main} merge develop` }, /different directories/i)
+    // 会话在归档检出 main, 首段 -C <wt>、次段无 -C(直推 main) → 拒绝
+    await expectDeny(main, { command: `git -C ${wt} merge develop && git push origin main` }, /different directories/i)
   })
 
-  it('解析出的目录不在任何仓库内 → 回落到会话目录的仓库判定(不因目录错误而放行)', async () => {
-    expect(await run(main, { command: 'git merge develop', workdir: join(base, 'missing') })).toMatchObject({ kind: 'deny' })
-    expect(await run(main, { command: `cd ${join(base, 'missing')}; git merge develop` })).toMatchObject({ kind: 'deny' })
+  it('同目录不误伤(多段受门禁命令均解析到同一功能工作树 wt) → 放行', async () => {
+    // 会话在归档检出 main, 两段均显式指向功能工作树 wt → 放行
+    await expectAllow(main, { command: `git -C ${wt} merge develop && git -C ${wt} push origin feature/wt` })
+    // 会话在归档检出 main, 前导 cd <wt> 配合后续裸 git 与 git -C <wt> → 放行
+    await expectAllow(main, { command: `cd ${wt} && git merge develop && git -C ${wt} push origin feature/wt` })
+  })
+
+  it('无法静态确定的步骤, 其后仍有受门禁段 → 拒绝', async () => {
+    // 会话在功能工作树 wt: 不可因回退到 wt 会话目录而放行
+    await expectDeny(wt, { command: 'cd $VAR && git merge develop' }, /statically determine/i)
+    await expectDeny(wt, { command: 'git -C "$D" merge develop && git push origin feature/x' }, /statically determine/i)
+    await expectDeny(wt, { command: `(cd ${main} && git merge develop)` }, /statically determine/i)
+    // 会话在归档检出 main: 同样拒绝
+    await expectDeny(main, { command: 'cd $WT && git merge develop' }, /statically determine/i)
+    await expectDeny(main, { command: 'cd ~/wt && git merge develop' }, /statically determine/i)
+    await expectDeny(main, { command: 'cd - && git merge develop' }, /statically determine/i)
+    await expectDeny(main, { command: `(cd ${wt} && git merge develop)` }, /statically determine/i)
+    await expectDeny(main, { command: `cd ${wt} || git merge develop` }, /statically determine/i)
+    await expectDeny(main, { command: 'git -C "$WT" merge develop' }, /statically determine/i)
+  })
+
+  it('无法静态确定的步骤在所有受门禁段之后 → 放行(不误伤)', async () => {
+    await expectAllow(wt, { command: 'git merge develop && cd $VAR' })
+  })
+
+  it('解析出的目录不在任何仓库内 → 回落到会话目录的仓库判定(拒绝而非放行)', async () => {
+    await expectDeny(main, { command: 'git merge develop', workdir: join(base, 'missing') }, /archive/i)
+    await expectDeny(main, { command: `cd ${join(base, 'missing')}; git merge develop` }, /archive/i)
+  })
+
+  it('多段不一致: 分号 / 换行 / || 衔接 → 拒绝(不依赖 && 链)', async () => {
+    await expectDeny(wt, { command: `git -C ${main} merge develop; git push origin feature/x` }, /different directories/i)
+    await expectDeny(wt, { command: `git -C ${main} merge develop\ngit push origin feature/x` }, /different directories/i)
+    await expectDeny(wt, { command: `git -C ${main} merge develop || git push origin feature/x` }, /different directories/i)
+  })
+
+  it('三段(中间夹只读段): 首段与末段目录不一致 → 拒绝', async () => {
+    await expectDeny(
+      wt,
+      { command: `git -C ${wt} merge develop && git status && git -C ${main} merge develop` },
+      /different directories/i,
+    )
+  })
+
+  it('子 shell / 命令组内含受门禁段且无 cd → 保守拒绝(无法静态确定)', async () => {
+    await expectDeny(wt, { command: '(git merge develop)' }, /statically determine/i)
+    await expectDeny(wt, { command: '(git status; git merge develop)' }, /statically determine/i)
+    await expectDeny(wt, { command: '{ git merge develop; }' }, /statically determine/i)
+    await expectDeny(wt, { command: '{ git status; git merge develop; }' }, /statically determine/i)
+  })
+
+  it('pushd 后经 popd 返回: popd 之后的受门禁段目录无法静态确定 → 拒绝', async () => {
+    await expectDeny(
+      main,
+      { command: `pushd ${wt} && git merge develop && popd && git merge develop` },
+      /statically determine/i,
+    )
+  })
+
+  it('gh 段与 git -C 段目录不一致 → 拒绝(拒绝先于 gh 查询, 与 gh 是否可用无关)', async () => {
+    await expectDeny(wt, { command: `gh pr merge 1 && git -C ${main} push origin main` }, /different directories/i)
+  })
+
+  it('候选仓库均未启用守卫 → 目录不一致 / 无法确定的命令放行(与未启用守卫的旧行为一致, 且不写审计)', async () => {
+    const off = mkdtempSync(join(tmpdir(), 'gfguard-off-'))
+    let offState = ''
+    try {
+      await execFileP('git', ['init', '-b', 'main'], { cwd: off })
+      writeFileSync(join(off, 'gitflow-guard.config.json'), JSON.stringify({ enabled: false }))
+      offState = await stateDir(off)
+      await expectAllow(off, { command: 'cd $VAR && git push origin x' })
+      await expectAllow(off, { command: 'git -C a merge x && git -C b merge y' })
+      expect(existsSync(join(offState, 'audit.jsonl'))).toBe(false)
+    } finally {
+      if (offState) rmSync(offState, { recursive: true, force: true })
+      rmSync(off, { recursive: true, force: true })
+    }
+  })
+
+  it('拒绝写审计: 最后一行 event=deny 且 reason 含 different directories / statically determine', async () => {
+    const auditFile = join(await stateDir(main), 'audit.jsonl')
+    const lastEntry = () => {
+      const lines = readFileSync(auditFile, 'utf8').trim().split('\n')
+      return JSON.parse(lines[lines.length - 1]) as { event: string; reason: string; command: string }
+    }
+    const mismatch = `git -C ${main} merge develop && git push origin feature/x`
+    await expectDeny(wt, { command: mismatch }, /different directories/i)
+    expect(lastEntry()).toMatchObject({ event: 'deny', command: mismatch })
+    expect(lastEntry().reason).toMatch(/different directories/i)
+
+    await expectDeny(wt, { command: 'cd $VAR && git merge develop' }, /statically determine/i)
+    expect(lastEntry()).toMatchObject({ event: 'deny', command: 'cd $VAR && git merge develop' })
+    expect(lastEntry().reason).toMatch(/statically determine/i)
+  })
+
+  it('拒绝文案语言取启用守卫仓库的 config.locale(zh → 「不同目录」)', async () => {
+    const cfgFile = join(main, 'gitflow-guard.config.json')
+    writeFileSync(cfgFile, JSON.stringify({ locale: 'zh' }))
+    try {
+      // known = [main, wt]: 首个启用守卫的仓库是 main(zh)
+      await expectDeny(main, { command: `git merge develop && git -C ${wt} merge develop` }, /不同目录/)
+    } finally {
+      rmSync(cfgFile, { force: true })
+    }
   })
 })

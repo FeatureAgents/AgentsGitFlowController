@@ -7,7 +7,7 @@ import { homedir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
-import { classify, resolveCommandCwd } from './classify'
+import { classify, resolveSegmentCwds } from './classify'
 import { loadConfig } from './config'
 import { decide } from './gate'
 import { makeT, resolveLocale } from './i18n'
@@ -258,6 +258,27 @@ function toolWorkdir(exec: ToolExecution, sessionCwd: string): string {
   return wd == null ? sessionCwd : resolve(sessionCwd, wd)
 }
 
+/** 两个目录是否为同一目录(已规范化; Windows 盘符与路径大小写不敏感) */
+function sameDir(a: string, b: string): boolean {
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
+}
+
+/** 在候选目录所属的仓库里找第一个启用了守卫的仓库(目录不在仓库内则跳过) */
+async function firstEnabledRepo(
+  runner: Runner,
+  dirs: string[],
+): Promise<{ repoRoot: string; config: NonNullable<Awaited<ReturnType<typeof loadConfig>>['config']> } | null> {
+  const seen = new Set<string>()
+  for (const d of dirs) {
+    const repoRoot = await findRepoRoot(runner, d)
+    if (!repoRoot || seen.has(repoRoot)) continue
+    seen.add(repoRoot)
+    const { config } = await loadConfig(repoRoot)
+    if (config?.enabled) return { repoRoot, config }
+  }
+  return null
+}
+
 export function formatDeny(locale: Locale, why: string, next: string): string {
   const t = makeT(locale)
   return `${t('deny.header', { why })}\n${t('deny.next', { next })}`
@@ -271,14 +292,27 @@ export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
     try {
       const command = commandText(exec)
       if (!command || !toolNames.has(exec.name)) return next()
-      // 快路径: 非 git 系命令直接放行, 不触发任何 git 查询(与 CLI check 的快路径同口径)
-      const segments = classify(command)
-      if (segments.length === 0 || segments.every((s) => s.kind === 'other')) return next()
       // 按命令实际运行的目录判定(workdir 参数 → 前导 cd → git -C), 而非会话目录: 二者可能是不同的 worktree / 仓库。
+      // 无受门禁段直接放行(快路径, 不触发任何 git 查询); 任一受门禁段目录无法静态确定或段间目录不一致则直接拒绝;
       // 推演出的目录不在任何仓库内(目录不存在、cd 失败后 ; 续跑等)时回落到会话目录的仓库, 不因目录推演而放行
       const sessionCwd = exec.agent?.session.header.cwd ?? process.cwd()
-      const cwd = resolveCommandCwd(command, toolWorkdir(exec, sessionCwd))
-      const repoRoot = (await findRepoRoot(runner, cwd)) ?? (cwd === sessionCwd ? null : await findRepoRoot(runner, sessionCwd))
+      const entries = resolveSegmentCwds(command, toolWorkdir(exec, sessionCwd))
+      if (entries.length === 0) return next()
+      const unknownDir = entries.some((e) => e.cwd == null)
+      const known = entries.map((e) => e.cwd).filter((d): d is string => d != null)
+      if (unknownDir || known.some((d) => !sameDir(d, known[0]))) {
+        // 守卫只在已启用的仓库里生效: 候选仓库(各已知目录 + 会话目录)里没有任何一个启用守卫时放行, 与未启用守卫的旧行为一致
+        const guarded = await firstEnabledRepo(runner, [...new Set([...known, sessionCwd])])
+        if (!guarded) return next()
+        const key = unknownDir ? 'segmentCwdUnknown' : 'segmentCwdMismatch'
+        const locale = resolveLocale(guarded.config.locale)
+        const t = makeT(locale)
+        const reason = t(`${key}.why`)
+        await appendAudit(guarded.repoRoot, { time: Date.now(), event: 'deny', command, reason }, runner)
+        return { kind: 'deny', reason: formatDeny(locale, reason, t(`${key}.next`)) }
+      }
+      const dir = known[0]
+      const repoRoot = (await findRepoRoot(runner, dir)) ?? (dir === sessionCwd ? null : await findRepoRoot(runner, sessionCwd))
       if (!repoRoot) return next()
 
       const result = await evaluateCommand(command, { repoRoot, runner })

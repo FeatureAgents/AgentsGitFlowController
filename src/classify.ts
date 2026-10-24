@@ -82,38 +82,61 @@ const CD_COMMANDS: ReadonlySet<string> = new Set(['cd', 'pushd', 'popd'])
 /** cd 之后经这些分隔符衔接的段在 cd 后的目录运行; || / | / & 之后的段不继承(仅在 cd 失败时执行, 或 cd 跑在子 shell 里) */
 const CD_CARRY_OPS: ReadonlySet<string> = new Set(['&&', ';', '\n'])
 
+/** 受门禁命令段及其静态推演出的运行目录(无法静态确定时 cwd 为 null) */
+export interface SegmentCwd {
+  text: string
+  cwd: string | null
+}
+
 /**
- * 推演命令中受门禁的 git 段实际运行的目录(纯函数, 只做静态解析; 不访问文件系统):
- * 自起点 cwd 依次应用该段之前的 cd / pushd, 再应用该段自身的 git -C(可多个, 逐个相对解析, 与 git 一致)。
- * 「受门禁的段」= 首个分类结果含非 other 的段, 与门禁实际判定的段一致。
- * 任何一步无法静态确定($VAR / 反引号 / ~ / cd - / 无参 cd / popd / 通配符 / 子 shell 与命令组 /
- * || | & 之后的段)即整体返回起点 cwd —— 与只按会话目录判定的旧行为一致, 不会因猜测目录而放行。
+ * 逐段推演命令中每个受门禁段的实际运行目录(纯函数, 只做静态解析; 不访问文件系统):
+ * 自起点 cwd 依次维护链式目录 chainDir, 经 cd / pushd 传递, 并在受门禁 git 段上叠加该段自身的 git -C(可多个, 逐个相对解析, 与 git 一致)。
+ * 「受门禁段」= classify(text) 含非 other 的段。只读或非 git 段不产出条目。
+ * 无法静态确定($VAR / 反引号 / ~ / cd - / 无参 cd / popd / 通配符 / 子 shell 与命令组 / || | & 之后的 cd)时:
+ * - 若发生在 cd / 子 shell / 命令组上, 后续链式目录 chainDir 置为 null(其后受门禁段的 cwd 为 null, 由上层拒绝);
+ * - 若发生在某段 git -C 上, 仅该段 cwd 置为 null, 不影响后续段。
  */
-export function resolveCommandCwd(command: string, cwd: string): string {
-  let dir = cwd
+export function resolveSegmentCwds(command: string, cwd: string): SegmentCwd[] {
+  const out: SegmentCwd[] = []
+  // 起点目录先规范化, 使「起点本身」与「经 cd / -C 解析出的目录」的字符串形式可直接比较(如 Windows 正斜杠起点)
+  let chainDir: string | null = resolve(cwd)
   for (const { text, op } of splitWithOperators(command)) {
-    if (text.startsWith('(') || text.startsWith('{')) return cwd
+    if (text.startsWith('(') || text.startsWith('{')) {
+      const stripped = text.replace(/^[({]\s*/, '')
+      if (classify(text).some((c) => c.kind !== 'other') || classify(stripped).some((c) => c.kind !== 'other')) {
+        out.push({ text, cwd: null })
+      }
+      chainDir = null
+      continue
+    }
     const tokens = tokenize(text)
     let i = 0
     while (i < tokens.length && /^[\w-][\w.-]*=/.test(tokens[i])) i++
     const name = normalizeCommandName(tokens[i] ?? '')
     if (CD_COMMANDS.has(name)) {
+      if (classify(text).some((c) => c.kind !== 'other')) out.push({ text, cwd: chainDir })
       const args = tokens.slice(i + 1)
       if (args[0] === '--') args.shift()
       const target = name !== 'popd' && args.length === 1 ? staticDir(args[0]) : null
-      if (target == null || !CD_CARRY_OPS.has(op)) return cwd
-      dir = resolve(dir, target)
+      chainDir = chainDir != null && target != null && CD_CARRY_OPS.has(op) ? resolve(chainDir, target) : null
       continue
     }
     if (!classify(text).some((c) => c.kind !== 'other')) continue
-    // 受门禁的段: 直接调用 git 时应用全局选项里的 -C; 经包装器(env/sudo/sh -c 等)调用时只认此前的 cd
-    if (name !== 'git') return dir
+    // 受门禁段: 直接调用 git 时应用全局选项里的 -C; 经包装器(env/sudo/sh -c 等)或非 git 工具(gh/glab 等)调用时只应用此前的 cd
+    if (name !== 'git') {
+      out.push({ text, cwd: chainDir })
+      continue
+    }
+    let segDir = chainDir
     for (let j = i + 1; j < tokens.length; j++) {
       const a = tokens[j]
       if (a === '-C') {
         const target = staticDir(tokens[j + 1])
-        if (target == null) return cwd
-        dir = resolve(dir, target)
+        if (target == null) {
+          segDir = null
+          break
+        }
+        if (segDir != null) segDir = resolve(segDir, target)
         j++
       } else if (GIT_VALUE_OPTIONS.has(a)) {
         j++
@@ -121,9 +144,9 @@ export function resolveCommandCwd(command: string, cwd: string): string {
         break
       }
     }
-    return dir
+    out.push({ text, cwd: segDir })
   }
-  return dir
+  return out
 }
 
 /** 可静态确定的目录参数; 含变量 / 命令替换 / 家目录 / 通配符或以 - 开头时返回 null */
@@ -181,7 +204,7 @@ function splitSegments(command: string): string[] {
   return splitWithOperators(command).map((s) => s.text)
 }
 
-/** 同 splitSegments, 每段附带结束它的分隔符(命令末尾为 ''), 供 resolveCommandCwd 判断后续段是否继承 cd */
+/** 同 splitSegments, 每段附带结束它的分隔符(命令末尾为 ''), 供 resolveSegmentCwds 判断后续段是否继承 cd */
 function splitWithOperators(command: string): { text: string; op: string }[] {
   const segments: { text: string; op: string }[] = []
   let current = ''
@@ -622,7 +645,7 @@ function collectAlias(kv: string | undefined, out: Map<string, string>): void {
   if (m) out.set(m[1].toLowerCase(), m[2])
 }
 
-/** git 全局选项: 带值(下一参数是它的值) / 不带值 —— stripGlobalOptions 与 resolveCommandCwd 共用 */
+/** git 全局选项: 带值(下一参数是它的值) / 不带值 —— stripGlobalOptions 与 resolveSegmentCwds 共用 */
 const GIT_VALUE_OPTIONS: ReadonlySet<string> = new Set(['-C', '-c', '--config-env', '--git-dir', '--work-tree', '--namespace', '--super-prefix'])
 const GIT_BARE_OPTIONS: ReadonlySet<string> = new Set(['--bare', '--no-pager', '--no-optional-locks', '--paginate', '--no-replace-objects', '--literal-pathspecs', '-p', '-P'])
 

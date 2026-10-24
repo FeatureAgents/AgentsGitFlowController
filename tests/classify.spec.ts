@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { resolve } from 'node:path'
-import { classify, resolveCommandCwd } from '../src/classify'
+import { classify, resolveSegmentCwds } from '../src/classify'
 
 /** 便捷断言: 只关心首条命令的分类 */
 function first(command: string, currentBranch: string | null = 'feature/dev-x-01') {
@@ -531,38 +531,61 @@ describe('classify: Shell 分隔符切分(单 &, ;, |, ||, && 与重定向保护
   })
 })
 
-describe('resolveCommandCwd: 受门禁 git 段实际运行目录的静态推演', () => {
+describe('resolveSegmentCwds: 受门禁段实际运行目录的逐段静态推演', () => {
   const S = resolve('/s/main')
   const WT = resolve('/s/wt')
+  const cwds = (cmd: string, start = S) => resolveSegmentCwds(cmd, start).map((s) => s.cwd)
 
-  it('无 cd / -C → 起点目录', () => {
-    expect(resolveCommandCwd('git merge develop', S)).toBe(S)
-    expect(resolveCommandCwd('npm test && git push origin develop', S)).toBe(S)
+  it('无 cd / -C → 起点目录(返回受门禁段的 text 与 cwd)', () => {
+    expect(resolveSegmentCwds('git merge develop', S)).toEqual([
+      { text: 'git merge develop', cwd: S },
+    ])
+    expect(resolveSegmentCwds('npm test && git push origin develop', S)).toEqual([
+      { text: 'git push origin develop', cwd: S },
+    ])
   })
 
   it('前导 cd / pushd(绝对 / 相对 / 引号 / -- / 链式 / 点段规范化)', () => {
-    expect(resolveCommandCwd(`cd ${WT} && git merge develop`, S)).toBe(WT)
-    expect(resolveCommandCwd('cd ../wt && git merge develop', S)).toBe(WT)
-    expect(resolveCommandCwd(`pushd "${WT}"; git merge develop`, S)).toBe(WT)
-    expect(resolveCommandCwd(`cd -- ${WT} && git merge develop`, S)).toBe(WT)
-    expect(resolveCommandCwd('cd .. && cd wt\ngit merge develop', S)).toBe(WT)
-    expect(resolveCommandCwd('cd ../wt/./../wt && git merge develop', S)).toBe(WT)
+    expect(cwds(`cd ${WT} && git merge develop`)).toEqual([WT])
+    expect(cwds('cd ../wt && git merge develop')).toEqual([WT])
+    expect(cwds(`pushd "${WT}"; git merge develop`)).toEqual([WT])
+    expect(cwds(`cd -- ${WT} && git merge develop`)).toEqual([WT])
+    expect(cwds('cd .. && cd wt\ngit merge develop')).toEqual([WT])
+    expect(cwds('cd ../wt/./../wt && git merge develop')).toEqual([WT])
   })
 
-  it('以首个受门禁的段为准: 只读 git 段不截断推演, 其后的 cd 不回溯', () => {
-    expect(resolveCommandCwd('git status && cd ../wt && git merge develop', S)).toBe(WT)
-    expect(resolveCommandCwd('git merge develop && cd ../wt', S)).toBe(S)
+  it('只读 git 段不产出条目且不截断推演; 受门禁段之后的 cd(含无法静态确定的步骤)不影响前序段', () => {
+    expect(cwds('git status && cd ../wt && git merge develop')).toEqual([WT])
+    expect(cwds('git merge develop && cd ../wt')).toEqual([S])
+    expect(cwds('git merge develop && cd $VAR')).toEqual([S])
+    expect(cwds('git merge develop && cd ~')).toEqual([S])
+    expect(cwds('git merge develop && popd')).toEqual([S])
   })
 
   it('git -C(全局选项之后 / 多个逐个相对解析 / 赋值前缀 / 以 cd 结果为起点)', () => {
-    expect(resolveCommandCwd(`git -C ${WT} merge develop`, S)).toBe(WT)
-    expect(resolveCommandCwd(`git --no-pager -c core.pager=cat -C ${WT} merge develop`, S)).toBe(WT)
-    expect(resolveCommandCwd('git -C .. -C wt merge develop', S)).toBe(WT)
-    expect(resolveCommandCwd(`GIT_EDITOR=true git -C ${WT} merge develop`, S)).toBe(WT)
-    expect(resolveCommandCwd('cd .. && git -C wt merge develop', S)).toBe(WT)
+    expect(cwds(`git -C ${WT} merge develop`)).toEqual([WT])
+    expect(cwds(`git --no-pager -c core.pager=cat -C ${WT} merge develop`)).toEqual([WT])
+    expect(cwds('git -C .. -C wt merge develop')).toEqual([WT])
+    expect(cwds(`GIT_EDITOR=true git -C ${WT} merge develop`)).toEqual([WT])
+    expect(cwds('cd .. && git -C wt merge develop')).toEqual([WT])
   })
 
-  it('无法静态确定 → 起点目录', () => {
+  it('多段同目录推演(两段同 -C / 多 -C 相对路径归一 / cd 后裸 git 与 git -C . 或 git -C <wt>) → 放行前提', () => {
+    expect(cwds(`git -C ${WT} merge develop && git -C ${WT} push origin feature/wt`)).toEqual([WT, WT])
+    expect(cwds(`git -C .. -C wt merge develop && git -C ${WT} push origin feature/wt`)).toEqual([WT, WT])
+    expect(cwds(`cd ${WT} && git merge develop && git -C ${WT} push origin feature/wt`)).toEqual([WT, WT])
+    expect(cwds(`cd ${WT} && git merge develop && git -C . push origin feature/wt`)).toEqual([WT, WT])
+  })
+
+  it('多段双向不一致推演(首段带 -C 次段不带 / 首段不带次段带 -C / cd 后某段带 -C) → 拒绝前提', () => {
+    expect(cwds(`git -C ${S} merge develop && git push origin feature/x`, WT)).toEqual([S, WT])
+    expect(cwds(`git -C ${WT} merge develop && git merge develop`, S)).toEqual([WT, S])
+    expect(cwds(`git push origin feature/wt && git -C ${S} merge develop`, WT)).toEqual([WT, S])
+    expect(cwds(`git -C ${WT} merge develop && git push origin main`, S)).toEqual([WT, S])
+    expect(cwds(`cd ${WT} && git -C ${S} merge develop && git push origin feature/wt`, S)).toEqual([S, WT])
+  })
+
+  it('无法静态确定的步骤且其后仍有受门禁段 → 对应受门禁段 cwd 为 null(拒绝前提)', () => {
     for (const cmd of [
       'cd $WT && git merge develop',
       'cd "${WT}" && git merge develop',
@@ -581,11 +604,48 @@ describe('resolveCommandCwd: 受门禁 git 段实际运行目录的静态推演'
       'git -C "$WT" merge develop',
       'cd ../wt && git -C $X merge develop',
     ]) {
-      expect(resolveCommandCwd(cmd, S), cmd).toBe(S)
+      expect(cwds(cmd, S), cmd).toEqual([null])
     }
+    expect(cwds('git -C "$D" merge develop && git push origin feature/x', WT)).toEqual([null, WT])
+    expect(cwds('cd $VAR && git merge develop && git push origin feature/x', WT)).toEqual([null, null])
   })
 
   it('经包装器调用的 git: 只应用此前的 cd, 不解析包装内的 -C', () => {
-    expect(resolveCommandCwd('cd ../wt && env git -C /x merge develop', S)).toBe(WT)
+    expect(cwds('cd ../wt && env git -C /x merge develop')).toEqual([WT])
+  })
+
+  it('起点目录先规范化: 正斜杠 / 点段写法的起点与 git -C . 解析结果字符串一致', () => {
+    const raw = process.platform === 'win32' ? 'D:/s/main' : '/s/./main'
+    const norm = resolve(raw)
+    expect(cwds('git merge a && git -C . push origin x', raw)).toEqual([norm, norm])
+  })
+
+  it('非 git 受门禁段(gh pr merge)产出条目: 只应用此前的 cd, 不受其后 git -C 影响', () => {
+    expect(cwds('gh pr merge 1 && git -C ../wt push origin x')).toEqual([S, WT])
+    expect(cwds('cd ../wt && gh pr merge 1')).toEqual([WT])
+  })
+
+  it('cd 段自身含受门禁内嵌命令: cd 段条目取 cd 之前的目录, 其后段 cwd 为 null', () => {
+    const r = resolveSegmentCwds('cd $(git merge develop) && git push origin x', S)
+    expect(r.map((s) => s.cwd)).toEqual([S, null])
+    expect(r[0].text.startsWith('cd ')).toBe(true)
+    expect(r[1].text).toBe('git push origin x')
+  })
+
+  it('三段及以上: 只读段不产出条目; 两段同目录 + 第三段不同目录', () => {
+    const r = resolveSegmentCwds('git merge a && git status && git push origin b && git -C ../wt push origin c', S)
+    expect(r.map((s) => s.cwd)).toEqual([S, S, WT])
+    expect(r.map((s) => s.text)).toEqual(['git merge a', 'git push origin b', 'git -C ../wt push origin c'])
+  })
+
+  it('pushd 后 popd 无法静态确定返回目录: popd 之后的受门禁段 cwd 为 null', () => {
+    expect(cwds('pushd ../wt && git merge a && popd && git push x')).toEqual([WT, null])
+  })
+
+  it('子 shell / 命令组内含受门禁段且无 cd → cwd 为 null(命令组与子 shell 一律保守拒绝)', () => {
+    expect(cwds('(git merge x)')).toEqual([null])
+    expect(cwds('(git status; git merge x)')).toEqual([null])
+    expect(cwds('{ git merge x; }')).toEqual([null])
+    expect(cwds('{ git status; git merge x; }')).toEqual([null])
   })
 })
