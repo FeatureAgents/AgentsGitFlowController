@@ -393,6 +393,23 @@ describe('cli: check(agent hook 门禁)', () => {
     expect(code).toBe(2)
     expect(stderr).toMatch(/timed out/i)
   })
+
+  it('未知 --platform(--command 与 stdin 模式)→ exit 1 + stderr 明确报错(不静默返回 0)', async () => {
+    const dir = tempRepo()
+    try {
+      const cmdRes = await captureStderr(() =>
+        main(['check', '--platform', 'codebuddy', '--command', 'git push origin develop', '--repo', dir]),
+      )
+      expect(cmdRes.code).toBe(1)
+      expect(cmdRes.stderr).toMatch(/unknown platform/i)
+
+      const stdinRes = await captureStderr(() => main(['check', '--platform', 'zcode']))
+      expect(stdinRes.code).toBe(1)
+      expect(stdinRes.stderr).toMatch(/unknown platform/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('cli: locale 一致性与扩展(P1-1 / P2-1 / P2-2 / P2-3)', () => {

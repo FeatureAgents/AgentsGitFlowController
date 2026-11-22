@@ -18,8 +18,6 @@
 | OpenCode | stdin hook (exit 2) | [`opencode.md`](../../.agents/hooks/references/opencode.md) | [`opencode.md`](opencode.md) | [`opencode.md`](TestResult/opencode.md) | ✅ 已安装 1.18.15 |
 | Antigravity | stdin hook (exit 0+{decision}) | [`antigravity.md`](../../.agents/hooks/references/antigravity.md) | [`antigravity.md`](antigravity.md) | [`antigravity.md`](TestResult/antigravity.md) | ✅ 已实测(agy 1.1.22,2026-08-29);AGY-D2/D3 两处协议差异已修复(见证据文件) |
 | Pi | 进程内扩展 | [`pi.md`](../../.agents/hooks/references/pi.md) | [`pi.md`](pi.md) | [`pi.md`](TestResult/pi.md) | ✅ 已安装 0.84.3 |
-| CodeBuddy | stdin hook (exit 2) | [`codebuddy.md`](../../.agents/hooks/references/codebuddy.md) | [`codebuddy.md`](codebuddy.md) | 待测 | 📝 用例已就绪 |
-| ZCode | stdin hook (exit 2) | [`zcode.md`](../../.agents/hooks/references/zcode.md) | [`zcode.md`](zcode.md) | 待测 | 📝 用例已就绪 |
 | Cursor | stdin hook (exit 0+JSON) | [`cursor.md`](../../.agents/hooks/references/cursor.md) | [`cursor.md`](cursor.md) | 待测 | 📝 用例已就绪 |
 
 ## 统一前置条件(所有客户端)

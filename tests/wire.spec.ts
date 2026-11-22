@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync, statSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { isWired, WIRE_CLIENTS, applyWire, guardCommand, resolveRunnerPath, wiringState } from '../src/wire'
+import { isWired, isWireClient, WIRE_CLIENTS, applyWire, guardCommand, resolveRunnerPath, wiringState } from '../src/wire'
 import type { WiringState } from '../src/wire'
 
 function tempDir(prefix = 'gfguard-wire-') {
@@ -20,8 +20,8 @@ describe('wire: runner 自锚定(BUG-REPORT-wire-runner-deployment 回归)', () 
     expect(RUNNER.replace(/\\/g, '/')).toMatch(/\/bin\/gitflow-guard\.mjs$/)
   })
 
-  it('六个 JSON 客户端命令均为绝对路径自锚定形态: node <runner> check --platform <client>', () => {
-    for (const client of ['claude', 'codex', 'antigravity', 'codebuddy', 'zcode', 'cursor'] as const) {
+  it('四个 JSON 客户端命令均为绝对路径自锚定形态: node <runner> check --platform <client>', () => {
+    for (const client of ['claude', 'codex', 'antigravity', 'cursor'] as const) {
       const cmd = cmdOf(client)
       expect(cmd).toBe(`node ${RUNNER.replace(/\\/g, '/')} check --platform ${client}`)
       expect(cmd).not.toContain('${') // 不依赖客户端变量展开
@@ -39,11 +39,11 @@ describe('wire: runner 自锚定(BUG-REPORT-wire-runner-deployment 回归)', () 
 
   it('干净仓库(无 bin/)wire 后命令引用的 runner 真实存在且非项目内路径', async () => {
     const dir = tempDir()
-    const path = join(dir, '.zcode/config.json')
+    const path = join(dir, '.codex/hooks.json')
     try {
-      expect(await applyWire('zcode', path, false, false)).toBe('added')
-      const cmd = (JSON.parse(readFileSync(path, 'utf8')) as { hooks: { events: { PreToolUse: Array<{ hooks: Array<{ command: string }> }> } } })
-        .hooks.events.PreToolUse[0].hooks[0].command
+      expect(await applyWire('codex', path, false, false)).toBe('added')
+      const cmd = (JSON.parse(readFileSync(path, 'utf8')) as { hooks: { PreToolUse: Array<{ hooks: Array<{ command: string }> }> } })
+        .hooks.PreToolUse[0].hooks[0].command
       const runnerRef = cmd.slice('node '.length, cmd.indexOf(' check')).replace(/"/g, '')
       // 命令引用的 runner 真实存在 —— 旧实现的病灶正是"指针在、程序不在"的静默 MODULE_NOT_FOUND;
       // 且 runner 不在目标项目内(自锚定执行包, 目标仓库零部署)。实弹执行验证在 verify:matrix(构建后)覆盖。
@@ -84,10 +84,10 @@ describe('wire: 第 16 节回归 —— 仅回收因摘除守卫而变空的条�
       read: (obj: Record<string, unknown>) => (obj.hooks as { PreToolUse: unknown[] }).PreToolUse,
     },
     {
-      client: 'zcode' as const,
-      relativePath: '.zcode/config.json',
-      wrap: (items: unknown[]) => ({ hooks: { enabled: true, events: { PreToolUse: items } } }),
-      read: (obj: Record<string, unknown>) => (obj.hooks as { events: { PreToolUse: unknown[] } }).events.PreToolUse,
+      client: 'codex' as const,
+      relativePath: '.codex/hooks.json',
+      wrap: (items: unknown[]) => ({ hooks: { PreToolUse: items } }),
+      read: (obj: Record<string, unknown>) => (obj.hooks as { PreToolUse: unknown[] }).PreToolUse,
     },
     {
       client: 'antigravity' as const,
@@ -156,28 +156,6 @@ describe('wire: 第 16 节回归 —— 仅回收因摘除守卫而变空的条�
       expect(await applyWire('codex', path, true, false)).toBe('removed')
       const obj = JSON.parse(readFileSync(path, 'utf8'))
       expect(obj.hooks.PreToolUse).toEqual([{ matcher: '^Bash', hooks: [{ type: 'command', command: 'my-linter' }] }])
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it('zcode: 单条目内用户命令与守卫命令并存 → unwire 保留条目与用户命令, 仅摘除守卫(旧实现整条删除)', async () => {
-    const dir = tempDir()
-    const path = join(dir, '.zcode/config.json')
-    mkdirSync(join(dir, '.zcode'), { recursive: true })
-    const mixed = {
-      matcher: '^Bash',
-      hooks: [
-        { type: 'command', command: 'my-linter' },
-        { type: 'command', command: cmdOf('zcode') },
-      ],
-    }
-    writeFileSync(path, `${JSON.stringify({ hooks: { enabled: true, events: { PreToolUse: [mixed] } } })}\n`)
-    try {
-      expect(await applyWire('zcode', path, true, false)).toBe('removed')
-      const obj = JSON.parse(readFileSync(path, 'utf8'))
-      expect(obj.hooks.enabled).toBe(true)
-      expect(obj.hooks.events.PreToolUse).toEqual([{ matcher: '^Bash', hooks: [{ type: 'command', command: 'my-linter' }] }])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -263,13 +241,13 @@ describe('wire: 第 16 节回归 —— 仅回收因摘除守卫而变空的条�
   })
 })
 
-describe('wire: JSON 客户端(claude/codex/codebuddy)幂等落位与移除', () => {
-  const clients = ['claude', 'codex', 'codebuddy'] as const
+describe('wire: JSON 客户端(claude/codex)幂等落位与移除', () => {
+  const clients = ['claude', 'codex'] as const
 
   for (const client of clients) {
     it(`${client}: 首次落位 added → 二次 exists(幂等) → unwire removed → 二次 absent`, async () => {
       const dir = tempDir()
-      const path = join(dir, client === 'claude' ? '.claude/settings.json' : client === 'codex' ? '.codex/hooks.json' : '.codebuddy/settings.json')
+      const path = join(dir, client === 'claude' ? '.claude/settings.json' : '.codex/hooks.json')
       try {
         expect(await applyWire(client, path, false, false)).toBe('added')
         await expect(isWired(client, path)).resolves.toBe(true)
@@ -324,9 +302,9 @@ describe('wire: JSON 客户端(claude/codex/codebuddy)幂等落位与移除', ()
       mkdirSync(join(dir, '.claude'), { recursive: true })
       writeFileSync(path, '{broken')
       await expect(isWired('claude', path)).resolves.toBe(false)
+      await expect(isWired('codex', path)).resolves.toBe(false)
       await expect(isWired('antigravity', path)).resolves.toBe(false)
-      await expect(isWired('codebuddy', path)).resolves.toBe(false)
-      await expect(isWired('zcode', path)).resolves.toBe(false)
+      await expect(isWired('cursor', path)).resolves.toBe(false)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -337,7 +315,6 @@ describe('wire: 旧条目迁移(任意历史形态 → 当前 canonical, 不双�
   const LEGACY: Record<string, string> = {
     claude: 'node ${CLAUDE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform claude',
     codex: 'node bin/gitflow-guard.mjs check --platform codex',
-    zcode: 'node ${ZCODE_PROJECT_DIR}/bin/gitflow-guard.mjs check --platform zcode',
     cursor: 'node bin/gitflow-guard.mjs check --platform cursor',
   }
 
@@ -412,29 +389,6 @@ describe('wire: 旧条目迁移(任意历史形态 → 当前 canonical, 不双�
     }
   })
 
-  it('zcode: 旧模板条目(events 嵌套) → wire 迁移且 enabled 保持 true; 旧条目 unwire 移除', async () => {
-    const dir = tempDir()
-    const path = join(dir, '.zcode/config.json')
-    mkdirSync(join(dir, '.zcode'), { recursive: true })
-    writeFileSync(
-      path,
-      JSON.stringify({ custom: 1, hooks: { enabled: true, events: { PreToolUse: [{ matcher: '^Bash$', hooks: [{ type: 'command', command: LEGACY.zcode }] }] } } }),
-    )
-    try {
-      await expect(wiringState('zcode', path)).resolves.toBe('legacy')
-      expect(await applyWire('zcode', path, false, false)).toBe('migrated')
-      const obj = JSON.parse(readFileSync(path, 'utf8'))
-      expect(obj.custom).toBe(1)
-      expect(obj.hooks.enabled).toBe(true)
-      expect(obj.hooks.events.PreToolUse).toHaveLength(1)
-      expect(obj.hooks.events.PreToolUse[0].hooks[0].command).toBe(cmdOf('zcode'))
-      expect(await applyWire('zcode', path, true, false)).toBe('removed')
-      expect((JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>)['hooks']).toBeUndefined()
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
   it('cursor: 旧相对路径条目(beforeShellExecution 扁平形状) → wire 迁移', async () => {
     const dir = tempDir()
     const path = join(dir, '.cursor/hooks.json')
@@ -475,56 +429,6 @@ describe('wire: 旧条目迁移(任意历史形态 → 当前 canonical, 不双�
       await expect(wiringState('opencode', plugin)).resolves.toBe('legacy')
       expect(await applyWire('opencode', plugin, false, false)).toBe('migrated')
       await expect(wiringState('opencode', plugin)).resolves.toBe('current')
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-})
-
-describe('wire: zcode (events 嵌套与 enabled 开关)', () => {
-  it('首次落位 added (启用 hooks.enabled 并嵌套 events.PreToolUse) → 二次 exists → unwire removed', async () => {
-    const dir = tempDir()
-    const path = join(dir, '.zcode/config.json')
-    try {
-      expect(await applyWire('zcode', path, false, false)).toBe('added')
-      await expect(isWired('zcode', path)).resolves.toBe(true)
-      const first = JSON.parse(readFileSync(path, 'utf8'))
-      expect(first.hooks.enabled).toBe(true)
-      expect(first.hooks.events.PreToolUse).toHaveLength(1)
-      expect(first.hooks.events.PreToolUse[0].matcher).toBe('^Bash$')
-      expect(first.hooks.events.PreToolUse[0].hooks[0].command).toBe(cmdOf('zcode'))
-
-      expect(await applyWire('zcode', path, false, false)).toBe('exists')
-      const second = JSON.parse(readFileSync(path, 'utf8'))
-      expect(second.hooks.events.PreToolUse).toHaveLength(1)
-
-      expect(await applyWire('zcode', path, true, false)).toBe('removed')
-      expect(await isWired('zcode', path)).toBe(false)
-      expect(await applyWire('zcode', path, true, false)).toBe('absent')
-
-      // 保留用户其他配置和事件
-      writeFileSync(path, JSON.stringify({
-        custom: 'value',
-        hooks: {
-          enabled: true,
-          events: {
-            PreToolUse: [{ matcher: '^Read$', hooks: [{ type: 'command', command: 'other-tool' }] }],
-            SessionStart: [{ hooks: [{ type: 'command', command: 'init-env' }] }]
-          }
-        }
-      }))
-      expect(await applyWire('zcode', path, false, false)).toBe('added')
-      const merged = JSON.parse(readFileSync(path, 'utf8'))
-      expect(merged.custom).toBe('value')
-      expect(merged.hooks.events.SessionStart).toHaveLength(1)
-      expect(merged.hooks.events.PreToolUse).toHaveLength(2)
-
-      expect(await applyWire('zcode', path, true, false)).toBe('removed')
-      const after = JSON.parse(readFileSync(path, 'utf8'))
-      expect(after.custom).toBe('value')
-      expect(after.hooks.events.SessionStart).toHaveLength(1)
-      expect(after.hooks.events.PreToolUse).toHaveLength(1)
-      expect(after.hooks.events.PreToolUse[0].matcher).toBe('^Read$')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -715,19 +619,13 @@ describe('wire: OpenCode 插件(复制随包插件文件, OpenCode 1.18+ plugins
 })
 
 describe('wire: 客户端规格表', () => {
-  it('九客户端齐全, 文件位置与 references/*.md 一致', () => {
+  it('七客户端齐全, 文件位置与 references/*.md 一致', () => {
     const names = WIRE_CLIENTS.map((c) => c.client)
-    expect(names).toEqual(['claude', 'codex', 'opencode', 'antigravity', 'dsh', 'pi', 'codebuddy', 'zcode', 'cursor'])
+    expect(names).toEqual(['claude', 'codex', 'opencode', 'antigravity', 'dsh', 'pi', 'cursor'])
     const claude = WIRE_CLIENTS.find((c) => c.client === 'claude')!
     expect(claude.projectPath).toBe('.claude/settings.json')
     const codex = WIRE_CLIENTS.find((c) => c.client === 'codex')!
     expect(codex.projectPath).toBe('.codex/hooks.json')
-    const codebuddy = WIRE_CLIENTS.find((c) => c.client === 'codebuddy')!
-    expect(codebuddy.projectPath).toBe('.codebuddy/settings.json')
-    expect(codebuddy.globalPath()).toBe(join(homedir(), '.codebuddy', 'settings.json'))
-    const zcode = WIRE_CLIENTS.find((c) => c.client === 'zcode')!
-    expect(zcode.projectPath).toBe('.zcode/config.json')
-    expect(zcode.globalPath()).toBe(join(homedir(), '.zcode', 'cli', 'config.json'))
     const cursor = WIRE_CLIENTS.find((c) => c.client === 'cursor')!
     expect(cursor.projectPath).toBe('.cursor/hooks.json')
     expect(cursor.globalPath()).toBe(join(homedir(), '.cursor', 'hooks.json'))
@@ -737,6 +635,11 @@ describe('wire: 客户端规格表', () => {
     const ag = WIRE_CLIENTS.find((c) => c.client === 'antigravity')!
     expect(ag.projectPath).toBe('.agents/hooks.json')
     expect(ag.experimental).toBeUndefined() // 真机核验闭环(AGY-D1..D4)后摘除实验标注
+  })
+
+  it('已移除客户端不被 isWireClient 接受', () => {
+    expect(isWireClient('codebuddy')).toBe(false)
+    expect(isWireClient('zcode')).toBe(false)
   })
 })
 
