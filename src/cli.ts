@@ -8,7 +8,7 @@ import { loadConfig, roleMatches } from './config'
 import { appendAudit, evaluateCommand, formatDeny, resolveCommandRepo, stateDir } from './index'
 import { makeT, resolveLocale } from './i18n'
 import type { I18nVars, Locale } from './i18n'
-import { detectPlatform, encodeDeny, extractHookPayload } from './platform'
+import { detectPlatform, encodeDeny, extractHookPayload, HOOK_PLATFORMS, isHookPlatform } from './platform'
 import { currentBranch, findRepoRoot, gitRunner, RunnerTimeoutError } from './repo'
 import { applyWire, isWireClient, wiringState, WIRE_CLIENTS } from './wire'
 import type { WireScope } from './wire'
@@ -448,6 +448,12 @@ function emitDeny(platform: HookPlatform, why: string, next: string, locale: Loc
 
 /** check: agent hook 门禁。读 stdin hook payload(或 --command), exit 0=放行 / 2=拦截(按平台编码) */
 async function check(flags: Flags, runner: Runner): Promise<number> {
+  if (flags.platform != null && flags.platform !== 'auto' && !isHookPlatform(flags.platform)) {
+    process.stderr.write(
+      `gitflow-guard: unknown platform "${flags.platform}" (expected: auto, ${HOOK_PLATFORMS.join(', ')})\n`,
+    )
+    return 1
+  }
   const platformFlag = (flags.platform ?? 'auto') as HookPlatform | 'auto'
   let raw = ''
   let strict = false

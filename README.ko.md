@@ -2,7 +2,7 @@
 
 > **AI 에이전트가 GitFlow 규칙을 무단으로 건너뛰는 문제로 고민하고 계신가요?**
 
-AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 플러그인 — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.z.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 및 [Pi](https://pi.dev) 지원.  
+AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 플러그인 — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 및 [Pi](https://pi.dev) 지원.  
 자신만의 브랜치 역할을 자유롭게 정의하세요 — **integration** (PR/MR을 통해 feature 통합), **preview** (스테이징/테스트 환경 엔드포인트), **production** (운영), **archive** (아카이브) — 각각 고유한 업데이트 규칙을 설정할 수 있습니다. 정형적인 흐름 위반은 실행 전에 차단되고, 명확한 원인과 다음 조치가 안내됩니다. 민감한 머지 권한은 확실하게 사람의 손에 유지됩니다. 의도적인 에이전트는 여전히 텍스트 계층 가드를 우회할 수 있습니다 —— [명확한 한계](#제한-사항--명확한-한계) 참조.
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [라이선스](LICENSE)
@@ -49,10 +49,10 @@ npx agents-gitflow-guard demo
 
 ## 빠른 시작 — 30초 만에 저장소 보호하기
 
-**1단계 — 설치.** 9개 클라이언트 모두 동일한 npm 패키지 `agents-gitflow-guard`를 사용하며, 사용하는 에이전트에 맞는 방식을 선택합니다:
+**1단계 — 설치.** 7개 클라이언트 모두 동일한 npm 패키지 `agents-gitflow-guard`를 사용하며, 사용하는 에이전트에 맞는 방식을 선택합니다:
 
 ```bash
-# 모드 A: CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# 모드 A: CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -78,12 +78,10 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor (각 클라이언트 전용 설정 파일에 작성. --yes로 y/N 확인 건너뛰기)
+# Codex / OpenCode / Antigravity / Cursor (각 클라이언트 전용 설정 파일에 작성. --yes로 y/N 확인 건너뛰기)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -381,11 +379,11 @@ PR/MR 대상은 `gh pr view` (GitHub) 또는 `glab mr view` (GitLab)를 통해 �
 
 | 클라이언트 유형 / 플랫폼 | 설치 명령어 | 마운트 및 배선 단계 |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | DSH 재시작 — 프로필 레이어로 자동 마운트 |
 | Pi | `npm i -D agents-gitflow-guard` | `pi/gitflow-guard.ts`를 `.pi/extensions/`로 복사 |
 
-### 1. 독립형 CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+### 1. 독립형 CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 
 CLI를 전역으로 1회 설치한 후, **각 클라이언트마다 명령어 한 줄로 배선을 완료합니다** (가드는 내장 기본값을 통해 기본 활성화되어 있으므로 배선만 완료하면 즉시 적용됩니다):
 
@@ -395,8 +393,6 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -445,10 +441,8 @@ gitflow-guard wire --client cursor --project --yes
 }
 ```
 
-나머지 세 CLI 클라이언트도 동일한 hook 형식을 사용합니다 — `wire`가 해당 파일을 대신 작성합니다:
+Cursor도 동일한 hook 형식을 사용합니다 — `wire`가 해당 파일을 대신 작성합니다:
 
-- **CodeBuddy** — `.codebuddy/settings.json`
-- **ZCode** — `.zcode/config.json` (`hooks.enabled: true`도 설정)
 - **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...`은 자리표시자입니다 — `wire`는 실행 시점에 설치된 패키지 자체 runner의 절대 경로를 확인해 기록합니다(완전 자기 앵커형: 클라이언트 변수 확장·hook 프로세스 cwd·PATH 의존 없음, 대상 저장소에 배치할 것도 없음). ≤0.0.41에서 업그레이드한 경우 클라이언트별로 `wire`를 다시 실행하면 이전 형식 항목(변수 템플릿/상대 경로/PATH 형식)이 그 자리에서 마이그레이션됩니다.
@@ -489,9 +483,9 @@ npm install && npm run build
 사용하려는 에이전트 플랫폼에 맞게 로컬 빌드를 마운트합니다:
 
 ```bash
-# A. CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# A. CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm link # 또는 npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/path/to/AgentsGitFlowController
@@ -513,7 +507,7 @@ npm link
 ### 5. Hook 메커니즘 및 기술 세부사항
 
 - **플랫폼 프로토콜 규약**: Hook은 stdin에서 페이로드를 읽고 각 플랫폼의 규약에 맞게 응답합니다:
-  - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2` (stderr로 차단 이유 및 조치 안내 출력).
+  - **Claude Code / OpenCode**: `exit 2` (stderr로 차단 이유 및 조치 안내 출력).
   - **Codex**: stdout으로 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` 출력.
   - **Antigravity**: stdout으로 JSON `{"decision":"deny","reason":...}`을 출력하고 `exit 0` 유지 (플랫폼 필수 요건).
   - **Cursor**: stdout으로 JSON `{"permission":"deny","user_message":...,"agent_message":...}`을 출력하고 `exit 0` 유지.

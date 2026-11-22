@@ -26,7 +26,7 @@ export interface WireClientSpec {
   experimental?: boolean
 }
 
-const CLIENTS: ClientId[] = ['dsh', 'claude', 'codex', 'opencode', 'antigravity', 'pi', 'codebuddy', 'zcode', 'cursor']
+const CLIENTS: ClientId[] = ['dsh', 'claude', 'codex', 'opencode', 'antigravity', 'pi', 'cursor']
 
 export function isWireClient(v: string): v is ClientId {
   return (CLIENTS as string[]).includes(v)
@@ -40,7 +40,7 @@ export function resolveRunnerPath(): string {
 
 const RUNNER_PATH = resolveRunnerPath()
 
-type JsonWireClient = 'claude' | 'codex' | 'antigravity' | 'codebuddy' | 'zcode' | 'cursor'
+type JsonWireClient = 'claude' | 'codex' | 'antigravity' | 'cursor'
 
 /** 钩子命令形态: node <runner 绝对路径> check --platform <client>。
  *  路径统一正斜杠(node 与各家 shell 在 Windows 均接受, 且免 JSON 反斜杠转义), 含空白时加双引号。
@@ -65,8 +65,6 @@ export const WIRE_CLIENTS: ReadonlyArray<WireClientSpec> = [
   { client: 'antigravity', projectPath: '.agents/hooks.json', globalPath: () => join(homedir(), '.gemini', 'config', 'hooks.json') },
   { client: 'dsh', projectPath: '', globalPath: () => '' },
   { client: 'pi', projectPath: '', globalPath: () => '' },
-  { client: 'codebuddy', projectPath: '.codebuddy/settings.json', globalPath: () => join(homedir(), '.codebuddy', 'settings.json') },
-  { client: 'zcode', projectPath: '.zcode/config.json', globalPath: () => join(homedir(), '.zcode', 'cli', 'config.json') },
   { client: 'cursor', projectPath: '.cursor/hooks.json', globalPath: () => join(homedir(), '.cursor', 'hooks.json') },
 ]
 
@@ -190,7 +188,7 @@ function rewriteHookList(container: Record<string, unknown>, key: string, client
   return had
 }
 
-/** JSON 客户端(claude/codex/antigravity/codebuddy/zcode/cursor)新增 hook 条目; 非破坏性合并;
+/** JSON 客户端(claude/codex/antigravity/cursor)新增 hook 条目; 非破坏性合并;
  *  已有 canonical 且无旧形态 → 跳过; 有任意旧形态条目 → 迁移为 canonical(migrated)。 */
 async function addJsonEntry(path: string, client: JsonWireClient, dryRun: boolean): Promise<WireResult> {
   const cmd = currentCommand(client)
@@ -209,11 +207,6 @@ async function addJsonEntry(path: string, client: JsonWireClient, dryRun: boolea
     const block = (obj['gitflow-guard'] ??= { PreToolUse: [] }) as { PreToolUse: unknown }
     if (!Array.isArray(block.PreToolUse)) throw new Error(`invalid ${path}: gitflow-guard.PreToolUse must be an array`)
     hadGuard = rewriteHookList(block as unknown as Record<string, unknown>, 'PreToolUse', client, entry, path)
-  } else if (client === 'zcode') {
-    const hooksObj = (obj['hooks'] ??= {}) as Record<string, unknown>
-    hooksObj['enabled'] = true
-    const eventsObj = (hooksObj['events'] ??= {}) as Record<string, unknown>
-    hadGuard = rewriteHookList(eventsObj, 'PreToolUse', client, entry, path)
   } else if (client === 'cursor') {
     obj['version'] ??= 1
     const hooksObj = (obj['hooks'] ??= {}) as Record<string, unknown>
@@ -254,17 +247,6 @@ async function removeJsonEntry(path: string, client: JsonWireClient, dryRun: boo
       const stillHasContent = Object.values(block).some((v) => (Array.isArray(v) ? v.length > 0 : true))
       if (guardOutsideArrays || !stillHasContent) delete obj['gitflow-guard']
     }
-  } else if (client === 'zcode') {
-    const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
-    const eventsObj = hooksObj?.['events'] as Record<string, unknown> | undefined
-    const arr = eventsObj?.['PreToolUse']
-    if (!Array.isArray(arr)) return 'absent'
-    const { cleaned, had } = filterGuardItems(arr, client)
-    if (!had) return 'absent'
-    if (cleaned.length === 0) delete eventsObj!['PreToolUse']
-    else eventsObj!['PreToolUse'] = cleaned
-    if (eventsObj && Object.keys(eventsObj).length === 0) delete hooksObj!['events']
-    if (hooksObj && Object.keys(hooksObj).filter((k) => k !== 'enabled').length === 0) delete obj['hooks']
   } else if (client === 'cursor') {
     const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
     const arr = hooksObj?.['beforeShellExecution']

@@ -2,7 +2,7 @@
 
 > **Устали от того, что ИИ-агенты игнорируют ваш GitFlow?**
 
-Конфигурируемый страж ролей веток Git для ИИ-агентов написания кода — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.z.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) и [Pi](https://pi.dev).
+Конфигурируемый страж ролей веток Git для ИИ-агентов написания кода — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) и [Pi](https://pi.dev).
 Вы сами определяете свои ветки —
 **integration** (фичи вливаются через PR/MR), **preview** (окружения тестирования), **production**, **archive** — каждая со своими правилами обновления. Рутинные нарушения потока блокируются до выполнения — с ясной причиной и следующим шагом; а критические слияния остаются под вашим контролем. Целеустремлённый агент всё же может обойти текстовый слой — см. [Честные ограничения](#чего-он-не-делает--честные-ограничения).
 
@@ -50,10 +50,10 @@ npx agents-gitflow-guard demo
 
 ## Быстрый старт — 30 секунд до защиты репозитория
 
-**Шаг 1 — установка.** Все девять клиентов используют один и тот же npm-пакет `agents-gitflow-guard` — выберите режим установки, соответствующий вашему агенту:
+**Шаг 1 — установка.** Все семь клиентов используют один и тот же npm-пакет `agents-gitflow-guard` — выберите режим установки, соответствующий вашему агенту:
 
 ```bash
-# Режим A: Клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# Режим A: Клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -79,12 +79,10 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor (у каждого собственный конфигурационный файл; --yes пропускает подтверждение y/N)
+# Codex / OpenCode / Antigravity / Cursor (у каждого собственный конфигурационный файл; --yes пропускает подтверждение y/N)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -381,11 +379,11 @@ archive (опционально; архивируется вами после р
 
 | Тип клиента / Платформа | Команда установки | Шаг монтирования и подключения |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <имя> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <имя> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | Перезапустить DSH — плагин автоматически монтируется в слой профиля |
 | Pi | `npm i -D agents-gitflow-guard` | Скопировать `pi/gitflow-guard.ts` в `.pi/extensions/` |
 
-### 1. Автономные клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+### 1. Автономные клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 
 Установите CLI глобально один раз, затем **подключите каждого клиента одной командой** (страж уже включен по умолчанию со встроенными настройками):
 
@@ -395,8 +393,6 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -445,10 +441,8 @@ gitflow-guard wire --client cursor --project --yes
 }
 ```
 
-Остальные три клиента CLI используют ту же форму хука — `wire` записывает их файлы за вас:
+Cursor использует ту же форму хука — `wire` записывает его файл за вас:
 
-- **CodeBuddy** — `.codebuddy/settings.json`
-- **ZCode** — `.zcode/config.json` (также устанавливает `hooks.enabled: true`)
 - **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...` — это заполнитель: `wire` при подключении подставляет абсолютный путь к раннеру самого установленного пакета (полностью самозаякоренная команда: без раскрытия переменных на стороне клиента, без предположений о cwd hook-процесса, без зависимости от PATH, без развертывания чего-либо в целевом репозитории). Обновляетесь с ≤ 0.0.41? Перезапустите `wire` один раз для каждого клиента — старые записи (шаблоны переменных / относительные пути / форма PATH) мигрируют на месте.
@@ -489,9 +483,9 @@ npm install && npm run build
 Подключите локальную сборку к целевой платформе агента:
 
 ```bash
-# A. Клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# A. Клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm link # или npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/path/to/AgentsGitFlowController
@@ -513,7 +507,7 @@ npm link
 ### 5. Механизм хуков и технические детали
 
 - **Протокол платформы**: Хук считывает данные из stdin и отвечает в соответствии с протоколом целевой платформы:
-  - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2` (в stderr передается причина и инструкция по дальнейшим действиям).
+  - **Claude Code / OpenCode**: `exit 2` (в stderr передается причина и инструкция по дальнейшим действиям).
   - **Codex**: stdout JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`.
   - **Antigravity**: stdout JSON `{"decision":"deny","reason":...}` с кодом `exit 0` (требование Antigravity).
   - **Cursor**: stdout JSON `{"permission":"deny","user_message":...,"agent_message":...}` с кодом `exit 0`.

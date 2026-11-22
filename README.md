@@ -2,7 +2,7 @@
 
 > **Are you tired of agents skipping your GitFlow?**
 
-A configurable branch-role guard for AI coding agents — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.z.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), and [Pi](https://pi.dev).
+A configurable branch-role guard for AI coding agents — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), and [Pi](https://pi.dev).
 You define your own branches —
 **integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Routine flow violations are blocked before they run, with a clear why/next — and sensitive merges stay in your hands. A determined agent can still evade a text-layer guard; see [honest limits](#what-it-does-not-do--honest-limits).
 
@@ -50,10 +50,10 @@ To put the guard in front of your agent afterwards, continue with [Quick Start](
 
 ## Quick Start — 30 seconds to a guarded repo
 
-**Step 1 — install.** All nine clients consume the same npm package `agents-gitflow-guard` — choose the installation mode matching your agent:
+**Step 1 — install.** All seven clients consume the same npm package `agents-gitflow-guard` — choose the installation mode matching your agent:
 
 ```bash
-# Mode A: CLI Hook clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# Mode A: CLI Hook clients (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -79,12 +79,10 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor (each its own config file; --yes skips the y/N prompt)
+# Codex / OpenCode / Antigravity / Cursor (each its own config file; --yes skips the y/N prompt)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -382,11 +380,11 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 
 | Client Type / Platform | Install Command | Mounting & Wiring Step |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | Restart DSH — plugin auto-mounts as a profile layer |
 | Pi | `npm i -D agents-gitflow-guard` | Copy `pi/gitflow-guard.ts` into `.pi/extensions/` |
 
-### 1. Standalone CLI Hook Clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+### 1. Standalone CLI Hook Clients (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 
 Install the CLI globally once, then **wire each client with a single command** (the guard is on by default via its built-in config, so wiring is all that remains):
 
@@ -396,8 +394,6 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -446,10 +442,8 @@ gitflow-guard wire --client cursor --project --yes
 }
 ```
 
-The other three CLI clients use the same hook shape — `wire` writes their file for you:
+Cursor uses the same hook shape — `wire` writes its file for you:
 
-- **CodeBuddy** — `.codebuddy/settings.json`
-- **ZCode** — `.zcode/config.json` (also sets `hooks.enabled: true`)
 - **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...` is a placeholder — `wire` resolves the real absolute path of the installed package's own runner at wire time (fully self-anchored: no client variable expansion, no hook-cwd assumption, no PATH dependency, nothing deployed into the target repo). Upgrading from ≤ 0.0.41? Re-run `wire` once per client — legacy entries (variable-template / relative / PATH forms) are migrated in place.
@@ -490,9 +484,9 @@ npm install && npm run build
 Mount the local build into your target agent platform:
 
 ```bash
-# A. Standalone CLI Hook Clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# A. Standalone CLI Hook Clients (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm link # or npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/path/to/AgentsGitFlowController
@@ -514,7 +508,7 @@ npm link
 ### 5. Hook Mechanism & Technical Notes
 
 - **Platform protocol**: The hook reads the payload on stdin and answers with that platform's protocol:
-  - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2` (stderr contains the reason and actionable next steps).
+  - **Claude Code / OpenCode**: `exit 2` (stderr contains the reason and actionable next steps).
   - **Codex**: stdout JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`.
   - **Antigravity**: stdout JSON `{"decision":"deny","reason":...}` with `exit 0` (Antigravity requires exit 0).
   - **Cursor**: stdout JSON `{"permission":"deny","user_message":...,"agent_message":...}` with `exit 0`.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { detectPlatform, encodeDeny, extractHookPayload } from '../src/platform'
+import { detectPlatform, encodeDeny, extractHookPayload, HOOK_PLATFORMS, isHookPlatform } from '../src/platform'
+import type { HookPlatform } from '../src/platform'
 
 describe('platform: extractHookPayload', () => {
   it('claude PreToolUse → command/cwd/toolUseId/event=pre', () => {
@@ -68,15 +69,6 @@ describe('platform: extractHookPayload', () => {
     })
     expect(extractHookPayload(raw, 'antigravity')).toEqual({ command: 'git push origin master', cwd: '/tmp/e2e-antigravity-repo', toolUseId: undefined, event: 'pre' })
   })
-  it('codebuddy 显式平台: tool_input.command + cwd', () => {
-    const raw = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: '/repo' })
-    expect(extractHookPayload(raw, 'codebuddy')).toEqual({ command: 'git push origin develop', cwd: '/repo', toolUseId: undefined, event: 'pre' })
-  })
-
-  it('zcode 显式平台: tool_input.command + cwd', () => {
-    const raw = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: '/repo' })
-    expect(extractHookPayload(raw, 'zcode')).toEqual({ command: 'git push origin develop', cwd: '/repo', toolUseId: undefined, event: 'pre' })
-  })
 
   it('cursor 显式平台: beforeShellExecution command + cwd', () => {
     const raw = JSON.stringify({ hook_event_name: 'beforeShellExecution', command: 'git push origin develop', cwd: '/repo', cursor_version: '0.45.0' })
@@ -115,12 +107,6 @@ describe('platform: encodeDeny', () => {
   it('claude → exit 2 + stderr', () => {
     expect(encodeDeny('claude', '已拦截: x')).toEqual({ exitCode: 2, stderr: '已拦截: x' })
   })
-  it('codebuddy → exit 2 + stderr', () => {
-    expect(encodeDeny('codebuddy', 'blocked: x')).toEqual({ exitCode: 2, stderr: 'blocked: x' })
-  })
-  it('zcode → exit 2 + stderr', () => {
-    expect(encodeDeny('zcode', 'blocked: x')).toEqual({ exitCode: 2, stderr: 'blocked: x' })
-  })
   it('opencode → exit 2 + stderr', () => {
     expect(encodeDeny('opencode', 'blocked: x')).toEqual({ exitCode: 2, stderr: 'blocked: x' })
   })
@@ -139,5 +125,25 @@ describe('platform: encodeDeny', () => {
     expect(enc.exitCode).toBe(0)
     expect(enc.stdout).toBe(JSON.stringify({ permission: 'deny', user_message: 'blocked: x', agent_message: 'blocked: x' }))
     expect(enc.stderr).toBe('blocked: x')
+  })
+  it('未知平台 → 安全默认硬拦截(exit 2 + stderr)', () => {
+    expect(encodeDeny('codebuddy' as HookPlatform, 'blocked')).toEqual({ exitCode: 2, stderr: 'blocked' })
+  })
+})
+
+describe('platform: isHookPlatform 与显式非法平台防护', () => {
+  it('isHookPlatform: 5 个支持平台返回 true, 未知平台返回 false', () => {
+    for (const p of HOOK_PLATFORMS) {
+      expect(isHookPlatform(p)).toBe(true)
+    }
+    expect(HOOK_PLATFORMS).toEqual(['claude', 'codex', 'antigravity', 'opencode', 'cursor'])
+    expect(isHookPlatform('codebuddy')).toBe(false)
+    expect(isHookPlatform('zcode')).toBe(false)
+    expect(isHookPlatform('unknown')).toBe(false)
+  })
+
+  it('extractHookPayload: 显式传入非法平台时抛错(不静默返回 null)', () => {
+    const raw = JSON.stringify({ tool_input: { command: 'git push origin develop' } })
+    expect(() => extractHookPayload(raw, 'codebuddy' as HookPlatform)).toThrow(/unknown platform/i)
   })
 })

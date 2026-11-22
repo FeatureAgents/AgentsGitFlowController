@@ -142,7 +142,7 @@ describe('文档一致性: 客户端文档索引', () => {
 // 范围: 仅"仓库目录路径"(src/ tests/ scripts/ bin/ docs/ pi/ opencode/ .agents/ .github/ 与各客户端配置目录)。
 // 不在范围内: 根目录文件名(README.*.md / patch.yml 等)、含占位符的 token、构建产物 lib/、本机私有文件。
 const PATH_REFS =
-  /^(?:src|tests|scripts|bin|docs|pi|opencode|\.agents|\.github|\.claude|\.codex|\.cursor|\.zcode|\.codebuddy|\.pi|\.opencode)\//
+  /^(?:src|tests|scripts|bin|docs|pi|opencode|\.agents|\.github|\.claude|\.codex|\.cursor|\.pi|\.opencode)\//
 // 例外: 本机私有文件(不入库, 见 .gitignore)
 const PATH_EXCEPTIONS = new Set(['.agents/hooks.json'])
 
