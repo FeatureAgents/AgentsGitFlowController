@@ -35,6 +35,9 @@ const en: Dict = {
   'refUpdateProtected.why': (v) =>
     `Protected branch "${v.branch}" forbids direct ref updates (update-ref / symbolic-ref / branch -m|-f / checkout -B)`,
   'refUpdateProtected.next': () => 'Update protected branches via PR/MR; they are managed by you.',
+  'refUpdateUnknown.why': () =>
+    'Cannot statically verify target refs of update-ref --stdin (may modify protected branches)',
+  'refUpdateUnknown.next': () => 'Specify a non-protected branch name explicitly, or update protected branches via PR/MR.',
   'refMoveProtected.why': () =>
     'Rewriting history on a protected branch (reset / rebase / commit --amend / filter-branch / cherry-pick / revert) is not allowed',
   'refMoveProtected.next': () => 'Do history rewrites on a feature branch; protected branches advance via PR/MR and are managed by you.',
@@ -202,6 +205,8 @@ const zh: Dict = {
   'refUpdateProtected.why': (v) =>
     `受保护分支「${v.branch}」禁止直接改写 refs(update-ref / symbolic-ref / branch -m|-f / checkout -B)`,
   'refUpdateProtected.next': () => '请通过 PR/MR 更新受保护分支; 受保护分支由用户亲手管理',
+  'refUpdateUnknown.why': () => '无法静态确认 update-ref --stdin 的目标分支(可能改写受保护分支)',
+  'refUpdateUnknown.next': () => '请显式指定非受保护分支名更新 ref, 或通过 PR/MR 更新受保护分支',
   'refMoveProtected.why': () =>
     '受保护分支禁止本地改写历史(reset / rebase / commit --amend / filter-branch / cherry-pick / revert)',
   'refMoveProtected.next': () => '历史改写请在 feature 分支上进行; 受保护分支仅经 PR/MR 推进, 由用户亲手管理',

@@ -222,6 +222,29 @@ describe('gate: 其他', () => {
     expect(decide({ kind: 'guard-cli', sub: 'status' }, facts(), config).kind).toBe('allow')
     expect(decide({ kind: 'guard-cli', sub: 'other' }, facts(), config).kind).toBe('allow')
   })
+
+  it('ref-update 未知目标(update-ref --stdin, branch: null) → 保守 deny(支持中英文案)', () => {
+    const dEn = decide({ kind: 'ref-update', branch: null, delete: false }, facts(), config)
+    expect(dEn.kind).toBe('deny')
+    if (dEn.kind === 'deny') {
+      expect(dEn.reason).toMatch(/update-ref --stdin/i)
+      expect(dEn.next).toBeTruthy()
+    }
+    const dZh = decide({ kind: 'ref-update', branch: null, delete: true }, facts(), config, makeT('zh'))
+    expect(dZh.kind).toBe('deny')
+    if (dZh.kind === 'deny') {
+      expect(dZh.reason).toContain('update-ref --stdin')
+      expect(dZh.next).toBeTruthy()
+    }
+  })
+
+  it('pr-create 显式指定 head 时按 head 而非 currentBranch 校验角色', () => {
+    // 当前在 feature 分支, 但 --head 指定了受保护分支 develop → deny
+    expect(decide({ kind: 'pr-create', target: 'main', head: 'develop' }, facts({ currentBranch: 'feature/x' }), config).kind).toBe('allow')
+    expect(decide({ kind: 'pr-create', target: 'ita1', head: 'develop' }, facts({ currentBranch: 'feature/x' }), config).kind).toBe('deny')
+    // 当前在 develop, 但 --head 显式指定 feature/y → allow
+    expect(decide({ kind: 'pr-create', target: 'develop', head: 'feature/y' }, facts({ currentBranch: 'develop' }), config).kind).toBe('allow')
+  })
 })
 
 describe('gate: 仓库事实超时熔断 (repoTimeout)', () => {

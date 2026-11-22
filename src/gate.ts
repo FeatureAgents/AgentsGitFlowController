@@ -59,10 +59,7 @@ export function decide(classified: Classified, facts: GateFacts, config: GuardCo
         ? deny(t('denyDeleteOrForce.why', { branch: classified.branch ?? '' }), t('denyDeleteOrForce.next'))
         : { kind: 'allow' }
     case 'ref-update':
-      // update-ref 直改受保护分支 refs(plumbing 绕过面), 一律拒绝
-      return classified.branch != null && isProtected(roleOfBranch(classified.branch, config))
-        ? deny(t('refUpdateProtected.why', { branch: classified.branch }), t('refUpdateProtected.next'))
-        : { kind: 'allow' }
+      return decideRefUpdate(classified, config, t)
     case 'ref-move':
       // 本地改写当前分支 tip(reset/rebase/amend/filter-branch): 与 local-merge 同型 ——
       // 受保护分支上一律拒绝(改写即绕过 PR/MR), feature/other 上自由
@@ -81,6 +78,17 @@ export function decide(classified: Classified, facts: GateFacts, config: GuardCo
     default:
       return { kind: 'allow' }
   }
+}
+
+function decideRefUpdate(c: Extract<Classified, { kind: 'ref-update' }>, config: GuardConfig, t: T): GateDecision {
+  // 目标未知(如 update-ref --stdin)无法静态确认不会改写受保护分支, 保守拒绝
+  if (c.branch == null) {
+    return deny(t('refUpdateUnknown.why'), t('refUpdateUnknown.next'))
+  }
+  if (isProtected(roleOfBranch(c.branch, config))) {
+    return deny(t('refUpdateProtected.why', { branch: c.branch }), t('refUpdateProtected.next'))
+  }
+  return { kind: 'allow' }
 }
 
 function decidePush(c: Extract<Classified, { kind: 'push' }>, facts: GateFacts, config: GuardConfig, t: T): GateDecision {
@@ -185,7 +193,7 @@ function decidePrCreate(c: Extract<Classified, { kind: 'pr-create' }>, facts: Ga
     )
   }
   const targetRole = roleOfBranch(c.target, config)
-  const head = facts.currentBranch
+  const head = c.head ?? facts.currentBranch
   const headRole = roleOfBranch(head, config)
 
   // 指向 archive: 允许创建 PR/MR(agent 可起草 develop→main 归档 PR); 合并仍限用户亲手(见 decidePrMerge)
