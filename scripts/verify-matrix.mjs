@@ -268,12 +268,20 @@ console.log('[F] OpenCode hook (--platform opencode 协议层 + wire 插件装�
     check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
     const ok = runCheck('opencode', JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'ls -la' }, cwd: repo }), repo)
     check('放行: exit 0 且无输出(快路径)', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
-    // wire 装配: OpenCode 1.18+ 无 hooks.yaml, 落位为 plugins 目录的插件文件
+    // wire 装配: OpenCode 1.18+ 无 hooks.yaml, 落位为 plugins 目录的插件文件(含自锚定路径注入)
     execFileSync('node', [BIN, 'wire', '--client', 'opencode', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
     const plugin = readFileSync(join(repo, '.opencode', 'plugins', 'gitflow-guard.ts'), 'utf8')
     check('wire 落位: 插件文件含 tool.execute.before 订阅', /tool\.execute\.before/.test(plugin) && /input\.tool !== 'bash'/.test(plugin), 'plugin content')
     check('wire 落位: 插件走 check --platform opencode', plugin.includes('check --platform opencode'))
     check('wire 落位: 插件拒绝语义 = 抛错阻断(exit 2)', /code === 2/.test(plugin) && /throw new Error/.test(plugin), 'plugin content')
+    check(
+      'wire 落位: 插件注入真实存在的 WIRED_RUNNER_PATH 与 WIRED_NODE_PATH',
+      plugin.includes(`const WIRED_RUNNER_PATH = ${JSON.stringify(RUNNER.replace(/\\/g, '/'))}`) &&
+        plugin.includes(`const WIRED_NODE_PATH = ${JSON.stringify(process.execPath.replace(/\\/g, '/'))}`),
+      'wired paths missing',
+    )
+    const cwdDeny = runCheck('opencode', JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'cd $VAR && git merge develop' }, cwd: repo }), repo)
+    check('分目录拦截(cd $VAR): exit 2', cwdDeny.code === 2 && /statically determine/i.test(cwdDeny.stderr), `code=${cwdDeny.code} err=${cwdDeny.stderr}`)
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }

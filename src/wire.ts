@@ -288,9 +288,24 @@ async function removeJsonEntry(path: string, client: JsonWireClient, dryRun: boo
   return 'removed'
 }
 
-/** OpenCode 插件: 复制随包插件文件; 已存在同文件视为已接线(幂等) */
-async function addPluginFile(path: string, dryRun: boolean): Promise<WireResult> {
-  if ((await readText(path)) !== null) return 'exists'
+function normalizeNewlines(s: string): string {
+  return s.replace(/\r\n/g, '\n')
+}
+
+function isGuardOpencodePlugin(text: string): boolean {
+  return text.includes('gitflowGuardPlugin') && text.includes('tool.execute.before') && text.includes('gitflow-guard')
+}
+
+/** 渲染随包 OpenCode 插件: 注入 runner 与 node 解释器的绝对路径(统一正斜杠, 经 JSON.stringify 安全转义) */
+export function renderOpencodePlugin(source: string, runnerPath: string, nodePath: string): string {
+  const runnerLit = JSON.stringify(runnerPath.replace(/\\/g, '/'))
+  const nodeLit = JSON.stringify(nodePath.replace(/\\/g, '/'))
+  return source
+    .replace(/^(const WIRED_RUNNER_PATH = )''(?=\r?$)/m, (_m, prefix: string) => `${prefix}${runnerLit}`)
+    .replace(/^(const WIRED_NODE_PATH = )''(?=\r?$)/m, (_m, prefix: string) => `${prefix}${nodeLit}`)
+}
+
+async function readRenderedOpencodePlugin(): Promise<string> {
   let source: string
   try {
     source = await readFile(OPENCODE_PLUGIN_SOURCE, 'utf8')
@@ -300,8 +315,25 @@ async function addPluginFile(path: string, dryRun: boolean): Promise<WireResult>
       `cannot read bundled opencode plugin source at ${OPENCODE_PLUGIN_SOURCE} — install the package (npm i -g agents-gitflow-guard) or copy opencode/gitflow-guard.ts into the project's .opencode/plugins/ manually`,
     )
   }
-  if (!dryRun) await writeText(path, source)
-  return 'added'
+  return renderOpencodePlugin(source, RUNNER_PATH, process.execPath)
+}
+
+/** OpenCode 插件: 复制并注入自锚定路径; 同内容幂等返回 exists, 旧版插件就地升级返回 migrated, 非本插件文件拒绝覆盖 */
+async function addPluginFile(path: string, dryRun: boolean): Promise<WireResult> {
+  const existing = await readText(path)
+  if (existing !== null && !isGuardOpencodePlugin(existing)) {
+    throw new Error(`refusing to overwrite non-gitflow-guard file at ${path}`)
+  }
+  const rendered = await readRenderedOpencodePlugin()
+  if (existing === null) {
+    if (!dryRun) await writeText(path, rendered)
+    return 'added'
+  }
+  if (normalizeNewlines(existing) === normalizeNewlines(rendered)) {
+    return 'exists'
+  }
+  if (!dryRun) await writeText(path, rendered)
+  return 'migrated'
 }
 
 /** OpenCode 插件: 删除插件文件; 不动其他插件 */
@@ -312,7 +344,7 @@ async function removePluginFile(path: string, dryRun: boolean): Promise<WireResu
 }
 
 /** 执行一次 wire 落位/移除/预览; dsh/pi 由上层直接短路, 不进这里。
- *  真实写入 JSON 客户端前自检随包 runner 真实存在 —— 杜绝把死指针写进用户配置(静默 MODULE_NOT_FOUND)。 */
+ *  真实写入前自检随包 runner 真实存在(含 opencode) —— 杜绝把死指针写进用户配置。 */
 export async function applyWire(
   client: ClientId,
   path: string,
@@ -320,13 +352,13 @@ export async function applyWire(
   dryRun: boolean,
   deps: { runnerExists?: (p: string) => boolean } = {},
 ): Promise<WireResult> {
-  if (client === 'opencode') return unwire ? removePluginFile(path, dryRun) : addPluginFile(path, dryRun)
   if (!unwire && !dryRun) {
     const runnerExists = deps.runnerExists ?? existsSync
     if (!runnerExists(RUNNER_PATH)) {
       throw new Error(`gitflow-guard runner not found at ${RUNNER_PATH} — reinstall the package (npm i -g agents-gitflow-guard)`)
     }
   }
+  if (client === 'opencode') return unwire ? removePluginFile(path, dryRun) : addPluginFile(path, dryRun)
   return unwire
     ? removeJsonEntry(path, client as JsonWireClient, dryRun)
     : addJsonEntry(path, client as JsonWireClient, dryRun)
@@ -339,7 +371,16 @@ export type WiringState = 'current' | 'legacy' | 'absent'
 export async function wiringState(client: ClientId, path: string): Promise<WiringState> {
   const raw = await readText(path)
   if (raw === null) return 'absent'
-  if (client === 'opencode') return 'current'
+  if (client === 'opencode') {
+    if (!isGuardOpencodePlugin(raw)) return 'absent'
+    try {
+      const rendered = await readRenderedOpencodePlugin()
+      if (normalizeNewlines(raw) === normalizeNewlines(rendered)) return 'current'
+    } catch {
+      // 源不可读时保守判为 legacy
+    }
+    return 'legacy'
+  }
   let obj: unknown
   try {
     obj = parseCommentJson(raw)

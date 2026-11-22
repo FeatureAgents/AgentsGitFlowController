@@ -450,6 +450,88 @@ describe('apply: DSH 插件降级路径(P0-1)', () => {
     ).resolves.toBe('passed-through')
     expect(calls).toBe(callsBefore)
   })
+
+  it('配置损坏且原文含 "strict": true → apply() fail-closed 返回 { kind: "deny" }', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-apply-strict-'))
+    mkdirSync(join(dir, '.git'), { recursive: true })
+    writeFileSync(join(dir, 'gitflow-guard.config.json'), '{"enabled":true,"strict":true,branches:[}')
+    type PreExecuteHandler = (exec: unknown, next: () => Promise<unknown>) => Promise<unknown>
+    let handler: PreExecuteHandler | undefined
+    const ctx = {
+      on: (_event: string, fn: PreExecuteHandler) => {
+        handler = fn
+      },
+    }
+    const runner: Runner = {
+      async run(args) {
+        if (args[0] === 'rev-parse') return { code: 0, stdout: `${dir}\n`, stderr: '' }
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    apply(ctx as unknown as Context, { runner })
+    try {
+      let nextCalled = 0
+      const next = async () => {
+        nextCalled++
+        return 'passed-through'
+      }
+      const exec = {
+        name: 'bash',
+        arguments: { command: 'git push origin develop' },
+        agent: { session: { header: { cwd: dir } } },
+      }
+      const res = (await handler!(exec, next)) as { kind?: string; reason?: string }
+      expect(res.kind).toBe('deny')
+      expect(res.reason).toContain('blocked:')
+      expect(res.reason).toMatch(/strict mode is enabled/i)
+      expect(nextCalled).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('strict: true 仓库遇到非超时内部异常 → apply() fail-closed 返回 { kind: "deny" } 且不调用 next()', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gfguard-apply-strict-err-'))
+    mkdirSync(join(dir, '.git'), { recursive: true })
+    writeFileSync(
+      join(dir, 'gitflow-guard.config.json'),
+      JSON.stringify({ enabled: true, strict: true, branches: { integration: ['develop'] } }),
+    )
+    type PreExecuteHandler = (exec: unknown, next: () => Promise<unknown>) => Promise<unknown>
+    let handler: PreExecuteHandler | undefined
+    const ctx = {
+      on: (_event: string, fn: PreExecuteHandler) => {
+        handler = fn
+      },
+    }
+    const runner: Runner = {
+      async run(args) {
+        if (args[0] === 'rev-parse') return { code: 0, stdout: `${dir}\n`, stderr: '' }
+        if (args[0] === 'branch') throw new Error('unexpected runner crash')
+        return { code: 0, stdout: '', stderr: '' }
+      },
+    }
+    apply(ctx as unknown as Context, { runner })
+    try {
+      let nextCalled = 0
+      const next = async () => {
+        nextCalled++
+        return 'passed-through'
+      }
+      const exec = {
+        name: 'bash',
+        arguments: { command: 'git push origin develop' },
+        agent: { session: { header: { cwd: dir } } },
+      }
+      const res = (await handler!(exec, next)) as { kind?: string; reason?: string }
+      expect(res.kind).toBe('deny')
+      expect(res.reason).toContain('unexpected runner crash')
+      expect(res.reason).toMatch(/strict mode is enabled/i)
+      expect(nextCalled).toBe(0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('包根再导出 registerLocale(P1-1) / MESSAGE_KEYS(P2-6)', () => {

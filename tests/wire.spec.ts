@@ -54,16 +54,20 @@ describe('wire: runner 自锚定(BUG-REPORT-wire-runner-deployment 回归)', () 
     }
   })
 
-  it('runner 缺失 → 真实写入拒绝并明确报错; dry-run 预览放行; unwire 不受影响; opencode 不依赖 runner', async () => {
+  it('runner 缺失 → 真实写入拒绝并明确报错(含 opencode); dry-run 预览放行; unwire 不受影响', async () => {
     const dir = tempDir()
     const path = join(dir, '.claude/settings.json')
+    const opencodePath = join(dir, '.opencode/plugins/gitflow-guard.ts')
     try {
       await expect(applyWire('claude', path, false, false, { runnerExists: () => false })).rejects.toThrow(/runner not found/)
       expect(existsSync(path)).toBe(false)
+      await expect(applyWire('opencode', opencodePath, false, false, { runnerExists: () => false })).rejects.toThrow(/runner not found/)
+      expect(existsSync(opencodePath)).toBe(false)
       expect(await applyWire('claude', path, false, true, { runnerExists: () => false })).toBe('added') // dry-run 只预览不写
       expect(existsSync(path)).toBe(false)
+      expect(await applyWire('opencode', opencodePath, false, true, { runnerExists: () => false })).toBe('added')
+      expect(existsSync(opencodePath)).toBe(false)
       expect(await applyWire('claude', path, true, false, { runnerExists: () => false })).toBe('absent') // unwire 无需 runner
-      expect(await applyWire('opencode', join(dir, '.opencode/plugins/gitflow-guard.ts'), false, false, { runnerExists: () => false })).toBe('added')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -461,11 +465,15 @@ describe('wire: 旧条目迁移(任意历史形态 → 当前 canonical, 不双�
       await expect(isWired('claude', path)).resolves.toBe(false) // 旧形态不算已接线 → status 引导重新 wire 完成迁移
       writeFileSync(path, '{broken')
       await expect(wiringState('claude', path)).resolves.toBe('absent')
-      // opencode 以插件文件存在性为准
+      // opencode 三态: absent(缺失或非本插件文件) / legacy(旧版插件) / current(与渲染结果一致)
       const plugin = join(dir, '.opencode/plugins/gitflow-guard.ts')
       await expect(wiringState('opencode', plugin)).resolves.toBe('absent')
       mkdirSync(join(dir, '.opencode', 'plugins'), { recursive: true })
-      writeFileSync(plugin, '// wired')
+      writeFileSync(plugin, '// custom user plugin')
+      await expect(wiringState('opencode', plugin)).resolves.toBe('absent')
+      writeFileSync(plugin, 'export default async function gitflowGuardPlugin() { /* tool.execute.before gitflow-guard */ }')
+      await expect(wiringState('opencode', plugin)).resolves.toBe('legacy')
+      expect(await applyWire('opencode', plugin, false, false)).toBe('migrated')
       await expect(wiringState('opencode', plugin)).resolves.toBe('current')
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -639,7 +647,7 @@ describe('wire: antigravity 对象形态(命令绝对路径自锚定, AGY-D2)', 
 describe('wire: OpenCode 插件(复制随包插件文件, OpenCode 1.18+ plugins 机制)', () => {
   const pluginPath = (dir: string) => join(dir, '.opencode/plugins/gitflow-guard.ts')
 
-  it('不存在 → 复制插件; 再 wire → exists(幂等); unwire → removed; 再 unwire → absent', async () => {
+  it('不存在 → 复制并注入 WIRED_RUNNER_PATH/WIRED_NODE_PATH; 再 wire → exists(幂等); unwire → removed; 再 unwire → absent', async () => {
     const dir = tempDir()
     const path = pluginPath(dir)
     try {
@@ -647,6 +655,10 @@ describe('wire: OpenCode 插件(复制随包插件文件, OpenCode 1.18+ plugins
       const text = readFileSync(path, 'utf8')
       expect(text).toContain('tool.execute.before')
       expect(text).toContain('check --platform opencode')
+      expect(text).toContain(`const WIRED_RUNNER_PATH = ${JSON.stringify(RUNNER.replace(/\\/g, '/'))}`)
+      expect(text).toContain(`const WIRED_NODE_PATH = ${JSON.stringify(process.execPath.replace(/\\/g, '/'))}`)
+      expect(existsSync(RUNNER)).toBe(true)
+      expect(existsSync(process.execPath)).toBe(true)
       await expect(isWired('opencode', path)).resolves.toBe(true)
 
       expect(await applyWire('opencode', path, false, false)).toBe('exists')
@@ -655,6 +667,31 @@ describe('wire: OpenCode 插件(复制随包插件文件, OpenCode 1.18+ plugins
       expect(await applyWire('opencode', path, true, false)).toBe('removed')
       expect(await isWired('opencode', path)).toBe(false)
       expect(await applyWire('opencode', path, true, false)).toBe('absent')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('旧版 OpenCode 插件重跑 wire → migrated 并升级内容; 非本插件同名文件拒绝覆盖', async () => {
+    const dir = tempDir()
+    const path = pluginPath(dir)
+    mkdirSync(join(dir, '.opencode', 'plugins'), { recursive: true })
+    const legacy = `// old plugin\nexport default async function gitflowGuardPlugin() {\n  return { 'tool.execute.before': async () => { /* gitflow-guard */ } }\n}\n`
+    try {
+      writeFileSync(path, legacy)
+      await expect(wiringState('opencode', path)).resolves.toBe('legacy')
+      expect(await applyWire('opencode', path, false, true)).toBe('migrated')
+      expect(readFileSync(path, 'utf8')).toBe(legacy) // dry-run 不改写
+      expect(await applyWire('opencode', path, false, false)).toBe('migrated')
+      const upgraded = readFileSync(path, 'utf8')
+      expect(upgraded).toContain(`const WIRED_RUNNER_PATH = ${JSON.stringify(RUNNER.replace(/\\/g, '/'))}`)
+      await expect(wiringState('opencode', path)).resolves.toBe('current')
+
+      const custom = 'export default async function customUserPlugin() { return {} }\n'
+      writeFileSync(path, custom)
+      await expect(wiringState('opencode', path)).resolves.toBe('absent')
+      await expect(applyWire('opencode', path, false, false)).rejects.toThrow(/refusing to overwrite/)
+      expect(readFileSync(path, 'utf8')).toBe(custom)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
