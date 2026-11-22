@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
-import { applyWire } from '../src/wire'
+import { applyWire, resolveRunnerPath } from '../src/wire'
 import pluginFactory, { resolveGuardTarget } from '../opencode/gitflow-guard'
 
 const execFileP = promisify(execFile)
@@ -138,17 +138,104 @@ describe('opencode: resolveGuardTarget 跨平台解析', () => {
   })
 })
 
-describe('opencode: wire 落位无 bin/ 外部仓库实弹执行', () => {
-  it('动态导入已 wired 插件 → 拦截直推 develop(抛错)并放行 feature/非命令工具', async () => {
+interface StubInvocation {
+  argv: string[]
+  processCwd: string
+  payloadCwd: string | undefined
+  command: string | undefined
+}
+
+function createGuardStub(): { dir: string; binPath: string; logFile: string } {
+  const dir = mkdtempSync(join(tmpdir(), 'gfguard-opencode-stub-'))
+  const binPath = join(dir, 'guard-stub.mjs')
+  const logFile = join(dir, 'invocations.jsonl')
+  writeFileSync(
+    binPath,
+    `import { appendFileSync } from 'node:fs'
+
+const chunks = []
+for await (const chunk of process.stdin) chunks.push(chunk)
+const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+const command = payload?.tool_args?.command ?? ''
+const actualCwd = process.cwd()
+const payloadCwd = payload?.cwd
+
+if (process.env.STUB_LOG_FILE) {
+  appendFileSync(
+    process.env.STUB_LOG_FILE,
+    JSON.stringify({ argv: process.argv.slice(2), processCwd: actualCwd, payloadCwd, command }) + '\\n',
+  )
+}
+
+const expectedCwd = process.env.STUB_EXPECTED_CWD
+if (expectedCwd && (actualCwd !== expectedCwd || payloadCwd !== expectedCwd)) {
+  process.stderr.write(\`CWD_MISMATCH actual=\${actualCwd} payload=\${payloadCwd} expected=\${expectedCwd}\\n\`)
+  process.exit(2)
+}
+
+if (/\\bgit\\s+push\\b.*\\bdevelop\\b/.test(command)) {
+  process.stderr.write("[gitflow-guard] blocked: Protected branch 'develop'\\n")
+  process.exit(2)
+}
+
+if (process.env.STUB_ARCHIVE_DIR && actualCwd === process.env.STUB_ARCHIVE_DIR && /\\bgit\\s+merge\\b/.test(command)) {
+  process.stderr.write("[gitflow-guard] blocked: archive branch 'main'\\n")
+  process.exit(2)
+}
+
+process.exit(0)
+`,
+  )
+  return { dir, binPath, logFile }
+}
+
+function readStubLog(logFile: string): StubInvocation[] {
+  if (!existsSync(logFile)) return []
+  return readFileSync(logFile, 'utf8')
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as StubInvocation)
+}
+
+function assertWiredPaths(pluginPath: string): void {
+  const wired = readFileSync(pluginPath, 'utf8')
+  const expectedRunner = resolveRunnerPath().replace(/\\/g, '/')
+  const expectedNode = process.execPath.replace(/\\/g, '/')
+  expect(existsSync(expectedRunner)).toBe(true)
+  expect(existsSync(expectedNode)).toBe(true)
+  expect(wired).toContain(`const WIRED_RUNNER_PATH = ${JSON.stringify(expectedRunner)}`)
+  expect(wired).toContain(`const WIRED_NODE_PATH = ${JSON.stringify(expectedNode)}`)
+}
+
+function saveStubEnv() {
+  return {
+    GITFLOW_GUARD_BIN: process.env.GITFLOW_GUARD_BIN,
+    STUB_LOG_FILE: process.env.STUB_LOG_FILE,
+    STUB_EXPECTED_CWD: process.env.STUB_EXPECTED_CWD,
+    STUB_ARCHIVE_DIR: process.env.STUB_ARCHIVE_DIR,
+  }
+}
+
+function restoreStubEnv(prev: ReturnType<typeof saveStubEnv>): void {
+  for (const [k, v] of Object.entries(prev)) {
+    if (v === undefined) delete process.env[k]
+    else process.env[k] = v
+  }
+}
+
+describe('opencode: wire 落位与插件进程通信回归(零 lib/ 依赖)', () => {
+  it('动态导入已 wired 插件 → 注入真实路径 + stub 验证 spawn/stdin JSON/拦截与放行', async () => {
     const repoRaw = mkdtempSync(join(tmpdir(), 'gfguard-opencode-live-'))
-    const stateRoot = mkdtempSync(join(tmpdir(), 'gfguard-opencode-state-'))
-    const prevStateRoot = process.env.GITFLOW_GUARD_STATE_ROOT
-    process.env.GITFLOW_GUARD_STATE_ROOT = stateRoot
+    const stub = createGuardStub()
+    const prevEnv = saveStubEnv()
+    process.env.GITFLOW_GUARD_BIN = stub.binPath
+    process.env.STUB_LOG_FILE = stub.logFile
     try {
       await execFileP('git', ['init', '-b', 'develop'], { cwd: repoRaw })
       await execFileP('git', ['config', 'user.email', 't@example.com'], { cwd: repoRaw })
       await execFileP('git', ['config', 'user.name', 'T'], { cwd: repoRaw })
-      const repo = (await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: repoRaw })).stdout.trim()
+      const repo = resolve((await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: repoRaw })).stdout.trim())
       const pluginPath = join(repo, '.opencode', 'plugins', 'gitflow-guard.ts')
       writeFileSync(
         join(repo, 'gitflow-guard.config.json'),
@@ -158,6 +245,9 @@ describe('opencode: wire 落位无 bin/ 外部仓库实弹执行', () => {
       await execFileP('git', ['commit', '-m', 'init'], { cwd: repo })
 
       expect(await applyWire('opencode', pluginPath, false, false)).toBe('added')
+      assertWiredPaths(pluginPath)
+
+      process.env.STUB_EXPECTED_CWD = repo
       const mod = (await import(pluginPath)) as { default: typeof pluginFactory }
       const plugin = await mod.default({ directory: repo })
       const handler = plugin['tool.execute.before']
@@ -165,19 +255,34 @@ describe('opencode: wire 落位无 bin/ 外部仓库实弹执行', () => {
       await expect(handler({ tool: 'bash' }, { args: { command: 'git push origin develop' } })).rejects.toThrow(/Protected branch/)
       await expect(handler({ tool: 'bash' }, { args: { command: 'git push origin feature/x' } })).resolves.toBeUndefined()
       await expect(handler({ tool: 'read' }, { args: { command: 'git push origin develop' } })).resolves.toBeUndefined()
+
+      const logs = readStubLog(stub.logFile)
+      expect(logs).toHaveLength(2)
+      expect(logs[0]).toEqual({
+        argv: ['check', '--platform', 'opencode'],
+        processCwd: repo,
+        payloadCwd: repo,
+        command: 'git push origin develop',
+      })
+      expect(logs[1]).toEqual({
+        argv: ['check', '--platform', 'opencode'],
+        processCwd: repo,
+        payloadCwd: repo,
+        command: 'git push origin feature/x',
+      })
     } finally {
-      if (prevStateRoot === undefined) delete process.env.GITFLOW_GUARD_STATE_ROOT
-      else process.env.GITFLOW_GUARD_STATE_ROOT = prevStateRoot
-      rmSync(stateRoot, { recursive: true, force: true })
-      rmSync(repoRaw, { recursive: true, force: true })
+      restoreStubEnv(prevEnv)
+      rmSync(stub.dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
+      rmSync(repoRaw, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
     }
   })
 
-  it('带 workdir 跨 worktree 实弹判定: main→wt 放行, wt→../main 拦截', async () => {
+  it('带 workdir 跨 worktree 解析: main→wt 放行, wt→../main 拦截(精确传递解析后 cwd)', async () => {
     const base = mkdtempSync(join(tmpdir(), 'gfguard-opencode-wt-'))
-    const stateRoot = mkdtempSync(join(tmpdir(), 'gfguard-opencode-state-'))
-    const prevStateRoot = process.env.GITFLOW_GUARD_STATE_ROOT
-    process.env.GITFLOW_GUARD_STATE_ROOT = stateRoot
+    const stub = createGuardStub()
+    const prevEnv = saveStubEnv()
+    process.env.GITFLOW_GUARD_BIN = stub.binPath
+    process.env.STUB_LOG_FILE = stub.logFile
     const mainRaw = join(base, 'main')
     const wtRaw = join(base, 'wt')
     try {
@@ -188,41 +293,52 @@ describe('opencode: wire 落位无 bin/ 外部仓库实弹执行', () => {
       writeFileSync(join(mainRaw, 'f.txt'), 'x')
       await execFileP('git', ['add', '.'], { cwd: mainRaw })
       await execFileP('git', ['commit', '-m', 'init'], { cwd: mainRaw })
-      const mainRepo = (await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: mainRaw })).stdout.trim()
+      const mainRepo = resolve((await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: mainRaw })).stdout.trim())
       await execFileP('git', ['worktree', 'add', wtRaw, '-b', 'feature/wt'], { cwd: mainRepo })
-      const wt = (await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: wtRaw })).stdout.trim()
+      const wt = resolve((await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: wtRaw })).stdout.trim())
       const pluginPath = join(mainRepo, '.opencode', 'plugins', 'gitflow-guard.ts')
 
-      await applyWire('opencode', pluginPath, false, false)
+      expect(await applyWire('opencode', pluginPath, false, false)).toBe('added')
+      assertWiredPaths(pluginPath)
       const mod = (await import(pluginPath)) as { default: typeof pluginFactory }
 
+      process.env.STUB_ARCHIVE_DIR = mainRepo
+      process.env.STUB_EXPECTED_CWD = wt
       const fromMain = await mod.default({ directory: mainRepo })
       await expect(
         fromMain['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git merge develop', workdir: wt } }),
       ).resolves.toBeUndefined()
 
+      process.env.STUB_EXPECTED_CWD = mainRepo
       const fromWt = await mod.default({ directory: wt })
       await expect(
         fromWt['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git merge feature/wt', workdir: '../main' } }),
       ).rejects.toThrow(/archive/i)
+
+      const logs = readStubLog(stub.logFile)
+      expect(logs).toHaveLength(2)
+      expect(logs[0].processCwd).toBe(wt)
+      expect(logs[0].payloadCwd).toBe(wt)
+      expect(logs[1].processCwd).toBe(mainRepo)
+      expect(logs[1].payloadCwd).toBe(mainRepo)
     } finally {
-      if (prevStateRoot === undefined) delete process.env.GITFLOW_GUARD_STATE_ROOT
-      else process.env.GITFLOW_GUARD_STATE_ROOT = prevStateRoot
-      rmSync(stateRoot, { recursive: true, force: true })
-      rmSync(base, { recursive: true, force: true })
+      restoreStubEnv(prevEnv)
+      rmSync(stub.dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
+      rmSync(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
     }
   })
 
-  it('安全回归: output.args.workdir / cwd 传入不存在目录时不触发 ENOENT fail-open, 回退 baseCwd 拦截', async () => {
+  it('安全回归: output.args.workdir / cwd 传入不存在目录或普通文件时不触发 ENOENT fail-open, 回退 baseCwd 拦截', async () => {
     const repoRaw = mkdtempSync(join(tmpdir(), 'gfguard-opencode-missing-wd-'))
-    const stateRoot = mkdtempSync(join(tmpdir(), 'gfguard-opencode-state-'))
-    const prevStateRoot = process.env.GITFLOW_GUARD_STATE_ROOT
-    process.env.GITFLOW_GUARD_STATE_ROOT = stateRoot
+    const stub = createGuardStub()
+    const prevEnv = saveStubEnv()
+    process.env.GITFLOW_GUARD_BIN = stub.binPath
+    process.env.STUB_LOG_FILE = stub.logFile
     try {
       await execFileP('git', ['init', '-b', 'develop'], { cwd: repoRaw })
       await execFileP('git', ['config', 'user.email', 't@example.com'], { cwd: repoRaw })
       await execFileP('git', ['config', 'user.name', 'T'], { cwd: repoRaw })
-      const repo = (await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: repoRaw })).stdout.trim()
+      const repo = resolve((await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: repoRaw })).stdout.trim())
       const pluginPath = join(repo, '.opencode', 'plugins', 'gitflow-guard.ts')
       writeFileSync(
         join(repo, 'gitflow-guard.config.json'),
@@ -231,7 +347,10 @@ describe('opencode: wire 落位无 bin/ 外部仓库实弹执行', () => {
       await execFileP('git', ['add', '.'], { cwd: repo })
       await execFileP('git', ['commit', '-m', 'init'], { cwd: repo })
 
-      await applyWire('opencode', pluginPath, false, false)
+      expect(await applyWire('opencode', pluginPath, false, false)).toBe('added')
+      assertWiredPaths(pluginPath)
+
+      process.env.STUB_EXPECTED_CWD = repo
       const mod = (await import(pluginPath)) as { default: typeof pluginFactory }
       const plugin = await mod.default({ directory: repo })
       const handler = plugin['tool.execute.before']
@@ -248,11 +367,17 @@ describe('opencode: wire 落位无 bin/ 外部仓库实弹执行', () => {
           { args: { command: 'git push origin develop', workdir: join(repo, 'gitflow-guard.config.json') } },
         ),
       ).rejects.toThrow(/Protected branch/)
+
+      const logs = readStubLog(stub.logFile)
+      expect(logs).toHaveLength(3)
+      for (const entry of logs) {
+        expect(entry.processCwd).toBe(repo)
+        expect(entry.payloadCwd).toBe(repo)
+      }
     } finally {
-      if (prevStateRoot === undefined) delete process.env.GITFLOW_GUARD_STATE_ROOT
-      else process.env.GITFLOW_GUARD_STATE_ROOT = prevStateRoot
-      rmSync(stateRoot, { recursive: true, force: true })
-      rmSync(repoRaw, { recursive: true, force: true })
+      restoreStubEnv(prevEnv)
+      rmSync(stub.dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
+      rmSync(repoRaw, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
     }
   })
 
