@@ -4,9 +4,8 @@ import { createInterface } from 'node:readline'
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { classify } from './classify'
 import { loadConfig, roleMatches } from './config'
-import { evaluateCommand, formatDeny, stateDir } from './index'
+import { appendAudit, evaluateCommand, formatDeny, resolveCommandRepo, stateDir } from './index'
 import { makeT, resolveLocale } from './i18n'
 import type { I18nVars, Locale } from './i18n'
 import { detectPlatform, encodeDeny, extractHookPayload } from './platform'
@@ -465,33 +464,45 @@ async function check(flags: Flags, runner: Runner): Promise<number> {
         : extractHookPayload(raw, platformFlag)
     if (!payload?.command) return 0
 
-    // 快路径: 非 git/gh/glab/gitflow-guard 命令直接放行, 不触发任何 git 查询
-    const segments = classify(payload.command)
-    if (segments.length === 0 || segments.every((s) => s.kind === 'other')) return 0
-
-    const cwd = payload.cwd ?? process.cwd()
-    const repoRoot = flags.repo ?? (await findRepoRoot(runner, cwd))
-    if (!repoRoot) return 0
-    const loaded = await loadConfig(repoRoot)
-    strict = loaded.strict === true || loaded.config?.strict === true
+    // 按命令实际运行目录解析仓库与分目录合规性(与 DSH apply 共享同一实现; 无受门禁段时零 git 查询直接放行)
+    const startDir = payload.cwd ?? process.cwd()
+    const res = await resolveCommandRepo(payload.command, {
+      startDir,
+      fallbackDir: startDir,
+      explicitRepoRoot: flags.repo,
+      runner,
+    })
+    if (res.kind === 'no-gated' || res.kind === 'unmanaged') return 0
 
     // 配置存在但损坏/校验失败(整改第 1.2 节 B/E): 默认 stderr 一行告警后放行(不破坏工具管道), strict 下 fail-closed;
     // 文件不存在 / 显式 enabled=false 属用户主动状态(opt-in), 维持静默。
-    if (!loaded.config?.enabled) {
-      if (loaded.errors.length > 0) {
+    if (res.kind === 'config-broken') {
+      strict = res.loaded.strict === true || res.loaded.config?.strict === true
+      if (res.loaded.errors.length > 0) {
         const t = makeT('en')
         if (strict) {
           return emitDeny(denyPlatform, t('guardStrictConfigBroken.why'), t('guardStrictConfigBroken.next'))
         }
-        process.stderr.write(`${t('cli.guardDisabledInvalidConfig', { err: loaded.errors.join('; ') })}\n`)
+        process.stderr.write(`${t('cli.guardDisabledInvalidConfig', { err: res.loaded.errors.join('; ') })}\n`)
       }
       return 0
     }
 
-    const config = loaded.config
+    if (res.kind === 'deny-cwd') {
+      strict = res.config.strict === true
+      const locale = flags.locale != null ? resolveLocale(flags.locale) : resolveLocale(res.config.locale)
+      const t = makeT(locale)
+      const why = t(`${res.reasonKey}.why`)
+      const next = t(`${res.reasonKey}.next`)
+      await appendAudit(res.repoRoot, { time: Date.now(), event: 'deny', command: payload.command, reason: why }, runner)
+      return emitDeny(denyPlatform, why, next, locale)
+    }
+
+    strict = res.loaded.strict === true || res.loaded.config.strict === true
+    const config = res.loaded.config
     // locale(P2-1): --locale 旗标 > 项目 config > en; 并同步传入 evaluateCommand 保证 why/next 正文与封装同语言
     const locale = flags.locale != null ? resolveLocale(flags.locale) : resolveLocale(config.locale)
-    const result = await evaluateCommand(payload.command, { repoRoot, runner, locale })
+    const result = await evaluateCommand(payload.command, { repoRoot: res.repoRoot, runner, locale })
     if (result.outcome === 'deny' && result.reason) {
       return emitDeny(denyPlatform, result.reason.why, result.reason.next, locale)
     }

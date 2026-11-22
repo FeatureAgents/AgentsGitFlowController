@@ -150,7 +150,7 @@ locale: 内置 `en`/`zh`; `registerLocale(name, dict)` 运行时扩展(键一致
 | DSH | 进程内插件(patch.yml + dsh.bundle.patch) | ToolExecution.arguments.command | 返回值 {kind:'deny', reason}, 不经 stdin/exit 协议 |
 | Claude Code | PreToolUse hook | tool_input.command + cwd | exit 2, stderr 即原因 |
 | Codex | PreToolUse hook | 同 Claude 形 + turn_id(判别字段) | exit 0 + stdout hookSpecificOutput.permissionDecision:"deny" JSON |
-| OpenCode | 插件(tool.execute.before, 1.18+ 无 hooks.yaml) | output.args.command | handler 抛错(经守卫 check exit 2 判定) |
+| OpenCode | 插件(tool.execute.before, 1.18+ 无 hooks.yaml) | output.args.command + effectiveCwd(workdir/cwd 经存在性校验回退 ctx.directory/worktree) | handler 抛错(经守卫 check exit 2 或 45s SIGKILL 超时阻断) |
 | Antigravity | PreToolUse(run_command) | toolCall.args.CommandLine | exit 0 + stdout {"decision":"deny","reason":...}(无 block 值, 不可包 hookSpecificOutput) |
 | Pi | 进程内扩展(tool_call 事件) | event.input.command | 返回值 {block:true, reason}, 不经 stdin/exit 协议 |
 | CodeBuddy | PreToolUse hook(.codebuddy/settings.json; 官方 Claude Code Hooks 兼容实现, Beta v1.16.0+) | 同 Claude 形(无判别字段) | exit 2, stderr 即原因(官方 stdout 消息优先级更高, 守卫 stdout 留空即落 stderr) |
@@ -171,7 +171,7 @@ gitflow-guard check --platform <p>       # 各家 hook 调用的门禁入口(std
                  [--repo <path>] [--locale <l>]
 ```
 
-快路径: 非 git/gh/glab/gitflow-guard 命令零查询直接放行; 内部错误 fail-open(strict 下除外)。hook 子进程未必继承 PATH, 也无法假设其 cwd 是仓库根: wire 落位的命令统一为 `node <随包 runner 绝对路径> check --platform <p>` —— 落位时解析**本机安装包自身**的 `bin/gitflow-guard.mjs` 绝对路径写死进配置(目标仓库零部署, 不依赖变量展开/cwd/PATH); 写入前自检 runner 在场, 存量旧形态条目由重跑 wire 原位迁移。
+快路径: 非 git/gh/glab/gitflow-guard 命令零查询直接放行; 内部错误 fail-open(strict 下除外)。CLI `check` 与 DSH `apply()` 共享 `resolveCommandRepo` 执行按段分目录判定(`workdir`/`cwd` → 前导 `cd`/`pushd` → `git -C`), 不存在目录回退会话/仓库基准, 跨目录或不可静态确定时直接拦截。hook 子进程未必继承 PATH, 也无法假设其 cwd 是仓库根: JSON 客户端 wire 落位的命令统一为 `node <随包 runner 绝对路径> check --platform <p>` —— 落位时解析**本机安装包自身**的 `bin/gitflow-guard.mjs` 绝对路径写死进配置(目标仓库零部署, 不依赖变量展开/cwd/PATH); OpenCode wire 落位 `.opencode/plugins/gitflow-guard.ts` 时就地注入 `WIRED_RUNNER_PATH` 与 `WIRED_NODE_PATH` 绝对路径(重跑 `wire` 就地升级返回 `migrated`, 非本插件自定义文件拒绝覆盖); 写入前自检 runner 在场, 存量旧形态条目由重跑 wire 原位迁移。
 
 ## 10. 运行时数据存储(**本版修订**: 迁出仓库)
 
@@ -206,7 +206,7 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 
 ```
 ├── src/
-│   ├── index.ts        # 插件入口 apply() + evaluateCommand 编排 + stateDir/appendAudit
+│   ├── index.ts        # 插件入口 apply() + resolveCommandRepo 分目录解析(与 CLI check 共用) + evaluateCommand 编排 + stateDir/appendAudit
 │   ├── classify.ts     # 命令识别(纯函数)
 │   ├── gate.ts         # 门禁矩阵(纯函数)
 │   ├── config.ts       # 配置加载/规范化/校验/strict

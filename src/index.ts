@@ -9,11 +9,12 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { classify, resolveSegmentCwds } from './classify'
 import { loadConfig } from './config'
+import type { ConfigLoadResult } from './config'
 import { decide } from './gate'
 import { makeT, resolveLocale } from './i18n'
 import type { Locale } from './i18n'
 import { commonGitDir, currentBranch as queryCurrentBranch, findRepoRoot, getUpstreamDivergence, getWorktreeStatus, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget, RunnerTimeoutError } from './repo'
-import type { Classified, GateFacts, PrTargetResolution } from './types'
+import type { Classified, GateFacts, GuardConfig, PrTargetResolution } from './types'
 import type { Runner } from './repo'
 
 // 运行时语言扩展点(包根再导出): 下游经 registerLocale 注册自定义 locale 后, 即可在项目配置引用该 locale 名;
@@ -258,25 +259,117 @@ function toolWorkdir(exec: ToolExecution, sessionCwd: string): string {
   return wd == null ? sessionCwd : resolve(sessionCwd, wd)
 }
 
-/** 两个目录是否为同一目录(已规范化; Windows 盘符与路径大小写不敏感) */
-function sameDir(a: string, b: string): boolean {
-  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
+export type CommandRepoResolution =
+  | { kind: 'no-gated' }
+  | { kind: 'unmanaged' }
+  | { kind: 'config-broken'; repoRoot: string; loaded: ConfigLoadResult }
+  | { kind: 'deny-cwd'; reasonKey: 'segmentCwdUnknown' | 'segmentCwdMismatch'; repoRoot: string; config: GuardConfig }
+  | { kind: 'resolved'; repoRoot: string; loaded: ConfigLoadResult & { config: GuardConfig } }
+
+export interface ResolveCommandRepoOptions {
+  startDir: string
+  fallbackDir?: string
+  explicitRepoRoot?: string
+  runner?: Runner
 }
 
-/** 在候选目录所属的仓库里找第一个启用了守卫的仓库(目录不在仓库内则跳过) */
-async function firstEnabledRepo(
-  runner: Runner,
-  dirs: string[],
-): Promise<{ repoRoot: string; config: NonNullable<Awaited<ReturnType<typeof loadConfig>>['config']> } | null> {
-  const seen = new Set<string>()
-  for (const d of dirs) {
-    const repoRoot = await findRepoRoot(runner, d)
-    if (!repoRoot || seen.has(repoRoot)) continue
-    seen.add(repoRoot)
-    const { config } = await loadConfig(repoRoot)
-    if (config?.enabled) return { repoRoot, config }
+function repoKey(repoRoot: string): string {
+  const r = resolve(repoRoot)
+  return process.platform === 'win32' ? r.toLowerCase() : r
+}
+
+/** 两个目录是否为同一目录(已规范化; Windows 盘符与路径大小写不敏感) */
+function sameDir(a: string, b: string): boolean {
+  return repoKey(a) === repoKey(b)
+}
+
+/** 统一解析命令所属仓库与分目录合规性(DSH apply 与 CLI check 共用) */
+export async function resolveCommandRepo(
+  command: string,
+  opts: ResolveCommandRepoOptions,
+): Promise<CommandRepoResolution> {
+  const runner = opts.runner ?? gitRunner
+  const { startDir, fallbackDir, explicitRepoRoot } = opts
+  const entries = resolveSegmentCwds(command, startDir)
+  if (entries.length === 0) return { kind: 'no-gated' }
+
+  const unknownDir = entries.some((e) => e.cwd == null)
+  const known = entries.map((e) => e.cwd).filter((d): d is string => d != null)
+
+  if (unknownDir || known.some((d) => !sameDir(d, known[0]))) {
+    const candidates: string[] = []
+    const seenDirs = new Set<string>()
+    for (const d of fallbackDir ? [...known, fallbackDir] : known) {
+      const k = repoKey(d)
+      if (seenDirs.has(k)) continue
+      seenDirs.add(k)
+      candidates.push(d)
+    }
+
+    const seenRepos = new Set<string>()
+    const broken: {
+      first?: { repoRoot: string; loaded: ConfigLoadResult }
+      strict?: { repoRoot: string; loaded: ConfigLoadResult }
+    } = {}
+
+    const inspectRepo = async (repoRoot: string): Promise<CommandRepoResolution | null> => {
+      const k = repoKey(repoRoot)
+      if (seenRepos.has(k)) return null
+      seenRepos.add(k)
+      const loaded = await loadConfig(repoRoot)
+      if (loaded.config?.enabled) {
+        return {
+          kind: 'deny-cwd',
+          reasonKey: unknownDir ? 'segmentCwdUnknown' : 'segmentCwdMismatch',
+          repoRoot,
+          config: loaded.config,
+        }
+      }
+      if (loaded.errors.length > 0) {
+        if (!broken.first) broken.first = { repoRoot, loaded }
+        if (!broken.strict && (loaded.strict === true || loaded.config?.strict === true)) {
+          broken.strict = { repoRoot, loaded }
+        }
+      }
+      return null
+    }
+
+    for (const d of candidates) {
+      const repoRoot =
+        explicitRepoRoot && sameDir(d, startDir) ? explicitRepoRoot : await findRepoRoot(runner, d)
+      if (!repoRoot) continue
+      const hit = await inspectRepo(repoRoot)
+      if (hit) return hit
+    }
+
+    if (explicitRepoRoot) {
+      const hit = await inspectRepo(explicitRepoRoot)
+      if (hit) return hit
+    }
+
+    const pickedBroken = broken.strict ?? broken.first
+    if (pickedBroken) return { kind: 'config-broken', repoRoot: pickedBroken.repoRoot, loaded: pickedBroken.loaded }
+    return { kind: 'unmanaged' }
   }
-  return null
+
+  const dir = known[0]
+  const repoRoot =
+    explicitRepoRoot && sameDir(dir, startDir)
+      ? explicitRepoRoot
+      : (await findRepoRoot(runner, dir)) ??
+        (fallbackDir && !sameDir(dir, fallbackDir) ? await findRepoRoot(runner, fallbackDir) : null) ??
+        explicitRepoRoot ??
+        null
+  if (!repoRoot) return { kind: 'unmanaged' }
+
+  const loaded = await loadConfig(repoRoot)
+  if (loaded.errors.length > 0 || !loaded.config) {
+    return { kind: 'config-broken', repoRoot, loaded }
+  }
+  if (!loaded.config.enabled) {
+    return { kind: 'unmanaged' }
+  }
+  return { kind: 'resolved', repoRoot, loaded: loaded as ConfigLoadResult & { config: GuardConfig } }
 }
 
 export function formatDeny(locale: Locale, why: string, next: string): string {
@@ -289,6 +382,7 @@ export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
   const runner = pluginConfig.runner ?? gitRunner
 
   ctx.on('tools/pre-execute', async (exec, next) => {
+    let strict = false
     try {
       const command = commandText(exec)
       if (!command || !toolNames.has(exec.name)) return next()
@@ -296,26 +390,30 @@ export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
       // 无受门禁段直接放行(快路径, 不触发任何 git 查询); 任一受门禁段目录无法静态确定或段间目录不一致则直接拒绝;
       // 推演出的目录不在任何仓库内(目录不存在、cd 失败后 ; 续跑等)时回落到会话目录的仓库, 不因目录推演而放行
       const sessionCwd = exec.agent?.session.header.cwd ?? process.cwd()
-      const entries = resolveSegmentCwds(command, toolWorkdir(exec, sessionCwd))
-      if (entries.length === 0) return next()
-      const unknownDir = entries.some((e) => e.cwd == null)
-      const known = entries.map((e) => e.cwd).filter((d): d is string => d != null)
-      if (unknownDir || known.some((d) => !sameDir(d, known[0]))) {
-        // 守卫只在已启用的仓库里生效: 候选仓库(各已知目录 + 会话目录)里没有任何一个启用守卫时放行, 与未启用守卫的旧行为一致
-        const guarded = await firstEnabledRepo(runner, [...new Set([...known, sessionCwd])])
-        if (!guarded) return next()
-        const key = unknownDir ? 'segmentCwdUnknown' : 'segmentCwdMismatch'
-        const locale = resolveLocale(guarded.config.locale)
-        const t = makeT(locale)
-        const reason = t(`${key}.why`)
-        await appendAudit(guarded.repoRoot, { time: Date.now(), event: 'deny', command, reason }, runner)
-        return { kind: 'deny', reason: formatDeny(locale, reason, t(`${key}.next`)) }
+      const res = await resolveCommandRepo(command, {
+        startDir: toolWorkdir(exec, sessionCwd),
+        fallbackDir: sessionCwd,
+        runner,
+      })
+      if (res.kind === 'no-gated' || res.kind === 'unmanaged') return next()
+      if (res.kind === 'config-broken') {
+        if (res.loaded.strict === true || res.loaded.config?.strict === true) {
+          const t = makeT('en')
+          return { kind: 'deny', reason: formatDeny('en', t('guardStrictConfigBroken.why'), t('guardStrictConfigBroken.next')) }
+        }
+        return next()
       }
-      const dir = known[0]
-      const repoRoot = (await findRepoRoot(runner, dir)) ?? (dir === sessionCwd ? null : await findRepoRoot(runner, sessionCwd))
-      if (!repoRoot) return next()
+      if (res.kind === 'deny-cwd') {
+        strict = res.config.strict === true
+        const locale = resolveLocale(res.config.locale)
+        const t = makeT(locale)
+        const reason = t(`${res.reasonKey}.why`)
+        await appendAudit(res.repoRoot, { time: Date.now(), event: 'deny', command, reason }, runner)
+        return { kind: 'deny', reason: formatDeny(locale, reason, t(`${res.reasonKey}.next`)) }
+      }
 
-      const result = await evaluateCommand(command, { repoRoot, runner })
+      strict = res.loaded.strict === true || res.loaded.config?.strict === true
+      const result = await evaluateCommand(command, { repoRoot: res.repoRoot, runner })
       if (result.outcome === 'deny' && result.reason) {
         return { kind: 'deny', reason: formatDeny(result.locale, result.reason.why, result.reason.next) }
       }
@@ -326,6 +424,11 @@ export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
         // 命中此分支即 findRepoRoot 自身超时 —— 没有仓库键可供审计落盘(仓库根已知的超时拒绝由 evaluateCommand 内部记账)
         const t = makeT('en')
         return { kind: 'deny', reason: formatDeny('en', t('repoTimeout.why'), t('repoTimeout.next')) }
+      }
+      if (strict) {
+        // strict: 内部异常也 fail-closed
+        const t = makeT('en')
+        return { kind: 'deny', reason: formatDeny('en', t('guardStrictInternalError.why', { msg: (e as Error).message }), t('guardStrictInternalError.next')) }
       }
       // 门禁内部故障降级放行, 不阻断工具管道
       ctx.logger?.warn?.(`gitflow-guard: gate internal error, allowed through: ${(e as Error).message}`)

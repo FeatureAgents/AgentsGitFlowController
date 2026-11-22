@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, readFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -693,9 +695,8 @@ describe('cli: status 内置默认与接线提示', () => {
 
   it('opencode 插件文件已落位 → status 接线提示不含 opencode', async () => {
     const dir = tempRepo()
-    mkdirSync(join(dir, '.opencode', 'plugins'), { recursive: true })
-    writeFileSync(join(dir, '.opencode', 'plugins', 'gitflow-guard.ts'), '// wired')
     try {
+      await captureStdout(() => main(['wire', '--client', 'opencode', '--project', '--yes', '--repo', dir]))
       const { code, text } = await captureStdout(() => main(['status', '--repo', dir], { runner: scriptedRunner() }))
       expect(code).toBe(0)
       expect(text).not.toContain('wire --client opencode')
@@ -816,5 +817,153 @@ describe('cli: demo(30 秒真实演示, 用户目录零残留)', () => {
       expect(wireText).toContain('npx agents-gitflow-guard wire')
       expect(wireText).not.toMatch(/\bnpx\s+gitflow-guard\b/)
     }
+  })
+})
+
+describe('cli: check 按命令实际运行目录判定(worktree / cd / git -C, 真实 git 集成)', () => {
+  const execFileP = promisify(execFile)
+  let base = ''
+  let mainRepo = ''
+  let wt = ''
+  let auditDir = ''
+
+  async function runCheckPayload(command: string, cwd: string, extraArgs: string[] = []) {
+    const chunks: string[] = []
+    const origWrite = process.stderr.write.bind(process.stderr)
+    process.stderr.write = ((chunk: unknown) => {
+      chunks.push(String(chunk))
+      return true
+    }) as typeof process.stderr.write
+    const prevCwd = process.cwd()
+    process.chdir(cwd)
+    try {
+      const code = await main(['check', '--platform', 'claude', '--command', command, ...extraArgs])
+      return { code, stderr: chunks.join('') }
+    } finally {
+      process.chdir(prevCwd)
+      process.stderr.write = origWrite
+    }
+  }
+
+  beforeAll(async () => {
+    base = mkdtempSync(join(tmpdir(), 'gfguard-cli-wt-'))
+    const rawMain = join(base, 'main')
+    const rawWt = join(base, 'wt')
+    mkdirSync(rawMain, { recursive: true })
+    const g = (args: string[], cwd: string) => execFileP('git', args, { cwd })
+    await g(['init', '-b', 'main'], rawMain)
+    await g(['config', 'user.email', 't@example.com'], rawMain)
+    await g(['config', 'user.name', 'T'], rawMain)
+    writeFileSync(join(rawMain, 'f.txt'), 'x')
+    await g(['add', '.'], rawMain)
+    await g(['commit', '-m', 'init'], rawMain)
+    mainRepo = (await g(['rev-parse', '--show-toplevel'], rawMain)).stdout.trim()
+    await g(['worktree', 'add', rawWt, '-b', 'feature/wt'], mainRepo)
+    wt = (await g(['rev-parse', '--show-toplevel'], rawWt)).stdout.trim()
+    auditDir = await stateDir(mainRepo)
+  })
+
+  afterEach(() => {
+    if (auditDir) rmSync(auditDir, { recursive: true, force: true })
+  })
+
+  afterAll(() => {
+    if (auditDir) rmSync(auditDir, { recursive: true, force: true })
+    rmSync(base, { recursive: true, force: true })
+  })
+
+  it('正向: main 上经 cd <wt> && git merge develop 或 git -C <wt> merge develop → 放行', async () => {
+    expect((await runCheckPayload(`cd "${wt}" && git merge develop`, mainRepo)).code).toBe(0)
+    expect((await runCheckPayload(`git -C "${wt}" merge develop`, mainRepo)).code).toBe(0)
+  })
+
+  it('反向: feature worktree 上经 cd <main> / git -C <main> 合并 → exit 2 拦截(archive)', async () => {
+    const r1 = await runCheckPayload(`cd "${mainRepo}" && git merge feature/wt`, wt)
+    expect(r1.code).toBe(2)
+    expect(r1.stderr).toMatch(/archive/i)
+
+    const r2 = await runCheckPayload(`git -C "${mainRepo}" merge feature/wt`, wt)
+    expect(r2.code).toBe(2)
+    expect(r2.stderr).toMatch(/archive/i)
+  })
+
+  it('跨目录多段命令 → exit 2 拦截且写审计', async () => {
+    const cmd = `git -C "${mainRepo}" merge develop && git push origin feature/wt`
+    const res = await runCheckPayload(cmd, wt)
+    expect(res.code).toBe(2)
+    expect(res.stderr).toMatch(/different directories/i)
+    const auditFile = join(auditDir, 'audit.jsonl')
+    expect(existsSync(auditFile)).toBe(true)
+    const lines = readFileSync(auditFile, 'utf8').trim().split('\n')
+    const last = JSON.parse(lines[lines.length - 1]) as { event: string; command: string; reason: string }
+    expect(last.event).toBe('deny')
+    expect(last.command).toBe(cmd)
+    expect(last.reason).toMatch(/different directories/i)
+  })
+
+  it('不可静态确定目录(cd $VAR && git merge develop) → exit 2 拦截', async () => {
+    const res = await runCheckPayload('cd $VAR && git merge develop', wt)
+    expect(res.code).toBe(2)
+    expect(res.stderr).toMatch(/statically determine/i)
+  })
+
+  it('未启用仓库(enabled: false)不误拦目录异常命令', async () => {
+    const offRaw = mkdtempSync(join(tmpdir(), 'gfguard-cli-off-'))
+    try {
+      await execFileP('git', ['init', '-b', 'main'], { cwd: offRaw })
+      const off = (await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: offRaw })).stdout.trim()
+      writeFileSync(join(off, 'gitflow-guard.config.json'), JSON.stringify({ enabled: false }))
+      expect((await runCheckPayload('cd $VAR && git merge develop', off)).code).toBe(0)
+      expect((await runCheckPayload('git -C a merge x && git -C b merge y', off)).code).toBe(0)
+    } finally {
+      rmSync(offRaw, { recursive: true, force: true })
+    }
+  })
+
+  it('--locale zh 覆盖分目录拦截文案', async () => {
+    const res = await runCheckPayload('cd $VAR && git merge develop', wt, ['--locale', 'zh'])
+    expect(res.code).toBe(2)
+    expect(res.stderr).toContain('已拦截')
+    expect(res.stderr).toContain('无法静态确定')
+  })
+
+  it('strict 配置损坏时分目录异常仍 fail-closed 拦截', async () => {
+    const brokenRaw = mkdtempSync(join(tmpdir(), 'gfguard-cli-strict-cwd-'))
+    try {
+      await execFileP('git', ['init', '-b', 'main'], { cwd: brokenRaw })
+      const broken = (await execFileP('git', ['rev-parse', '--show-toplevel'], { cwd: brokenRaw })).stdout.trim()
+      writeFileSync(join(broken, 'gitflow-guard.config.json'), '{"enabled":true,"strict":true,branches:[}')
+      const res = await runCheckPayload('cd $VAR && git merge develop', broken)
+      expect(res.code).toBe(2)
+      expect(res.stderr).toContain('blocked:')
+      expect(res.stderr).toMatch(/strict/i)
+    } finally {
+      rmSync(brokenRaw, { recursive: true, force: true })
+    }
+  })
+
+  it('--repo + git -C 组合: 正向放行 / 反向拦截 / 跨目录多段拦截 / 不存在目录回退拦截', async () => {
+    // --repo <mainRepo> + git -C <featureWt> merge develop → 放行
+    expect((await runCheckPayload(`git -C "${wt}" merge develop`, base, ['--repo', mainRepo])).code).toBe(0)
+
+    // --repo <featureWt> + git -C <mainRepo> merge develop → 拦截(archive)
+    const rev = await runCheckPayload(`git -C "${mainRepo}" merge develop`, base, ['--repo', wt])
+    expect(rev.code).toBe(2)
+    expect(rev.stderr).toMatch(/archive/i)
+
+    // --repo <mainRepo> + 跨目录多段 → 拦截
+    const multi = await runCheckPayload(
+      `git -C "${wt}" merge develop && git push origin feature/wt`,
+      base,
+      ['--repo', mainRepo],
+    )
+    expect(multi.code).toBe(2)
+    expect(multi.stderr).toMatch(/different directories/i)
+
+    // --repo <mainRepo> + git -C <不存在目录> push origin main → 回退到 --repo 并拦截
+    const missingDir = join(base, 'nonexistent-dir')
+    const fallback = await runCheckPayload(`git -C "${missingDir}" push origin main`, base, ['--repo', mainRepo])
+    expect(fallback.code).toBe(2)
+    expect(fallback.stderr).toMatch(/Protected branch "main"/i)
   })
 })
