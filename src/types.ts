@@ -80,6 +80,8 @@ export interface PrCreateClassified {
   kind: 'pr-create'
   /** --base 值(未指定为 null) */
   target: string | null
+  /** --head / -H / --source-branch 值(未指定时省略或为 null) */
+  head?: string | null
 }
 
 export interface PrMergeClassified {
@@ -119,12 +121,18 @@ export interface RefMoveClassified {
   kind: 'ref-move'
   /** 是否重置/清理工作区 (如 reset --hard / commit --amend) */
   cleanWorktree?: boolean
+  /** 清理范围: all = 暂存区与未暂存(默认); staged = 仅暂存区(无 -a 的 commit) */
+  cleanScope?: 'all' | 'staged'
 }
 
 export interface OtherClassified {
   kind: 'other'
   /** 是否清理或提交工作区 (如 commit / stash / restore) */
   cleanWorktree?: boolean
+  /** 清理范围: all = 暂存区与未暂存(默认); staged = 仅暂存区(无 -a 的 commit) */
+  cleanScope?: 'all' | 'staged'
+  /** 是否全量暂存(如 git add . / -A / -u), 供后续 commit 合并推演 */
+  stagesAll?: boolean
 }
 
 /**

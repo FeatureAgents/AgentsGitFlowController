@@ -311,3 +311,58 @@ describe('accuracy: 对抗语料(整改第 1.1 节)—— git 形态第二批(�
     expect(classify('git branch feature/y')[0].kind).toBe('other')
   })
 })
+
+describe('accuracy: 对抗语料(Batch 1 加固样本)', () => {
+  const cfg = config()
+
+  it('checkout 组合/前置旗标强制重建与文件模式绕过封堵', () => {
+    const fB = classify('git checkout -fB develop')
+    expect(fB[0]).toMatchObject({ kind: 'ref-update', branch: 'develop' })
+    expect(decide(fB[0], { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    const conflictForce = classify('git checkout --conflict diff3 -B main')
+    expect(conflictForce[0]).toMatchObject({ kind: 'ref-update', branch: 'main' })
+    expect(decide(conflictForce[0], { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    expect(classify('git checkout feature/x -- file.txt')[0]).toMatchObject({ kind: 'checkout', branch: null })
+  })
+
+  it('push 带值选项与 --tags 夹带分支推送不再绕过', () => {
+    const pushed = classify('git push -o ci.skip origin develop')[0]
+    expect(pushed).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(decide(pushed, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    const tagsAndBranch = classify('git push --tags origin develop')[0]
+    expect(tagsAndBranch).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(decide(tagsAndBranch, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+  })
+
+  it('update-ref --stdin 与 branch -C 复制覆盖受保护分支一律拒绝', () => {
+    const u = classify('git update-ref --stdin')[0]
+    expect(u).toMatchObject({ kind: 'ref-update', branch: null })
+    expect(decide(u, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    const b = classify('git branch -C feature/x develop')[0]
+    expect(b).toMatchObject({ kind: 'ref-update', branch: 'develop' })
+    expect(decide(b, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+  })
+
+  it('pr create --head 伪造与 pr merge URL 完整透传', () => {
+    const pr = classify('gh pr create --base develop --head develop')[0]
+    expect(decide(pr, { currentBranch: 'feature/x' }, cfg, t).kind).toBe('deny')
+    const m = classify('gh pr merge -t "ship" https://github.com/org/repo/pull/88')[0]
+    expect(m).toMatchObject({ kind: 'pr-merge', pr: 'https://github.com/org/repo/pull/88' })
+    expect(decide(m, { currentBranch: 'feature/x', resolvePrTarget: () => ({ role: 'archive', target: 'main', head: 'feature/x' }) }, cfg, t).kind).toBe('deny')
+  })
+
+  it('词法绕过: 双引号内单引号 / \\git / g\\it / { ...; } 均被拦截', () => {
+    for (const cmd of [
+      'echo "it\'s" && $(git push origin develop)',
+      "echo $'\\'' && git push origin main",
+      "echo $'a\\\\\\'b' && git push origin main",
+      '\\git push origin develop',
+      'g\\it push origin develop',
+      '{ git push origin develop; }',
+      'bash -c "{ git push origin develop; }"',
+    ]) {
+      const items = classify(cmd, { currentBranch: 'feature/x' })
+      expect(items.some((c) => decide(c, { currentBranch: 'feature/x' }, cfg, t).kind === 'deny'), cmd).toBe(true)
+    }
+  })
+})

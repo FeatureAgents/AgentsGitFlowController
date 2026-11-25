@@ -133,7 +133,7 @@ interface Env {
   runner: Runner
   gh: Runner
   glab: Runner
-  simulatedClean?: boolean
+  simulatedClean?: 'none' | 'staged' | 'all'
 }
 
 /** 解析一条命令: 分类 → git 事实 → 门禁 → allow/deny */
@@ -165,7 +165,8 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
   const segments = classify(command, { currentBranch: branch })
   // 模拟分支状态: checkout/switch 段会改变后续段的当前分支; commit/stash/reset --hard 会模拟工作区干净状态
   let simulatedBranch = branch
-  let simulatedClean = false
+  let simulatedClean: 'none' | 'staged' | 'all' = 'none'
+  let simulatedStagedAll = false
   for (const seg of segments) {
     const { facts } = await factsFor(seg, { ...env, branch: simulatedBranch, simulatedClean })
     const decision = decide(seg, facts, config, t)
@@ -175,7 +176,16 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
     }
     await logCiReference(seg, env)
     if (seg.kind === 'checkout' && seg.branch != null) simulatedBranch = seg.branch
-    if ('cleanWorktree' in seg && seg.cleanWorktree) simulatedClean = true
+    if ('stagesAll' in seg && seg.stagesAll) simulatedStagedAll = true
+    if (seg.kind === 'ref-move' && !seg.cleanWorktree) simulatedStagedAll = false
+    if ('cleanWorktree' in seg && seg.cleanWorktree) {
+      const scope = ('cleanScope' in seg ? seg.cleanScope : undefined) ?? 'all'
+      if (scope === 'all' || simulatedStagedAll) {
+        simulatedClean = 'all'
+      } else if (simulatedClean !== 'all') {
+        simulatedClean = 'staged'
+      }
+    }
   }
   return { outcome: 'allow', segmentCount: segments.length, locale }
 }
@@ -218,8 +228,12 @@ async function factsFor(seg: Classified, env: Env): Promise<{ facts: GateFacts; 
 
     if (needWorktreeCheck) {
       const realStatus = await getWorktreeStatus(runner, repoRoot)
-      if (simulatedClean) {
+      if (simulatedClean === 'all') {
         worktreeStatusFact = realStatus ? { staged: 0, unstaged: 0, untracked: realStatus.untracked, isDirty: false } : null
+      } else if (simulatedClean === 'staged') {
+        worktreeStatusFact = realStatus
+          ? { staged: 0, unstaged: realStatus.unstaged, untracked: realStatus.untracked, isDirty: realStatus.unstaged > 0 }
+          : null
       } else {
         worktreeStatusFact = realStatus
       }

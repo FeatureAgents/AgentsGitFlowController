@@ -324,6 +324,122 @@ describe('worktree-guard: 3. 复合命令序列模拟 (Compound Pipeline Simulat
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('3.5 requireCleanOnMerge: local-merge 与 pr-merge 集成拦截脏工作区', async () => {
+    const dir = tempRepoWithConfig({ requireCleanOnMerge: true })
+    try {
+      const dirtyRunner = fakeRunner({
+        'status --porcelain': { stdout: ' M dirty.ts\n' },
+      })
+      const localRes = await evaluateCommand('git merge develop', {
+        repoRoot: dir,
+        runner: dirtyRunner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(localRes.outcome).toBe('deny')
+      expect(localRes.reason?.why).toMatch(/uncommitted changes/i)
+
+      const prRunner = fakeRunner({
+        'status --porcelain': { stdout: ' M dirty.ts\n' },
+        'pr view 10 --json': { stdout: '{"baseRefName":"develop","headRefName":"feature/dev-x-01"}' },
+      })
+      const prRes = await evaluateCommand('gh pr merge 10', {
+        repoRoot: dir,
+        runner: prRunner,
+        ghRunner: prRunner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(prRes.outcome).toBe('deny')
+      expect(prRes.reason?.why).toMatch(/uncommitted changes/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('3.6 git stash list/show/drop && gh pr create 不绕过脏工作区门禁', async () => {
+    const dir = tempRepoWithConfig({ requireCleanOnPr: true })
+    try {
+      const runner = fakeRunner({
+        'status --porcelain': { stdout: ' M dirty.ts\n' },
+      })
+      for (const cmd of [
+        'git stash list && gh pr create --base develop',
+        'git stash show && gh pr create --base develop',
+        'git stash drop && gh pr create --base develop',
+      ]) {
+        const res = await evaluateCommand(cmd, {
+          repoRoot: dir,
+          runner,
+          currentBranch: 'feature/dev-x-01',
+        })
+        expect(res.outcome, cmd).toBe('deny')
+        expect(res.reason?.why, cmd).toMatch(/uncommitted changes/i)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('3.7 git commit 边界: 无 -a 且存在未暂存修改时仍拦截; -am 或先 git add . 后放行', async () => {
+    const dir = tempRepoWithConfig({ requireCleanOnPr: true })
+    try {
+      const unstagedRunner = fakeRunner({
+        'status --porcelain': { stdout: ' M unstaged.ts\n' },
+      })
+      const blocked = await evaluateCommand('git commit -m "wip" && gh pr create --base develop', {
+        repoRoot: dir,
+        runner: unstagedRunner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(blocked.outcome).toBe('deny')
+      expect(blocked.reason?.why).toMatch(/uncommitted changes/i)
+
+      const allowedAm = await evaluateCommand('git commit -am "done" && gh pr create --base develop', {
+        repoRoot: dir,
+        runner: unstagedRunner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(allowedAm.outcome).toBe('allow')
+
+      const allowedAdd = await evaluateCommand('git add . && git commit -m "done" && gh pr create --base develop', {
+        repoRoot: dir,
+        runner: unstagedRunner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(allowedAdd.outcome).toBe('allow')
+
+      // 伪造绕过封堵: dry-run / 单文件 add / -ma / stash -- pathspec 均不能绕过脏工作区门禁
+      for (const bypassCmd of [
+        'git add --dry-run . && git commit --allow-empty -m x && gh pr create --base develop',
+        'git add foo.ts && git commit -m "done" && gh pr create --base develop',
+        'git commit -ma && gh pr create --base develop',
+        'git stash push -- a.txt && gh pr create --base develop',
+        'git commit --dry-run -a -m x && gh pr create --base develop',
+        'git add . && git commit --dry-run -m x && gh pr create --base develop',
+        'git commit --short -a && gh pr create --base develop',
+      ]) {
+        const res = await evaluateCommand(bypassCmd, {
+          repoRoot: dir,
+          runner: unstagedRunner,
+          currentBranch: 'feature/dev-x-01',
+        })
+        expect(res.outcome, bypassCmd).toBe('deny')
+      }
+
+      // 纯暂存改动(无未暂存)下普通 git commit 命中 simulatedClean === 'staged' 应放行
+      const stagedOnlyRunner = fakeRunner({
+        'status --porcelain': { stdout: 'M  staged.ts\n' },
+      })
+      const allowedStagedCommit = await evaluateCommand('git commit -m "done" && gh pr create --base develop', {
+        repoRoot: dir,
+        runner: stagedOnlyRunner,
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(allowedStagedCommit.outcome).toBe('allow')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('worktree-guard: 4. 中英双语与文案插值 (I18n Localization Tests)', () => {

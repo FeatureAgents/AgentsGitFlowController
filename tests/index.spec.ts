@@ -105,6 +105,56 @@ describe('evaluateCommand: 集成(分类 → git 事实 → 门禁)', () => {
     }
   })
 
+  it('gh pr create --head 显式指定非 feature 分支 → deny; update-ref --stdin → deny', async () => {
+    const dir = tempRepo()
+    try {
+      const rHead = await evaluateCommand('gh pr create --base develop --head develop', {
+        repoRoot: dir,
+        runner: scriptedRunner(),
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(rHead.outcome).toBe('deny')
+
+      const rStdin = await evaluateCommand('git update-ref --stdin', {
+        repoRoot: dir,
+        runner: scriptedRunner(),
+        currentBranch: 'feature/dev-x-01',
+      })
+      expect(rStdin.outcome).toBe('deny')
+      expect(rStdin.reason?.why).toMatch(/update-ref --stdin/i)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('gh pr merge 支持 URL 与分支名参数并透传给 gh pr view', async () => {
+    const dir = tempRepo()
+    try {
+      const seenPrArgs: string[] = []
+      const prUrl = 'https://github.com/org/repo/pull/10'
+      const runner: Runner = {
+        async run(args) {
+          if (args[0] === 'pr' && args[1] === 'view') seenPrArgs.push(args[2])
+          if (args[0] === 'pr' && args[1] === 'view' && args[2] === prUrl) {
+            return { code: 0, stdout: '{"baseRefName":"develop","headRefName":"feature/dev-x-01"}', stderr: '' }
+          }
+          if (args[0] === 'pr' && args[1] === 'view' && args[2] === 'feature/dev-x-01') {
+            return { code: 0, stdout: '{"baseRefName":"main","headRefName":"feature/dev-x-01"}', stderr: '' }
+          }
+          if (args[0] === 'branch') return { code: 0, stdout: 'feature/dev-x-01\n', stderr: '' }
+          return { code: 0, stdout: '', stderr: '' }
+        },
+      }
+      const rUrl = await evaluateCommand(`gh pr merge ${prUrl}`, { repoRoot: dir, runner, ghRunner: runner })
+      expect(rUrl.outcome).toBe('allow')
+      const rBranch = await evaluateCommand('gh pr merge feature/dev-x-01', { repoRoot: dir, runner, ghRunner: runner })
+      expect(rBranch.outcome).toBe('deny')
+      expect(seenPrArgs).toEqual([prUrl, 'feature/dev-x-01'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('gh pr merge: 目标集成(develop) → allow', async () => {
     const dir = tempRepo()
     try {
@@ -826,5 +876,13 @@ describe('apply: 按命令实际运行的目录判定(workdir 参数 / cd / git 
     } finally {
       rmSync(cfgFile, { force: true })
     }
+  })
+
+  it('跨目录包装器: bash -c "cd <repo> && git ..." 与 env git -C <repo> 按目标仓库判定', async () => {
+    await expectAllow(main, { command: `bash -c "cd ${wt} && git merge develop"` })
+    await expectDeny(wt, { command: `bash -c "cd ${main} && git merge feature/wt"` }, /archive/i)
+    await expectAllow(main, { command: `env git -C ${wt} merge develop` })
+    await expectDeny(wt, { command: `env git -C ${main} merge feature/wt` }, /archive/i)
+    await expectDeny(main, { command: `bash -c "cd ${wt} && git merge develop" && git push origin feature/wt` }, /different directories/i)
   })
 })

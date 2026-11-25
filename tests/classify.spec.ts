@@ -610,8 +610,58 @@ describe('resolveSegmentCwds: 受门禁段实际运行目录的逐段静态推�
     expect(cwds('cd $VAR && git merge develop && git push origin feature/x', WT)).toEqual([null, null])
   })
 
-  it('经包装器调用的 git: 只应用此前的 cd, 不解析包装内的 -C', () => {
-    expect(cwds('cd ../wt && env git -C /x merge develop')).toEqual([WT])
+  it('经包装器调用的 git: 剥离包装前缀并解析内层 -C 与 --git-dir', () => {
+    expect(cwds('cd ../wt && env git -C /x merge develop')).toEqual([resolve(WT, '/x')])
+    expect(cwds('env git -C ../wt merge develop')).toEqual([WT])
+    expect(cwds('sudo -u root git -C ../wt merge develop')).toEqual([WT])
+    expect(cwds('command git -C ../wt merge develop')).toEqual([WT])
+    expect(cwds('nohup git -C ../wt merge develop')).toEqual([WT])
+    expect(cwds('xargs git -C ../wt merge develop')).toEqual([WT])
+    expect(cwds('env git --git-dir=../wt/.git merge develop')).toEqual([WT])
+  })
+
+  it('Windows cd /d 与 PowerShell Set-Location/sl/Push-Location/Pop-Location', () => {
+    const winTarget = process.platform === 'win32' ? 'D:\\repoB' : '/tmp/repoB'
+    expect(cwds(`cd /d ${winTarget} && git push origin develop`)).toEqual([resolve(winTarget)])
+    expect(cwds(`cd /D ${winTarget} && git push origin develop`)).toEqual([resolve(winTarget)])
+    expect(cwds('Set-Location -Path ../wt; git push origin develop')).toEqual([WT])
+    expect(cwds('Set-Location -Path:../wt; git push origin develop')).toEqual([WT])
+    expect(cwds('sl -LiteralPath ../wt; git push origin develop')).toEqual([WT])
+    expect(cwds('sl -LiteralPath=../wt; git push origin develop')).toEqual([WT])
+    expect(cwds('Push-Location ../wt; git push origin develop')).toEqual([WT])
+    expect(cwds('Push-Location ../wt; Pop-Location; git push origin develop')).toEqual([null])
+  })
+
+  it('子 shell 包装器(bash/sh/powershell/pwsh/cmd)目录透传与外层隔离', () => {
+    expect(cwds('bash -c "cd ../wt && git push origin develop"')).toEqual([WT])
+    expect(cwds('sh -lc "cd ../wt && git merge develop"')).toEqual([WT])
+    expect(cwds('powershell -Command "Set-Location -Path ../wt; git push origin develop"')).toEqual([WT])
+    expect(cwds('pwsh -c "sl ../wt; git push origin develop"')).toEqual([WT])
+    expect(cwds('cmd /c "cd /d ../wt && git push origin develop"')).toEqual([WT])
+    // 子 shell 内的 cd 不改变外层 chainDir
+    expect(cwds('bash -c "cd ../wt && git push origin develop" && git push origin feature/x')).toEqual([WT, S])
+    // 外层 chainDir 为 null 时子 shell 直接保守置 null
+    expect(cwds('cd $VAR && bash -c "cd ../wt && git push origin develop"')).toEqual([null])
+    // 外层命令组/子 shell 在 bash -c 内仍保守返回 null
+    expect(cwds('bash -c "{ git push origin develop; }"')).toEqual([null])
+    // 外层 $() / 走私遇空或无门禁 innerScript 时必须保留外层 cwd
+    expect(cwds('VAR="$(git push origin develop)" bash -c "echo ok"')).toEqual([S])
+    expect(cwds('GIT_CONFIG_PARAMETERS="\'alias.p=push\'" bash -c "echo ok"')).toEqual([S])
+    expect(cwds('VAR="$(git push origin develop)" bash -c "cd ../wt && git push origin feature/x"')).toEqual([S, WT])
+  })
+
+  it('git 全局选项紧贴值(-C<dir> / -c<k=v>)与 --git-dir 解析', () => {
+    expect(cwds(`git -C${WT} merge develop`)).toEqual([WT])
+    expect(cwds('git -C../wt merge develop')).toEqual([WT])
+    expect(cwds('git -calias.p=push -C../wt p origin develop')).toEqual([WT])
+    expect(cwds('git --git-dir ../wt/.git merge develop')).toEqual([WT])
+    expect(cwds('git --git-dir=../wt/.git/ merge develop')).toEqual([WT])
+    expect(cwds('git --git-dir=.git merge develop')).toEqual([S])
+    // --git-dir 确定目标仓库后, 后续 -C 不得覆盖其指向的受保护仓库
+    expect(cwds(`git --git-dir=${S}/.git -C /tmp/unmanaged push origin main`, WT)).toEqual([S])
+    // 裸仓或非常规 gitdir 无法确定工作树目录 → null
+    expect(cwds('git --git-dir=/tmp/bare.git merge develop')).toEqual([null])
+    expect(cwds('git --git-dir=../.git/worktrees/wt merge develop')).toEqual([null])
   })
 
   it('起点目录先规范化: 正斜杠 / 点段写法的起点与 git -C . 解析结果字符串一致', () => {
@@ -647,5 +697,188 @@ describe('resolveSegmentCwds: 受门禁段实际运行目录的逐段静态推�
     expect(cwds('(git status; git merge x)')).toEqual([null])
     expect(cwds('{ git merge x; }')).toEqual([null])
     expect(cwds('{ git status; git merge x; }')).toEqual([null])
+  })
+})
+
+describe('classify: Batch 1 解析加固(checkout / push / update-ref / branch / stash / commit / pr / 词法)', () => {
+  it('parseCheckout 全参数扫描: 带值选项 / 前导与组合旗标 / -- / --detach / 多位置参数', () => {
+    expect(classify('git checkout -f -B develop')).toEqual([
+      { kind: 'ref-update', branch: 'develop', delete: false },
+      { kind: 'checkout', branch: 'develop' },
+    ])
+    expect(classify('git checkout -fB develop')).toEqual([
+      { kind: 'ref-update', branch: 'develop', delete: false },
+      { kind: 'checkout', branch: 'develop' },
+    ])
+    expect(classify('git switch --force-create develop')).toEqual([
+      { kind: 'ref-update', branch: 'develop', delete: false },
+      { kind: 'checkout', branch: 'develop' },
+    ])
+    expect(classify('git checkout -q -b feature/x')).toEqual([{ kind: 'checkout', branch: 'feature/x' }])
+    expect(classify('git switch --create feature/y')).toEqual([{ kind: 'checkout', branch: 'feature/y' }])
+    expect(classify('git checkout --conflict diff3 -B develop')).toEqual([
+      { kind: 'ref-update', branch: 'develop', delete: false },
+      { kind: 'checkout', branch: 'develop' },
+    ])
+    expect(classify('git checkout -U 3 --unified 5 --inter-hunk-context 2 --pathspec-from-file list.txt -b feature/z')).toEqual([
+      { kind: 'checkout', branch: 'feature/z' },
+    ])
+    expect(classify('git checkout --orphan gh-pages')).toEqual([{ kind: 'checkout', branch: null }])
+    expect(classify('git checkout feature/x -- file.txt')).toEqual([{ kind: 'checkout', branch: null }])
+    expect(classify('git checkout --detach develop')).toEqual([{ kind: 'checkout', branch: null }])
+    expect(classify('git switch -d develop')).toEqual([{ kind: 'checkout', branch: null }])
+    expect(classify('git checkout HEAD file.txt')).toEqual([{ kind: 'checkout', branch: null }])
+    // 短旗标紧贴分支名
+    expect(classify('git checkout -Bmain')).toEqual([
+      { kind: 'ref-update', branch: 'main', delete: false },
+      { kind: 'checkout', branch: 'main' },
+    ])
+    expect(classify('git switch -Cdevelop')).toEqual([
+      { kind: 'ref-update', branch: 'develop', delete: false },
+      { kind: 'checkout', branch: 'develop' },
+    ])
+    expect(classify('git checkout -Bdevelop feature/x')).toEqual([
+      { kind: 'ref-update', branch: 'develop', delete: false },
+      { kind: 'checkout', branch: 'develop' },
+    ])
+  })
+
+  it('parsePush 带值选项(-o/--push-option/--repo/--receive-pack/--exec)与 --tags 组合 refspec', () => {
+    expect(first('git push --push-option ci.skip origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('git push --repo origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('git push --receive-pack /usr/bin/git-receive-pack origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('git push --exec /usr/bin/git-receive-pack origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    const ambig = classify('git push -o skip-ci origin', { currentBranch: 'develop' })
+    expect(ambig).toEqual([
+      { kind: 'push', dst: 'origin', force: false, delete: false },
+      { kind: 'push', dst: null, force: false, delete: false },
+    ])
+    expect(first('git push --tags origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('git push --tags origin')).toMatchObject({ kind: 'other' })
+    expect(first('git push --tags')).toMatchObject({ kind: 'other' })
+    expect(first('git push --all --tags')).toMatchObject({ kind: 'push', all: true })
+  })
+
+  it('parseUpdateRef --stdin 与 parseBranch -c/-C/--copy', () => {
+    expect(first('git update-ref --stdin')).toEqual({ kind: 'ref-update', branch: null, delete: false })
+    expect(first('git update-ref -d --stdin')).toEqual({ kind: 'ref-update', branch: null, delete: true })
+    expect(first('git branch -C feature/x develop')).toEqual({ kind: 'ref-update', branch: 'develop', delete: false })
+    expect(first('git branch --copy feature/x main')).toEqual({ kind: 'ref-update', branch: 'main', delete: false })
+    expect(first('git branch -c feature/a feature/b')).toEqual({ kind: 'ref-update', branch: 'feature/b', delete: false })
+  })
+
+  it('parseStash 仅 push/save/无子命令清理工作区; parseCommit 区分 staged/all', () => {
+    expect(first('git stash')).toMatchObject({ kind: 'other', cleanWorktree: true })
+    expect(first('git stash push -m "wip"')).toMatchObject({ kind: 'other', cleanWorktree: true })
+    expect(first('git stash save "wip"')).toMatchObject({ kind: 'other', cleanWorktree: true })
+    for (const sub of ['list', 'show', 'drop', 'clear', 'branch x', 'pop', 'apply', 'create', 'store abc']) {
+      const c = first(`git stash ${sub}`)
+      expect(c.kind, sub).toBe('other')
+      expect('cleanWorktree' in c ? c.cleanWorktree : undefined, sub).toBeUndefined()
+    }
+    expect(first('git commit -m "msg"')).toMatchObject({ kind: 'other', cleanWorktree: true, cleanScope: 'staged' })
+    expect(first('git commit -m "-a"')).toMatchObject({ kind: 'other', cleanWorktree: true, cleanScope: 'staged' })
+    expect(first('git commit -ma')).toMatchObject({ kind: 'other', cleanWorktree: true, cleanScope: 'staged' })
+    expect(first('git commit -am "msg"')).toMatchObject({ kind: 'other', cleanWorktree: true, cleanScope: 'all' })
+    expect(first('git commit --all -m "msg"')).toMatchObject({ kind: 'other', cleanWorktree: true, cleanScope: 'all' })
+    expect(first('git commit -n -m "msg"')).toMatchObject({ kind: 'other', cleanWorktree: true, cleanScope: 'staged' })
+    for (const dryCmd of [
+      'git commit --dry-run -a -m x',
+      'git commit --short -a',
+      'git commit --porcelain',
+      'git commit --long -a',
+      'git commit --amend --dry-run',
+      'git commit -h',
+      'git commit --help',
+    ]) {
+      const c = first(dryCmd)
+      expect(c.kind, dryCmd).toBe('other')
+      expect('cleanWorktree' in c ? c.cleanWorktree : undefined, dryCmd).toBeUndefined()
+    }
+    // stash 部分暂存 / pathspec 均不置 cleanWorktree
+    for (const cmd of [
+      'git stash -k',
+      'git stash --keep-index',
+      'git stash -p',
+      'git stash --patch',
+      'git stash -S',
+      'git stash --staged',
+      'git stash -uk',
+      'git stash push -- a.txt',
+      'git stash -- a.txt',
+      'git stash push -m "wip" a.txt',
+      'git stash save -p "wip"',
+    ]) {
+      const c = first(cmd)
+      expect(c.kind, cmd).toBe('other')
+      expect('cleanWorktree' in c ? c.cleanWorktree : undefined, cmd).toBeUndefined()
+    }
+  })
+
+  it('parseAdd 正反单测(含 dry-run/patch/intent-to-add 拒绝与 config alias 剥离 stagesAll)', () => {
+    expect(first('git add .')).toMatchObject({ kind: 'other', stagesAll: true })
+    expect(first('git add -A')).toMatchObject({ kind: 'other', stagesAll: true })
+    expect(first('git add -u')).toMatchObject({ kind: 'other', stagesAll: true })
+    for (const cmd of [
+      'git add foo.ts',
+      'git add --dry-run .',
+      'git add -n .',
+      'git add -N .',
+      'git add -p .',
+      'git add --patch .',
+      'git add -i',
+      'git add -e .',
+      'git add -An .',
+    ]) {
+      const c = first(cmd)
+      expect(c.kind, cmd).toBe('other')
+      expect('stagesAll' in c ? c.stagesAll : undefined, cmd).toBeUndefined()
+    }
+    expect(first("git config alias.a 'add .'")).toMatchObject({ kind: 'other', stagesAll: false })
+  })
+
+  it('parsePrCreate head 提取(含 owner:branch 与短旗标紧贴) 与 parsePrMerge 保留完整 URL', () => {
+    expect(first('gh pr create --base develop --head develop')).toMatchObject({ kind: 'pr-create', target: 'develop', head: 'develop' })
+    expect(first('gh pr create --base main -Hdevelop')).toMatchObject({ kind: 'pr-create', target: 'main', head: 'develop' })
+    expect(first('gh pr create -Bmain -Hdevelop')).toMatchObject({ kind: 'pr-create', target: 'main', head: 'develop' })
+    expect(first('gh pr create --base develop -H myfork:feature/x')).toMatchObject({ kind: 'pr-create', target: 'develop', head: 'feature/x' })
+    expect(first('glab mr create --target-branch develop --source-branch feature/y')).toMatchObject({ kind: 'pr-create', target: 'develop', head: 'feature/y' })
+    expect(first('gh pr merge -t "title" -b "body" -R org/repo 42')).toMatchObject({ kind: 'pr-merge', pr: '42' })
+    expect(first('gh pr merge https://github.com/org/repo/pull/99')).toMatchObject({
+      kind: 'pr-merge',
+      pr: 'https://github.com/org/repo/pull/99',
+    })
+    expect(first('glab mr merge https://gitlab.com/org/repo/-/merge_requests/77?tab=1')).toMatchObject({
+      kind: 'pr-merge',
+      pr: 'https://gitlab.com/org/repo/-/merge_requests/77?tab=1',
+    })
+    expect(first('gh pr merge feature/dev-x-01')).toMatchObject({ kind: 'pr-merge', pr: 'feature/dev-x-01' })
+  })
+
+  it('词法与嵌套加固: 反斜杠与双引号转义回归、$() ANSI-C 引号、CRLF、Windows 路径保护、命令组 {}', () => {
+    expect(classify('echo "it\'s" && $(git push origin develop)').some((c) => c.kind === 'push' && c.dst === 'develop')).toBe(true)
+    expect(classify("echo $(echo $'\\')' ) && git push origin main").some((c) => c.kind === 'push' && c.dst === 'main')).toBe(true)
+    expect(classify("echo $'\\'' && git push origin main")[1]).toMatchObject({ kind: 'push', dst: 'main' })
+    expect(classify("echo $'a\\\\\\'b' && git push origin main")[1]).toMatchObject({ kind: 'push', dst: 'main' })
+    expect(classify("git -c alias.p=$'push' p origin main")).toContainEqual(expect.objectContaining({ kind: 'push', dst: 'main' }))
+    expect(classify("git -c alias.p=$'push\\'' p")).toContainEqual(expect.objectContaining({ kind: 'other' }))
+    expect(classify('bash -c "echo \\"hi\\" && git push origin develop"')[1]).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('env A=\\\\"" git push origin main')).toMatchObject({ kind: 'push', dst: 'main' })
+    expect(first('git -c a=\\\\"" push origin main')).toMatchObject({ kind: 'push', dst: 'main' })
+    expect(first('env A="\\\\" B="x" git push origin main')).toMatchObject({ kind: 'push', dst: 'main' })
+    expect(first('git commit -m "\\\\" -m "x" --amend')).toMatchObject({ kind: 'ref-move', cleanWorktree: true })
+    expect(first('git push origin develop\r\n')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('\\git push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('g\\it push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('\\gh pr create --base develop')).toMatchObject({ kind: 'pr-create', target: 'develop' })
+    expect(first('\\glab mr create --target-branch develop')).toMatchObject({ kind: 'pr-create', target: 'develop' })
+    // Windows 路径与 UNC 路径必须完全不被破坏
+    expect(first('"C:\\Program Files\\Git\\bin\\git.exe" push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    expect(first('\\\\server\\share\\git.exe push origin develop')).toMatchObject({ kind: 'push', dst: 'develop' })
+    const winCwds = resolveSegmentCwds('cd /d D:\\repo\\sub && git push origin develop', 'D:\\start')
+    expect(winCwds).toEqual([{ text: 'git push origin develop', cwd: resolve('D:\\start', 'D:\\repo\\sub') }])
+    // 命令组 { ...; } 与 bash -c "{ ...; }"
+    expect(classify('{ git push origin develop; }').some((c) => c.kind === 'push' && c.dst === 'develop')).toBe(true)
+    expect(classify('bash -c "{ git push origin develop; }"').some((c) => c.kind === 'push' && c.dst === 'develop')).toBe(true)
   })
 })
