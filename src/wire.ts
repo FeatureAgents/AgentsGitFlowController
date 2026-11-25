@@ -26,7 +26,7 @@ export interface WireClientSpec {
   experimental?: boolean
 }
 
-const CLIENTS: ClientId[] = ['dsh', 'claude', 'codex', 'opencode', 'antigravity', 'pi', 'codebuddy', 'zcode', 'cursor']
+const CLIENTS: ClientId[] = ['dsh', 'claude', 'codex', 'opencode', 'antigravity', 'pi', 'cursor']
 
 export function isWireClient(v: string): v is ClientId {
   return (CLIENTS as string[]).includes(v)
@@ -40,7 +40,7 @@ export function resolveRunnerPath(): string {
 
 const RUNNER_PATH = resolveRunnerPath()
 
-type JsonWireClient = 'claude' | 'codex' | 'antigravity' | 'codebuddy' | 'zcode' | 'cursor'
+type JsonWireClient = 'claude' | 'codex' | 'antigravity' | 'cursor'
 
 /** 钩子命令形态: node <runner 绝对路径> check --platform <client>。
  *  路径统一正斜杠(node 与各家 shell 在 Windows 均接受, 且免 JSON 反斜杠转义), 含空白时加双引号。
@@ -65,8 +65,6 @@ export const WIRE_CLIENTS: ReadonlyArray<WireClientSpec> = [
   { client: 'antigravity', projectPath: '.agents/hooks.json', globalPath: () => join(homedir(), '.gemini', 'config', 'hooks.json') },
   { client: 'dsh', projectPath: '', globalPath: () => '' },
   { client: 'pi', projectPath: '', globalPath: () => '' },
-  { client: 'codebuddy', projectPath: '.codebuddy/settings.json', globalPath: () => join(homedir(), '.codebuddy', 'settings.json') },
-  { client: 'zcode', projectPath: '.zcode/config.json', globalPath: () => join(homedir(), '.zcode', 'cli', 'config.json') },
   { client: 'cursor', projectPath: '.cursor/hooks.json', globalPath: () => join(homedir(), '.cursor', 'hooks.json') },
 ]
 
@@ -190,7 +188,7 @@ function rewriteHookList(container: Record<string, unknown>, key: string, client
   return had
 }
 
-/** JSON 客户端(claude/codex/antigravity/codebuddy/zcode/cursor)新增 hook 条目; 非破坏性合并;
+/** JSON 客户端(claude/codex/antigravity/cursor)新增 hook 条目; 非破坏性合并;
  *  已有 canonical 且无旧形态 → 跳过; 有任意旧形态条目 → 迁移为 canonical(migrated)。 */
 async function addJsonEntry(path: string, client: JsonWireClient, dryRun: boolean): Promise<WireResult> {
   const cmd = currentCommand(client)
@@ -209,11 +207,6 @@ async function addJsonEntry(path: string, client: JsonWireClient, dryRun: boolea
     const block = (obj['gitflow-guard'] ??= { PreToolUse: [] }) as { PreToolUse: unknown }
     if (!Array.isArray(block.PreToolUse)) throw new Error(`invalid ${path}: gitflow-guard.PreToolUse must be an array`)
     hadGuard = rewriteHookList(block as unknown as Record<string, unknown>, 'PreToolUse', client, entry, path)
-  } else if (client === 'zcode') {
-    const hooksObj = (obj['hooks'] ??= {}) as Record<string, unknown>
-    hooksObj['enabled'] = true
-    const eventsObj = (hooksObj['events'] ??= {}) as Record<string, unknown>
-    hadGuard = rewriteHookList(eventsObj, 'PreToolUse', client, entry, path)
   } else if (client === 'cursor') {
     obj['version'] ??= 1
     const hooksObj = (obj['hooks'] ??= {}) as Record<string, unknown>
@@ -254,17 +247,6 @@ async function removeJsonEntry(path: string, client: JsonWireClient, dryRun: boo
       const stillHasContent = Object.values(block).some((v) => (Array.isArray(v) ? v.length > 0 : true))
       if (guardOutsideArrays || !stillHasContent) delete obj['gitflow-guard']
     }
-  } else if (client === 'zcode') {
-    const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
-    const eventsObj = hooksObj?.['events'] as Record<string, unknown> | undefined
-    const arr = eventsObj?.['PreToolUse']
-    if (!Array.isArray(arr)) return 'absent'
-    const { cleaned, had } = filterGuardItems(arr, client)
-    if (!had) return 'absent'
-    if (cleaned.length === 0) delete eventsObj!['PreToolUse']
-    else eventsObj!['PreToolUse'] = cleaned
-    if (eventsObj && Object.keys(eventsObj).length === 0) delete hooksObj!['events']
-    if (hooksObj && Object.keys(hooksObj).filter((k) => k !== 'enabled').length === 0) delete obj['hooks']
   } else if (client === 'cursor') {
     const hooksObj = obj['hooks'] as Record<string, unknown> | undefined
     const arr = hooksObj?.['beforeShellExecution']
@@ -288,9 +270,24 @@ async function removeJsonEntry(path: string, client: JsonWireClient, dryRun: boo
   return 'removed'
 }
 
-/** OpenCode 插件: 复制随包插件文件; 已存在同文件视为已接线(幂等) */
-async function addPluginFile(path: string, dryRun: boolean): Promise<WireResult> {
-  if ((await readText(path)) !== null) return 'exists'
+function normalizeNewlines(s: string): string {
+  return s.replace(/\r\n/g, '\n')
+}
+
+function isGuardOpencodePlugin(text: string): boolean {
+  return text.includes('gitflowGuardPlugin') && text.includes('tool.execute.before') && text.includes('gitflow-guard')
+}
+
+/** 渲染随包 OpenCode 插件: 注入 runner 与 node 解释器的绝对路径(统一正斜杠, 经 JSON.stringify 安全转义) */
+export function renderOpencodePlugin(source: string, runnerPath: string, nodePath: string): string {
+  const runnerLit = JSON.stringify(runnerPath.replace(/\\/g, '/'))
+  const nodeLit = JSON.stringify(nodePath.replace(/\\/g, '/'))
+  return source
+    .replace(/^(const WIRED_RUNNER_PATH = )''(?=\r?$)/m, (_m, prefix: string) => `${prefix}${runnerLit}`)
+    .replace(/^(const WIRED_NODE_PATH = )''(?=\r?$)/m, (_m, prefix: string) => `${prefix}${nodeLit}`)
+}
+
+async function readRenderedOpencodePlugin(): Promise<string> {
   let source: string
   try {
     source = await readFile(OPENCODE_PLUGIN_SOURCE, 'utf8')
@@ -300,8 +297,25 @@ async function addPluginFile(path: string, dryRun: boolean): Promise<WireResult>
       `cannot read bundled opencode plugin source at ${OPENCODE_PLUGIN_SOURCE} — install the package (npm i -g agents-gitflow-guard) or copy opencode/gitflow-guard.ts into the project's .opencode/plugins/ manually`,
     )
   }
-  if (!dryRun) await writeText(path, source)
-  return 'added'
+  return renderOpencodePlugin(source, RUNNER_PATH, process.execPath)
+}
+
+/** OpenCode 插件: 复制并注入自锚定路径; 同内容幂等返回 exists, 旧版插件就地升级返回 migrated, 非本插件文件拒绝覆盖 */
+async function addPluginFile(path: string, dryRun: boolean): Promise<WireResult> {
+  const existing = await readText(path)
+  if (existing !== null && !isGuardOpencodePlugin(existing)) {
+    throw new Error(`refusing to overwrite non-gitflow-guard file at ${path}`)
+  }
+  const rendered = await readRenderedOpencodePlugin()
+  if (existing === null) {
+    if (!dryRun) await writeText(path, rendered)
+    return 'added'
+  }
+  if (normalizeNewlines(existing) === normalizeNewlines(rendered)) {
+    return 'exists'
+  }
+  if (!dryRun) await writeText(path, rendered)
+  return 'migrated'
 }
 
 /** OpenCode 插件: 删除插件文件; 不动其他插件 */
@@ -312,7 +326,7 @@ async function removePluginFile(path: string, dryRun: boolean): Promise<WireResu
 }
 
 /** 执行一次 wire 落位/移除/预览; dsh/pi 由上层直接短路, 不进这里。
- *  真实写入 JSON 客户端前自检随包 runner 真实存在 —— 杜绝把死指针写进用户配置(静默 MODULE_NOT_FOUND)。 */
+ *  真实写入前自检随包 runner 真实存在(含 opencode) —— 杜绝把死指针写进用户配置。 */
 export async function applyWire(
   client: ClientId,
   path: string,
@@ -320,13 +334,13 @@ export async function applyWire(
   dryRun: boolean,
   deps: { runnerExists?: (p: string) => boolean } = {},
 ): Promise<WireResult> {
-  if (client === 'opencode') return unwire ? removePluginFile(path, dryRun) : addPluginFile(path, dryRun)
   if (!unwire && !dryRun) {
     const runnerExists = deps.runnerExists ?? existsSync
     if (!runnerExists(RUNNER_PATH)) {
       throw new Error(`gitflow-guard runner not found at ${RUNNER_PATH} — reinstall the package (npm i -g agents-gitflow-guard)`)
     }
   }
+  if (client === 'opencode') return unwire ? removePluginFile(path, dryRun) : addPluginFile(path, dryRun)
   return unwire
     ? removeJsonEntry(path, client as JsonWireClient, dryRun)
     : addJsonEntry(path, client as JsonWireClient, dryRun)
@@ -339,7 +353,16 @@ export type WiringState = 'current' | 'legacy' | 'absent'
 export async function wiringState(client: ClientId, path: string): Promise<WiringState> {
   const raw = await readText(path)
   if (raw === null) return 'absent'
-  if (client === 'opencode') return 'current'
+  if (client === 'opencode') {
+    if (!isGuardOpencodePlugin(raw)) return 'absent'
+    try {
+      const rendered = await readRenderedOpencodePlugin()
+      if (normalizeNewlines(raw) === normalizeNewlines(rendered)) return 'current'
+    } catch {
+      // 源不可读时保守判为 legacy
+    }
+    return 'legacy'
+  }
   let obj: unknown
   try {
     obj = parseCommentJson(raw)

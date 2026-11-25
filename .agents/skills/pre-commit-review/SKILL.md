@@ -34,4 +34,4 @@ Commits were repeatedly proposed with unclear content ("不明不白"): private 
 - Blanket `git add -A` / `git add .` is **forbidden**; staging lists explicit file paths only.
 - Confirmation is bound to the confirmed manifest — any file appearing afterwards re-triggers step 1 (amend the manifest, re-confirm).
 - `git commit` and `git push` are never chained into one compound command with staging; each stage is a separate, inspectable call.
-- No AI attribution in commits or PRs (AGENTS.md §5).
+- No AI attribution in commits or PRs (AGENTS.md section 5).

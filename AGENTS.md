@@ -18,13 +18,13 @@
 - 测试：`npm test`(vitest, 全绿才算完成)
 - 类型检查：`npm run typecheck`(tsc --noEmit, 0 Error 才算完成)
 - 本地调试与安装：
-  - CLI Hook 客户端（Claude Code / Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor）：`npm link` 后 `gitflow-guard wire --client <client> --project --yes`
+  - CLI Hook 客户端（Claude Code / Codex / OpenCode / Antigravity / Cursor）：`npm link` 后 `gitflow-guard wire --client <client> --project --yes`
   - DSH 进程内插件：`node scripts/install-dsh.mjs [profile]`（本机无 DSH 时跳过，装完需重启 DSH）
   - Pi 进程内扩展：`npm link` 或将 `pi/gitflow-guard.ts` 复制到目标仓库 `.pi/extensions/`
 - **发布(全自动化)**：bump 叠加在**待合并的内容 PR 分支**上(`npm version patch`, 版本提交落在该分支; feature 前缀是必须的——集成 PR 的 head 必须是 feature 角色)→ 用户在 GitHub 合并该 PR(内容+changelog+版本号一次带进 develop)→ **CI 自动检测新版本 → 全量矩阵校验 → 自动在 develop 最新 commit 打 annotated tag 并推送 → 自动 npm publish 与创建 GitHub Release**
   —— 零本地命令发布: 无需在本地手动打 tag 或推送, CI 自动闭环发版
   —— 仅当内容已合入后的纯补发(如版本同步)才开独立 `feature/release-<版本>` PR
-  —— 本地 develop 永不直接变更(§4); develop 的一切演进只经 GitHub 的 PR 合并产生
+  —— 本地 develop 永不直接变更(第 4 节); develop 的一切演进只经 GitHub 的 PR 合并产生
   —— CI 自动: 校验 package.json 与 CHANGELOG → 完整矩阵测试 → 自动打 tag → npm publish (--provenance) → GitHub Release (带 CHANGELOG 提取说明)
   —— 前提: 已在 npmjs.com 为该包注册 trusted publisher(org=FeatureAgents, repo=AgentsGitFlowController, workflow=release.yml); 认证由 GitHub Actions 的 OIDC 短命身份提供, **无需 `NPM_TOKEN`**(见 .github/workflows/release.yml 注释)
 
@@ -43,8 +43,6 @@ AgentsGitFlowController/
 │   └── skills/          # 自建 skill 工作流（start-work、design-sync、readme-sync 等）
 ├── .claude/             # Claude Code dogfood 配置（settings.json / agents）
 ├── .codex/              # Codex dogfood 配置（hooks.json）
-├── .codebuddy/          # CodeBuddy dogfood 配置（settings.json）
-├── .zcode/              # ZCode dogfood 配置（config.json）
 ├── .cursor/             # Cursor dogfood 配置（hooks.json）
 ├── .opencode/           # OpenCode dogfood 配置（plugins/）
 ├── .pi/                 # Pi dogfood 配置（settings.json / extensions/）
@@ -88,7 +86,7 @@ AgentsGitFlowController/
 - **提交前清单与确认（pre-commit-review）**：任何 `git add` / commit / push / PR 创建前，先执行项目技能 **`.agents/skills/pre-commit-review/SKILL.md`**——逐文件列提交清单（新增/修改、公开进 PR 还是私有留本地、纳入/排除原因），经用户明确确认后才可暂存与提交；禁止 `git add -A` 整体暂存，暂存一律显式列文件路径。
 - 提交规范：Conventional Commits（feat / fix / docs / style / refactor / test / chore）；**PR 标题与正文一律英文**。
 - **CHANGELOG 随功能同一 PR 写入**, 标题仅用版本号、不写日期(发布时间由 git tag / GitHub Release 承载), 发布 bump 时一次到位; 禁止发版后再为本次版本单独开修正 PR。
-- **多语言文档绝对对等（多语种平等守卫）**：修改或更新任何面向用户的说明、门禁规则、配置项或 CLI 功能时，必须执行 **`.agents/skills/readme-sync/SKILL.md`**，确保全部 11 种语言 README（`README.md`、`README.zh.md`、`README.zh-tw.md`、`README.ja.md`、`README.ko.md`、`README.de.md`、`README.fr.md`、`README.es.md`、`README.it.md`、`README.pt.md`、`README.ru.md`）保持 100% 结构对称与完整对齐（44 标题、7 表格、24 代码块、17 TOC 锚点），禁止出现摘要与全量不对等的现象；并通过 `npm run check:readmes` 机械拦截校验。
+- **多语言文档绝对对等（多语种平等守卫）**：修改或更新任何面向用户的说明、门禁规则、配置项或 CLI 功能时，必须执行 **`.agents/skills/readme-sync/SKILL.md`**，确保全部 11 种语言 README（`README.md`、`README.zh.md`、`README.zh-tw.md`、`README.ja.md`、`README.ko.md`、`README.de.md`、`README.fr.md`、`README.es.md`、`README.it.md`、`README.pt.md`、`README.ru.md`）保持 100% 结构对称与完整对齐（45 标题、7 表格、21 代码块、18 TOC 锚点），禁止出现摘要与全量不对等的现象；并通过 `npm run check:readmes` 机械拦截校验。
 - **特定场景智能体**：
   - 遇到设计稿 / 报错截图 / 架构图等图片时，插入 `vision` 识别。
   - 小型改动或无需拆分单测/E2E细分流程时，可选用综合 `tester` 驱动。
@@ -127,7 +125,7 @@ AgentsGitFlowController/
 
 ## 8. 客户端支持清单(新增 agent 平台时必须逐项同步)
 
-> 每次给守卫新增一个客户端接入(已有 DSH / Claude Code / Codex / OpenCode / Antigravity / Pi / CodeBuddy / ZCode / Cursor 等),按以下清单逐项同步,最后 `npm run verify:matrix` 全绿才算完成。**漏一项就是隐性半成品**。
+> 每次给守卫新增一个客户端接入(已有 DSH / Claude Code / Codex / OpenCode / Antigravity / Pi / Cursor 等),按以下清单逐项同步,最后 `npm run verify:matrix` 全绿才算完成。**漏一项就是隐性半成品**。
 > **例外: GitHub Copilot 不在本插件接入范围** —— 其原生 allow/deny/ask 权限 + rules 已覆盖守卫场景; 官方另有 hooks 系统可由用户自行接入(官方文档见 README)。本插件不为它造半个 hook,也不声称支持该平台。
 > **例外: DSH 走进程内插件协议, 不经 stdin-hook 通道** —— 本清单第 1/3/4 条(stdin payload 形状、hook 注册配置、stdin 参考文档)对 DSH 不适用: 其挂载物是 `patch.yml` + `dsh.bundle.patch`(package.json `"dsh": {"bundle": {"patch": "./patch.yml"}}`), 拦截由 `src/index.ts` 的 `apply()` 监听 `tools/pre-execute`、以返回值 `{kind:'deny', reason}` 表达(stdin payload / exit code 协议对其无意义), 协议记载见 `.agents/hooks/references/dsh.md`。其余平台按全清单逐项执行。
 > **例外: Pi 走进程内扩展协议, 不经 stdin-hook 通道** —— 清单第 1/2/3/4 条对 Pi 按此形态执行: 协议层= `src/pi.ts` 的 `createPiExtension()` + `tests/pi.spec.ts`(监听官方 `tool_call` 事件, 拒绝以返回值 `{block:true, reason}` 表达, 非 stdin/exit code); CLI `--platform` 透传不适用(守卫 CLI 仅作内部子进程, `--platform claude` 只是进程间 deny 编码选择); 仓库级 hook 配置= `.pi/settings.json` + `.pi/extensions/gitflow-guard.ts`(随包发布 `pi/gitflow-guard.ts` 供复制); 参考文档= `.agents/hooks/references/pi.md`(对齐官方 pi.dev/docs/extensions)。第 5/6/7/8 条与其他平台同款执行。
@@ -143,3 +141,24 @@ AgentsGitFlowController/
 7. **package.json**: `description` 的客户端清单追加;`keywords` 补搜索词。
 8. **CHANGELOG**: 记一条 feat。
 9. **QA 三连**: `npm run typecheck`(0 错) + `npm test`(全绿) + `npm run verify:matrix`(全绿)。
+
+## 9. 项目范围(做什么 / 不做什么)
+
+> 权威全文: `docs/design.md` 的「2. 目标与非目标」。本节是给每次新会话的摘要; 两者冲突时以 `design.md` 为准, 并同步修正本节。
+
+**做什么**
+- 门禁正确性: 命令识别、角色判定、worktree 守卫的准确与可预期; 拦截必须带 why/next 引导。
+- 文档如实: README、设计文档、客户端接线说明必须与实现一致; 发现过期表述即修。
+- 真实可用: 已支持客户端(含 Windows)的安装与接线必须真正可用; 可验证的 demo 与诚实边界优先于新功能。
+- 测试回归: 改动伴随测试; 单测、决策矩阵、复测矩阵、E2E 全绿。
+
+**不做什么(明确不做, 不必再提案)**
+- ❌ 新客户端平台接入(Windsurf 等) —— 先把现有 7 个做实。
+- ❌ CI 侧硬门禁 / PR check 联动 —— CI 状态只记日志参考; 服务端分支保护是最终边界。
+- ❌ 跨机器审计同步、团队策略远程拉取(`extends: URL`) —— SSRF 与供应链面, 零需求。
+- ❌ 文件系统拦截(`rm -rf`、`.env` 保护) —— 同一套文本启发式, 命令空间更大、绕过面更广。
+- ❌ MCP Server 作为拦截层 —— MCP 是 agent 主动调用的工具, 拦不住原生 shell; 只能定位为规则查询。
+- ❌ GitHub Copilot 接入 —— 原生权限系统已覆盖(见第 8 节的例外说明)。
+- ❌ 新增语言文档 —— 11 语言是维护上限。
+
+**决策规则**: 新增任何能力前先回答两问 —— ① 它修的是真实用户路径上的真实阻塞吗? ② 它能帮项目拿到第一个外部使用者吗? 两问皆否 → 不做。当前阶段优先可信度与可用性, 不是功能数量。

@@ -5,7 +5,7 @@ description: The executable development loop for this repo. Wires start-work →
 
 # dev-loop · Executable Development Loop (Hard Gate, Not a Suggestion)
 
-This skill is the **runnable form** of the pipeline declared in AGENTS.md §4. AGENTS.md states the *rules* (review before merge, local develop untouched, etc.); this file states the *sequence and the loop back-edges*. The loop is **mandatory** — content work that skips or short-circuits it violates discipline, not just style.
+This skill is the **runnable form** of the pipeline declared in AGENTS.md section 4. AGENTS.md states the *rules* (review before merge, local develop untouched, etc.); this file states the *sequence and the loop back-edges*. The loop is **mandatory** — content work that skips or short-circuits it violates discipline, not just style.
 
 ## The Loop
 
@@ -42,24 +42,24 @@ This skill is the **runnable form** of the pipeline declared in AGENTS.md §4. A
 
 **"Review passed" is precisely: `code-reviewer`, `security-checker`, and `test-reviewer` emit conclusions with ZERO `[問題]` items** (no blocking, no violation). Only then is closeout unlocked.
 
-- **code-reviewer checks against**: AGENTS.md §4/§5 iron rules (local develop zero-change, no AI co-author signature, CHANGELOG-with-PR, 11-language README parity, atomic/minimal change), §7 pitfall log, §8 client checklist.
-- **security-checker checks against**: AGENTS.md §5 safety rules (no destructive shell usage, no unsafe exec/injection, secret leakage, boundary regressions).
-- **test-reviewer checks against**: AGENTS.md §6 test rules (assert behavior not just "no throw", real coverage not line-counting, restrained mocking).
+- **code-reviewer checks against**: AGENTS.md sections 4 and 5 iron rules (local develop zero-change, no AI co-author signature, CHANGELOG-with-PR, 11-language README parity, atomic/minimal change), section 7 pitfall log, section 8 client checklist.
+- **security-checker checks against**: AGENTS.md section 5 safety rules (no destructive shell usage, no unsafe exec/injection, secret leakage, boundary regressions).
+- **test-reviewer checks against**: AGENTS.md section 6 test rules (assert behavior not just "no throw", real coverage not line-counting, restrained mocking).
 - **On any `[問題]` item**: closeout is FORBIDDEN. Return to the responsible implementation stage (coder / unittester / e2e-tester), fix, then **re-run all reviews**. Do NOT merge with unresolved `[問題]` items — there is no "approved-with-issues" path.
 - **Review output format**: each reviewer MUST emit explicit `[通過]` and `[問題]` lists; when clean, output verbatim "審查通過，可進入收尾" (review passed, may close out).
 
 ## Why a Loop, Not a Line
 
-The pipeline in AGENTS.md §4 is written as a chain. A chain invites "I'll do the reviews later / after closeout" — which is exactly how审查 got skipped in practice. This skill makes the back-edge explicit: **審查失敗 → 回退實現端 → 重審**, repeating until both gates are clean. The loop is the enforcement of "審查通過才進入收尾" (AGENTS.md §4): closeout is only reachable through the gate, never around it.
+The pipeline in AGENTS.md section 4 is written as a chain. A chain invites "I'll do the reviews later / after closeout" — which is exactly how审查 got skipped in practice. This skill makes the back-edge explicit: **審查失敗 → 回退實現端 → 重審**, repeating until both gates are clean. The loop is the enforcement of "審查通過才進入收尾" (AGENTS.md section 4): closeout is only reachable through the gate, never around it.
 
 ## Hard Rules Referenced (do not bypass)
 
-- **Local develop zero-change** (AGENTS.md §4): never commit/amend/reset/tag/`npm version` on local `develop`. All evolution via GitHub PR merge. `npm version` runs ON the feature branch; delete the local tag it creates (CI re-tags on `develop` after merge).
-- **One branch, one PR, merge-and-discard** (AGENTS.md §4): never append to a merged branch.
-- **No AI signature** (AGENTS.md §5): commits/PRs carry no `Co-Authored-By` / `Generated with` lines.
-- **PR title/body in English** (AGENTS.md §4) even though chat/code is Chinese.
-- **CHANGELOG with PR, version-only heading, no date** (AGENTS.md §4).
-- **11-language README parity** (AGENTS.md §4 readme-sync) when user-facing docs/config/CLI change.
+- **Local develop zero-change** (AGENTS.md section 4): never commit/amend/reset/tag/`npm version` on local `develop`. All evolution via GitHub PR merge. `npm version` runs ON the feature branch; delete the local tag it creates (CI re-tags on `develop` after merge).
+- **One branch, one PR, merge-and-discard** (AGENTS.md section 4): never append to a merged branch.
+- **No AI signature** (AGENTS.md section 5): commits/PRs carry no `Co-Authored-By` / `Generated with` lines.
+- **PR title/body in English** (AGENTS.md section 4) even though chat/code is Chinese.
+- **CHANGELOG with PR, version-only heading, no date** (AGENTS.md section 4).
+- **11-language README parity** (AGENTS.md section 4 readme-sync) when user-facing docs/config/CLI change.
 
 ## Trigger
 

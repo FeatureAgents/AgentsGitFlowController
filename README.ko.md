@@ -2,18 +2,31 @@
 
 > **AI 에이전트가 GitFlow 규칙을 무단으로 건너뛰는 문제로 고민하고 계신가요?**
 
-AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 플러그인 — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 및 [Pi](https://github.com/mariozechner/pi) 지원.  
-자신만의 브랜치 역할을 자유롭게 정의하세요 — **integration** (PR/MR을 통해 feature 통합), **preview** (스테이징/테스트 환경 엔드포인트), **production** (운영), **archive** (아카이브) — 각각 고유한 업데이트 규칙을 설정할 수 있습니다. 에이전트는 정의된 흐름을 임의로 건너뛸 수 없으며, 민감한 머지 권한은 확실하게 사람의 손에 유지됩니다.
+AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 플러그인 — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 및 [Pi](https://pi.dev) 지원.  
+자신만의 브랜치 역할을 자유롭게 정의하세요 — **integration** (PR/MR을 통해 feature 통합), **preview** (스테이징/테스트 환경 엔드포인트), **production** (운영), **archive** (아카이브) — 각각 고유한 업데이트 규칙을 설정할 수 있습니다. 정형적인 흐름 위반은 실행 전에 차단되고, 명확한 원인과 다음 조치가 안내됩니다. 민감한 머지 권한은 확실하게 사람의 손에 유지됩니다. 의도적인 에이전트는 여전히 텍스트 계층 가드를 우회할 수 있습니다 —— [명확한 한계](#제한-사항--명확한-한계) 참조.
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [라이선스](LICENSE)
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## 직접 확인하기 — 30초 라이브 데모
+
+프로젝트 파일을 건드리지 않고, 아무것도 남기지 않습니다 — 명령어 하나로 일회성 샌드박스 저장소 안에서 3개의 실제 장면(1 허용, 2 차단)을 실행하고 종료 시 삭제합니다. 아래 애니메이션은 그 명령어의 실제 출력에서 생성된 것으로 — 에이전트 훅이 호출하는 것과 동일한 가드 코어입니다:
+
+```bash
+npx agents-gitflow-guard demo
+```
+
+![gitflow-guard demo — 실제 저장소 위의 실제 허용/차단 판정](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+확인 후 에이전트 앞에 가드를 두고 싶다면, [빠른 시작](#빠른-시작--30초-만에-저장소-보호하기)으로 이어가세요.
+
 ---
 
 ## 목차
 
+- [직접 확인하기 — 30초 라이브 데모](#직접-확인하기--30초-라이브-데모)
 - [빠른 시작 — 30초 만에 저장소 보호하기](#빠른-시작--30초-만에-저장소-보호하기)
 - [도입 배경 — 이 플러그인이 해결하는 문제](#도입-배경--이-플러그인이-해결하는-문제)
 - [대상 사용자 — 활용 시나리오 및 팀](#대상-사용자--활용-시나리오-및-팀)
@@ -36,10 +49,10 @@ AI 코딩 에이전트를 위한 유연하고 안전한 브랜치 역할 가드 
 
 ## 빠른 시작 — 30초 만에 저장소 보호하기
 
-**1단계 — 설치.** 9개 클라이언트 모두 동일한 npm 패키지 `agents-gitflow-guard`를 사용하며, 사용하는 에이전트에 맞는 방식을 선택합니다:
+**1단계 — 설치.** 7개 클라이언트 모두 동일한 npm 패키지 `agents-gitflow-guard`를 사용하며, 사용하는 에이전트에 맞는 방식을 선택합니다:
 
 ```bash
-# 모드 A: CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# 모드 A: CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -65,12 +78,10 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor (각 클라이언트 전용 설정 파일에 작성. --yes로 y/N 확인 건너뛰기)
+# Codex / OpenCode / Antigravity / Cursor (각 클라이언트 전용 설정 파일에 작성. --yes로 y/N 확인 건너뛰기)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -120,9 +131,9 @@ AI 코딩 에이전트는 사용자의 저장소 내에서 직접 작업합니�
 
 **하지만 이는 소프트 규칙(Soft rule)에 불과합니다.** 에이전트는 규칙을 건너뛰거나 순서를 바꾸거나 단순히 "잊어버립니다" — 악의가 있어서가 아니라, LLM 모델에게 텍스트 지침은 본질적으로 선택 사항이기 때문입니다.
 
-본 플러그인은 소프트 규칙을 **물리적인 하드 제약(Hard mechanism)**으로 변환합니다. 에이전트가 시도하는 모든 Git 명령어는 *로컬 저장소의 실제 상태*를 기준으로 검증됩니다. 위반 사항은 명령어가 실행되기 전에 즉시 차단되며, 원인과 다음 조치 방법이 명확하게 안내됩니다.
+본 플러그인은 소프트 규칙에 **기계적으로 작동하는 게이트**를 붙입니다. 에이전트가 시도하는 모든 Git 명령어는 *로컬 저장소의 실제 상태*를 기준으로 검증됩니다. 정형적인 위반은 명령어가 실행되기 전에 즉시 차단되며, 원인과 다음 조치 방법이 명확하게 안내됩니다.
 
-누구도 규칙을 억지로 기억할 필요가 없습니다 — 규칙은 시스템에 의해 강제됩니다.
+누구도 규칙을 억지로 기억할 필요가 없습니다 — 가드가 기계적으로 검증합니다. 텍스트 계층은 본질적으로 best-effort입니다: 의도적인 에이전트가 할 수 있는 일은 [명확한 한계](#제한-사항--명확한-한계) 참조.
 
 ---
 
@@ -368,11 +379,11 @@ PR/MR 대상은 `gh pr view` (GitHub) 또는 `glab mr view` (GitLab)를 통해 �
 
 | 클라이언트 유형 / 플랫폼 | 설치 명령어 | 마운트 및 배선 단계 |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | DSH 재시작 — 프로필 레이어로 자동 마운트 |
 | Pi | `npm i -D agents-gitflow-guard` | `pi/gitflow-guard.ts`를 `.pi/extensions/`로 복사 |
 
-### 1. 독립형 CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+### 1. 독립형 CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 
 CLI를 전역으로 1회 설치한 후, **각 클라이언트마다 명령어 한 줄로 배선을 완료합니다** (가드는 내장 기본값을 통해 기본 활성화되어 있으므로 배선만 완료하면 즉시 적용됩니다):
 
@@ -382,8 +393,6 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -432,10 +441,8 @@ gitflow-guard wire --client cursor --project --yes
 }
 ```
 
-나머지 세 CLI 클라이언트도 동일한 hook 형식을 사용합니다 — `wire`가 해당 파일을 대신 작성합니다:
+Cursor도 동일한 hook 형식을 사용합니다 — `wire`가 해당 파일을 대신 작성합니다:
 
-- **CodeBuddy** — `.codebuddy/settings.json`
-- **ZCode** — `.zcode/config.json` (`hooks.enabled: true`도 설정)
 - **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...`은 자리표시자입니다 — `wire`는 실행 시점에 설치된 패키지 자체 runner의 절대 경로를 확인해 기록합니다(완전 자기 앵커형: 클라이언트 변수 확장·hook 프로세스 cwd·PATH 의존 없음, 대상 저장소에 배치할 것도 없음). ≤0.0.41에서 업그레이드한 경우 클라이언트별로 `wire`를 다시 실행하면 이전 형식 항목(변수 템플릿/상대 경로/PATH 형식)이 그 자리에서 마이그레이션됩니다.
@@ -460,6 +467,7 @@ gitflow-guard wire --client cursor --project --yes
   // Pi — .pi/settings.json (extensions 경로는 .pi를 기준으로 해석됨)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  사용자 수준 설치(모든 프로젝트에 한 번에 적용): 같은 파일을 `~/.pi/agent/extensions/gitflow-guard.ts`에 두고, `~/.pi/agent/settings.json`에 등록한 뒤 `~/.pi/agent` 안에 패키지를 설치합니다(`npm i agents-gitflow-guard`. MSYS에서는 `ln -s`가 복사로 동작하므로 Windows에서는 PowerShell junction을 사용하세요). 확장은 `node <동봉 runner>`로 가드를 실행하므로 PATH나 전역 npm 설치가 필요 없습니다 — Windows에서도 동작합니다.
 
 ### 3. 소스코드 직접 빌드 및 로컬 개발 (From Source)
 
@@ -475,9 +483,9 @@ npm install && npm run build
 사용하려는 에이전트 플랫폼에 맞게 로컬 빌드를 마운트합니다:
 
 ```bash
-# A. CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# A. CLI Hook 클라이언트 (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm link # 또는 npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/path/to/AgentsGitFlowController
@@ -499,7 +507,7 @@ npm link
 ### 5. Hook 메커니즘 및 기술 세부사항
 
 - **플랫폼 프로토콜 규약**: Hook은 stdin에서 페이로드를 읽고 각 플랫폼의 규약에 맞게 응답합니다:
-  - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2` (stderr로 차단 이유 및 조치 안내 출력).
+  - **Claude Code / OpenCode**: `exit 2` (stderr로 차단 이유 및 조치 안내 출력).
   - **Codex**: stdout으로 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` 출력.
   - **Antigravity**: stdout으로 JSON `{"decision":"deny","reason":...}`을 출력하고 `exit 0` 유지 (플랫폼 필수 요건).
   - **Cursor**: stdout으로 JSON `{"permission":"deny","user_message":...,"agent_message":...}`을 출력하고 `exit 0` 유지.
@@ -508,7 +516,6 @@ npm link
 - **사전 이벤트만 인터셉트**: 명령어 실행 *전*에 차단이 완료되므로 사후 정리나 권한 토큰 회수 작업이 전혀 필요하지 않습니다.
 - **PATH 및 바이너리 확인**: 전역 설치 시 `gitflow-guard` 바이너리가 제공됩니다. `wire`는 모든 hook을 설치된 패키지 자체 runner의 절대 경로에 고정하므로, 에이전트 러너가 대화형 `PATH`를 상속받지 못하더라도 hook이 계속 정상 작동합니다.
 - **기본 활성화**: 별도의 설정 파일 없이도 내장 기본값(`integration: ["develop"]`, `archive: ["main"]`)이 즉시 적용되며, 커스텀 설정은 딥 머지됩니다.
-- **안전한 배선**: `gitflow-guard wire`는 기존의 다른 Hook을 보존하며 멱등하게 병합하고(재실행 시 구버전 gitflow-guard 항목은 현재 형식으로 마이그레이션됨), `--unwire`를 통해 해당 가드 항목만을 정확하게 제거합니다.
 
 ---
 
@@ -562,7 +569,7 @@ npm link
 
 불완전한 추측 설정이 잘못 적용되는 일은 절대 없습니다. 유효성 검사 에러가 발생하면 해당 프로젝트의 가드가 비활성화되고 에러 상세가 보고됩니다.
 
-자주 발생하는 실수: 기본 역할과 동일한 브랜치 이름으로 덮어쓰기(예: 기본 archive가 `main`인 상태에서 `main`을 integration으로 설정 — 명시적 중복 에러이므로 다른 역할도 함께 덮어쓰거나 제거해야 함), 동일한 브랜치를 2개의 역할에 중복 지정(거부), 컴파일할 수 없는 `featurePattern`(유효하지 않은 정규식으로 거부). 에러 안내는 매우 명확하며 설정 파일은 단순한 JSON 객체 하나이므로 30초 내에 수정할 수 있습니다.
+에러 안내는 매우 명확하며 설정 파일은 단순한 JSON 객체 하나이므로 30초 내에 수정할 수 있습니다.
 
 ---
 
@@ -577,8 +584,6 @@ npm link
 ### 라이선스 및 비용은 어떻게 되나요?
 
 MIT 라이선스로 배포되는 무료 오픈소스입니다. 아무런 조건 없이 자유롭게 사용, 수정, 배포할 수 있으며, 유일한 의무는 저작권 고지를 유지하는 것입니다.
-
-본 도구가 팀의 치명적인 워크플로우 실수를 방지하는 데 도움이 되었다면 페이지 상단의 커피 후원을 환영합니다 (의무 사항은 아닙니다). [라이선스](#라이선스)를 참조하세요.
 
 ---
 
@@ -599,12 +604,10 @@ MIT 라이선스로 배포되는 무료 오픈소스입니다. 아무런 조건 
 
 ## 로드맵
 
-향후 계획 및 현재 활발히 탐색 중인 기능:
+이 섹션은 프로젝트의 방향을 설명합니다 — 약속이 아닌 의도입니다:
 
-- **신규 에이전트 플랫폼 지원**: Windsurf, 차세대 CLI 에이전트 등 새로운 AI 도구의 Hook/확장 메커니즘 조사 및 연동.
-- **감사 로그 집계 및 내보내기**: 여러 머신 간 감사 로그 동기화 및 팀 수준의 보안 규정 준수용 내보내기 포맷 지원.
-- **워크플로우 프리셋**: 널리 사용되는 Git 브랜치 전략(트렁크 기반 단일 메인 브랜치, 다중 환경 엔터프라이즈 GitFlow)을 위한 즉시 사용 가능한 설정 프리셋 제공.
-- **CI 하드 게이트 연동**: 로컬 실행의 무의존성을 유지하면서 네이티브 CI 파이프라인 연동 및 PR 검사 지원 탐색.
+- **중점 — 정확성 우선**: 기존 게이트의 정확성과 예측 가능성(이 페이지에 문서화된 클라이언트, 명령 형태, 규칙)을 유지하고 실제 저장소에서 검증합니다.
+- **계획하지 않은 것**: 신규 에이전트 플랫폼 지원, CI 측 하드 게이트, 머신 간 감사 로그 동기화, 원격/팀 정책 가져오기. 가드는 로컬·제로 의존성을 유지하며 설정은 이 저장소에서만 읽습니다. 서버 측 브랜치 보호가 최종 경계입니다.
 
 릴리스 이력과 버전별 세부 변경 사항은 [CHANGELOG.md](CHANGELOG.md)를 참조하세요.
 
@@ -627,7 +630,7 @@ npm run test:all        # 타입 체크 + 단위 테스트 + 플랫폼 매트릭
 ```
 
 - **품질 규칙**: 모든 로직 변경은 타입 체크(0 에러), 단위 테스트 전체 통과 및 연속 회귀 매트릭스(`verify:matrix`) 통과가 필수입니다.
-- **신규 클라이언트 연동**: 새로운 에이전트 플랫폼을 추가할 때는 [AGENTS.md](AGENTS.md) §8의 동기화 체크리스트를 준수하세요.
+- **신규 클라이언트 연동**: 새로운 에이전트 플랫폼을 추가할 때는 [AGENTS.md](AGENTS.md) 8절의 동기화 체크리스트를 준수하세요.
 
 ---
 

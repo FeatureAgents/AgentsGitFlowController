@@ -7,18 +7,16 @@
 //   E) antigravity 编码
 //   F) OpenCode 插件   (--platform opencode 协议层 + wire 落位 plugins 目录装配断言)
 //   G) Pi 扩展          (createPiExtension tool_call block 契约, 真实 CLI 走通)
-//   H) CodeBuddy hook   (gitflow-guard check --platform codebuddy + wire 装配)
-//   I) ZCode hook       (gitflow-guard check --platform zcode + wire enabled/events 装配)
-//   J) Cursor hook      (gitflow-guard check --platform cursor + wire beforeShellExecution 装配)
+//   H) Cursor hook      (gitflow-guard check --platform cursor + wire beforeShellExecution 装配)
 
 // 用法: npm run verify:matrix (内含 npm run build + 本脚本)
 
 import { execFileSync, execSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { createPiExtension, evaluateCommand, guardCommand, resolveRunnerPath } from '../lib/index.mjs'
+import { join, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { applyWire, createPiExtension, evaluateCommand, guardCommand, resolvePiBin, resolveRunnerPath } from '../lib/index.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BIN = join(ROOT, 'bin', 'gitflow-guard.mjs')
@@ -93,7 +91,7 @@ function runCheck(platform, payload, cwd) {
   }
 }
 
-/** 跑 bin 的 check 且不带 --platform: 覆盖 detectPlatform 自动判别路径(§8-5 / §15) */
+/** 跑 bin 的 check 且不带 --platform: 覆盖 detectPlatform 自动判别路径(第 8 节第 5 条 / 第 15 节) */
 function runCheckAuto(payload, cwd) {
   try {
     const out = execFileSync('node', [BIN, 'check'], { input: payload, cwd, encoding: 'utf8' })
@@ -258,9 +256,15 @@ console.log('[E] antigravity encoding (真机 payload 形状: cwd 嵌套在 tool
   }
 }
 
-console.log('[F] OpenCode hook (--platform opencode 协议层 + wire 插件装配)')
+console.log('[F] OpenCode hook (--platform opencode 协议层 + wire 插件装配 + 无 bin/ 外部仓与 worktree 实弹)')
 {
   const repo = tempRepo(CONFIG)
+  const wtBase = mkdtempSync(join(tmpdir(), 'gf-matrix-opencode-wt-'))
+  const stateRoot = mkdtempSync(join(tmpdir(), 'gf-matrix-opencode-state-'))
+  const savedBin = process.env.GITFLOW_GUARD_BIN
+  const savedStateRoot = process.env.GITFLOW_GUARD_STATE_ROOT
+  delete process.env.GITFLOW_GUARD_BIN
+  process.env.GITFLOW_GUARD_STATE_ROOT = stateRoot
   try {
     // 协议层: check 直连(插件最终走同一 CLI)
     const deny = runCheck('opencode', JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'git push origin develop' }, cwd: repo }), repo)
@@ -268,23 +272,93 @@ console.log('[F] OpenCode hook (--platform opencode 协议层 + wire 插件装�
     check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
     const ok = runCheck('opencode', JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'ls -la' }, cwd: repo }), repo)
     check('放行: exit 0 且无输出(快路径)', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
-    // wire 装配: OpenCode 1.18+ 无 hooks.yaml, 落位为 plugins 目录的插件文件
+    // wire 装配: OpenCode 1.18+ 无 hooks.yaml, 落位为 plugins 目录的插件文件(含自锚定路径注入)
     execFileSync('node', [BIN, 'wire', '--client', 'opencode', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
-    const plugin = readFileSync(join(repo, '.opencode', 'plugins', 'gitflow-guard.ts'), 'utf8')
+    const pluginPath = join(repo, '.opencode', 'plugins', 'gitflow-guard.ts')
+    const plugin = readFileSync(pluginPath, 'utf8')
     check('wire 落位: 插件文件含 tool.execute.before 订阅', /tool\.execute\.before/.test(plugin) && /input\.tool !== 'bash'/.test(plugin), 'plugin content')
     check('wire 落位: 插件走 check --platform opencode', plugin.includes('check --platform opencode'))
     check('wire 落位: 插件拒绝语义 = 抛错阻断(exit 2)', /code === 2/.test(plugin) && /throw new Error/.test(plugin), 'plugin content')
+    check(
+      'wire 落位: 插件注入真实存在的 WIRED_RUNNER_PATH 与 WIRED_NODE_PATH',
+      plugin.includes(`const WIRED_RUNNER_PATH = ${JSON.stringify(RUNNER.replace(/\\/g, '/'))}`) &&
+        plugin.includes(`const WIRED_NODE_PATH = ${JSON.stringify(process.execPath.replace(/\\/g, '/'))}`),
+      'wired paths missing',
+    )
+    const cwdDeny = runCheck('opencode', JSON.stringify({ session_id: 's1', event: 'tool.before.bash', tool_name: 'bash', tool_args: { command: 'cd $VAR && git merge develop' }, cwd: repo }), repo)
+    check('分目录拦截(cd $VAR): exit 2', cwdDeny.code === 2 && /statically determine/i.test(cwdDeny.stderr), `code=${cwdDeny.code} err=${cwdDeny.stderr}`)
+
+    // 无 bin/ 外部仓实弹(不设 GITFLOW_GUARD_BIN, 经 WIRED_RUNNER_PATH 直连完整 lib/ CLI)
+    const expectThrows = async (label, fn, pattern) => {
+      try {
+        await fn()
+        check(label, false, 'did not throw')
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        check(label, pattern.test(msg), msg)
+      }
+    }
+    const expectAllows = async (label, fn) => {
+      try {
+        const res = await fn()
+        check(label, res === undefined, String(res))
+      } catch (e) {
+        check(label, false, e instanceof Error ? e.message : String(e))
+      }
+    }
+
+    const mod = await import(pathToFileURL(pluginPath).href)
+    const wiredPlugin = await mod.default({ directory: repo })
+    const handler = wiredPlugin['tool.execute.before']
+    await expectThrows('实弹(WIRED_RUNNER_PATH): 直推 develop 抛错拦截', () => handler({ tool: 'bash' }, { args: { command: 'git push origin develop' } }), /Protected branch/)
+    await expectAllows('实弹(WIRED_RUNNER_PATH): 推 feature/x 放行', () => handler({ tool: 'bash' }, { args: { command: 'git push origin feature/x' } }))
+    await expectAllows('实弹(WIRED_RUNNER_PATH): 非命令工具 read 放行', () => handler({ tool: 'read' }, { args: { command: 'git push origin develop' } }))
+    await expectThrows('实弹(WIRED_RUNNER_PATH): 不存在 workdir 回退 baseCwd 拦截', () => handler({ tool: 'bash' }, { args: { command: 'git push origin develop', workdir: join(repo, 'does-not-exist') } }), /Protected branch/)
+    await expectThrows('实弹(WIRED_RUNNER_PATH): 相对缺失 cwd 回退 baseCwd 拦截', () => handler({ tool: 'bash' }, { args: { command: 'git push origin develop', cwd: 'missing-subdir' } }), /Protected branch/)
+    await expectThrows('实弹(WIRED_RUNNER_PATH): 普通文件 workdir 回退 baseCwd 拦截', () => handler({ tool: 'bash' }, { args: { command: 'git push origin develop', workdir: join(repo, 'gitflow-guard.config.json') } }), /Protected branch/)
+
+    // 外部 linked worktree 跨目录实弹判定
+    const mainRaw = join(wtBase, 'main')
+    const wtRaw = join(wtBase, 'wt')
+    mkdirSync(mainRaw, { recursive: true })
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: mainRaw })
+    execFileSync('git', ['config', 'user.email', 'm@m'], { cwd: mainRaw })
+    execFileSync('git', ['config', 'user.name', 'm'], { cwd: mainRaw })
+    writeFileSync(join(mainRaw, 'f.txt'), 'x')
+    execFileSync('git', ['add', '.'], { cwd: mainRaw })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: mainRaw })
+    const mainRepo = resolve(execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: mainRaw, encoding: 'utf8' }).trim())
+    execFileSync('git', ['worktree', 'add', '-q', wtRaw, '-b', 'feature/wt'], { cwd: mainRepo })
+    const wt = resolve(execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: wtRaw, encoding: 'utf8' }).trim())
+    const wtPluginPath = join(mainRepo, '.opencode', 'plugins', 'gitflow-guard.ts')
+    check('worktree 仓 applyWire 落位 added', (await applyWire('opencode', wtPluginPath, false, false)) === 'added')
+    const wtMod = await import(pathToFileURL(wtPluginPath).href)
+    const fromMain = await wtMod.default({ directory: mainRepo })
+    await expectAllows('实弹 worktree: main→wt merge develop 放行', () => fromMain['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git merge develop', workdir: wt } }))
+    const fromWt = await wtMod.default({ directory: wt })
+    await expectThrows('实弹 worktree: wt→../main merge feature/wt 拦截 archive', () => fromWt['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git merge feature/wt', workdir: '../main' } }), /archive/i)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    if (savedBin === undefined) delete process.env.GITFLOW_GUARD_BIN
+    else process.env.GITFLOW_GUARD_BIN = savedBin
+    if (savedStateRoot === undefined) delete process.env.GITFLOW_GUARD_STATE_ROOT
+    else process.env.GITFLOW_GUARD_STATE_ROOT = savedStateRoot
+    rmSync(stateRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
+    rmSync(wtBase, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })
   }
 }
 
 console.log('[G] Pi extension (tool_call block contract, real CLI)')
 {
   const repo = tempRepo(CONFIG)
+  // 默认执行器必须在任何机器上可启动: 临时清掉覆盖变量, 走 resolvePiBin() 的默认分支
+  const savedBin = process.env.GITFLOW_GUARD_BIN
+  delete process.env.GITFLOW_GUARD_BIN
   try {
-    // 真实 wire: 扩展以 node 直接跑本仓库 bin, 不再注入 run
-    const extension = createPiExtension({ bin: [process.execPath, BIN] })
+    // 默认执行器回归(PI-D4): 不注入 bin/run —— 扩展必须自己以 node + 随包 runner 启动
+    const defaultBin = resolvePiBin()
+    check('默认执行器: [process.execPath, 随包 runner]', defaultBin[0] === process.execPath && defaultBin[1] === BIN, JSON.stringify(defaultBin))
+    const extension = createPiExtension()
     let handler
     extension({ on: (_event, h) => (handler = h) })
     const evt = (command) => ({ toolName: 'bash', input: { command } })
@@ -302,70 +376,12 @@ console.log('[G] Pi extension (tool_call block contract, real CLI)')
     const skip = await handler({ toolName: 'read', input: { command: 'git push origin develop' } }, ctx)
     check('放行: 非 bash/powershell 工具', skip === undefined, JSON.stringify(skip))
   } finally {
+    if (savedBin !== undefined) process.env.GITFLOW_GUARD_BIN = savedBin
     rmSync(repo, { recursive: true, force: true })
   }
 }
 
-console.log('[H] CodeBuddy hook (--platform codebuddy + wire 装配)')
-{
-  const repo = tempRepo(CONFIG)
-  try {
-    const deny = runCheck('codebuddy', JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: repo }), repo)
-    check('拦截: exit 2', deny.code === 2, `code=${deny.code}`)
-    check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
-    const ok = runCheck('codebuddy', JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }), repo)
-    check('放行: exit 0 且无输出', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
-    // wire 装配: 落位到 .codebuddy/settings.json; 命令为执行包 runner 绝对路径
-    execFileSync('node', [BIN, 'wire', '--client', 'codebuddy', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
-    const settings = JSON.parse(readFileSync(join(repo, '.codebuddy', 'settings.json'), 'utf8'))
-    const cmd = settings.hooks.PreToolUse[0].hooks[0].command
-    check('wire 落位: CodeBuddy 命令为执行包 runner 绝对路径', cmd === guardCommand(RUNNER, 'codebuddy'), cmd)
-    check('wire 落位: matcher 为 ^Bash$', settings.hooks.PreToolUse[0].matcher === '^Bash$')
-    // 干净仓库实弹(临时仓库无 bin/)
-    checkLiveCleanRepo(
-      'codebuddy',
-      cmd,
-      JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: repo }),
-      JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }),
-      repo,
-      (r) => r.code === 2 && /blocked:/.test(r.stderr),
-    )
-  } finally {
-    rmSync(repo, { recursive: true, force: true })
-  }
-}
-
-console.log('[I] ZCode hook (--platform zcode + wire 装配)')
-{
-  const repo = tempRepo(CONFIG)
-  try {
-    const deny = runCheck('zcode', JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: repo }), repo)
-    check('拦截: exit 2', deny.code === 2, `code=${deny.code}`)
-    check('拦截: stderr 英文 blocked/Protected/Next', /blocked:/.test(deny.stderr) && /Protected branch/.test(deny.stderr) && /Next:/.test(deny.stderr), deny.stderr)
-    const ok = runCheck('zcode', JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }), repo)
-    check('放行: exit 0 且无输出', ok.code === 0 && ok.stdout === '', `code=${ok.code}`)
-    // wire 装配: 落位到 .zcode/config.json, 需 enabled: true 与 events 嵌套; 命令为执行包 runner 绝对路径
-    execFileSync('node', [BIN, 'wire', '--client', 'zcode', '--project', '--yes', '--repo', repo], { encoding: 'utf8' })
-    const config = JSON.parse(readFileSync(join(repo, '.zcode', 'config.json'), 'utf8'))
-    check('wire 落位: ZCode hooks.enabled 必须为 true', config.hooks.enabled === true)
-    const cmd = config.hooks.events.PreToolUse[0].hooks[0].command
-    check('wire 落位: ZCode 命令为执行包 runner 绝对路径', cmd === guardCommand(RUNNER, 'zcode'), cmd)
-    check('wire 落位: matcher 为 ^Bash$', config.hooks.events.PreToolUse[0].matcher === '^Bash$')
-    // 干净仓库实弹(临时仓库无 bin/)
-    checkLiveCleanRepo(
-      'zcode',
-      cmd,
-      JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push origin develop' }, cwd: repo }),
-      JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo }),
-      repo,
-      (r) => r.code === 2 && /blocked:/.test(r.stderr),
-    )
-  } finally {
-    rmSync(repo, { recursive: true, force: true })
-  }
-}
-
-console.log('[J] Cursor hook (--platform cursor + wire 装配)')
+console.log('[H] Cursor hook (--platform cursor + wire 装配)')
 {
   const repo = tempRepo(CONFIG)
   try {

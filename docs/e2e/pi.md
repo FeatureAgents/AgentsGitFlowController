@@ -9,7 +9,7 @@
 - 本机 `pi` CLI 可用且已登录(`~/.pi/agent/auth.json`;版本记录于 TestResult)。
 - 受控测试仓库: 由 `npm run test:pi` 自动在 `/tmp/` 创建自包含沙箱(master=integration / beta=preview / fix/*=feature; 裸远端自动管理)。
 - 守卫扩展由测试脚本自动挂载(`.pi/settings.json` + `pi/gitflow-guard.ts`)。
-- `GITFLOW_GUARD_BIN` 自动指向本仓库构建产物 `bin/gitflow-guard.mjs`。
+- `GITFLOW_GUARD_BIN` 自动指向本仓库构建产物 `bin/gitflow-guard.mjs`(测试脚本注入;扩展自身默认以 `node <随包 runner>` 启动, 不依赖该变量, 见 PI-D4)。
 - 沙箱环境(如 DSH 会话内):脚本已处理——`PI_CODING_AGENT_DIR=/tmp/pi-test/agent`,从 `~/.pi/agent/` 复制 settings/auth 并设 `defaultProjectTrust = "always"`。
 - Pi 执行策略:无头 JSON 模式 + `-t bash --no-session --thinking minimal` + 收紧提示词(一次一条命令,防拆条/循环;见 2026-08-28 事故记录)。
 
@@ -51,6 +51,7 @@
 | PI-D1 | 拆条执行 | 模型把链式命令拆成单条时,`git commit -m x`(受保护分支普通 commit)按设计放行、`git push origin master` 仍被拦(2026-08-28 事故复盘;证据:事故记录 + 重跑确认 push 侧拦截) |
 | PI-D2 | fail-open / 超时阻断 | 令 `GITFLOW_GUARD_BIN` 指向不存在路径(spawn 失败)→ 命令放行(降级不阻断);恢复后拦截恢复。**超时例外**: 守卫子进程被超时终结(外层 45s、`killSignal: SIGKILL`)→ `{ block: true }` 阻断, 不退化为放行 |
 | PI-D3 | 决策矩阵联动 | `scripts/test-git-matrix.sh`(169 用例 CLI 文本级)变动的命令族须在 Pi 扩展通道至少各抽 1 条真机复核 |
+| PI-D4 | 默认执行器(Windows 可用性) | 不注入 `bin`/`run`/`GITFLOW_GUARD_BIN` 时, 扩展以 `node <随包 runner>` 启动守卫 —— 无 PATH / npm shim 依赖, Windows 同样可拦截。复测矩阵 `[G]` 断言 `resolvePiBin() == [process.execPath, <随包 runner>]` 并实弹跑真实 CLI |
 
 ## 运行方式
 

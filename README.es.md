@@ -2,19 +2,32 @@
 
 > **¿Cansado de que los agentes de IA ignoren tu GitFlow?**
 
-Un guardián configurable para roles de ramas Git, diseñado para agentes de programación con IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) y [Pi](https://github.com/mariozechner/pi).
+Un guardián configurable para roles de ramas Git, diseñado para agentes de programación con IA — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) y [Pi](https://pi.dev).
 Tú defines tus propias ramas —
-**integration** (las funcionalidades se integran mediante PR/MR), **preview** (entornos de prueba), **production**, **archive** — cada una con sus propias reglas de actualización. Los agentes no pueden eludir el flujo y los merges críticos permanecen en tus manos.
+**integration** (las funcionalidades se integran mediante PR/MR), **preview** (entornos de prueba), **production**, **archive** — cada una con sus propias reglas de actualización. Las infracciones rutinarias del flujo se bloquean antes de ejecutarse, con el motivo y el siguiente paso claros; y los merges críticos permanecen en tus manos. Un agente decidido puede aún eludir una capa de texto; véase [Límites honestos](#qué-no-hace--límites-honestos).
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Licencia](LICENSE)
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## Véalo en acción — una demostración en vivo de 30 segundos
+
+Sin tocar los archivos de tu proyecto, sin dejar nada atrás — un solo comando ejecuta tres escenas reales (1 pase, 2 bloqueos) dentro de un repositorio sandbox desechable y lo elimina al salir. La animación de abajo se genera a partir de la salida real de ese comando — el mismo núcleo de guardia que invoca el hook de tu agente:
+
+```bash
+npx agents-gitflow-guard demo
+```
+
+![gitflow-guard demo — decisiones reales de pase/bloqueo en un repositorio desechable real](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Para poner el guardián delante de tu agente después, continúa con [Inicio Rápido](#inicio-rápido--30-segundos-para-proteger-tu-repositorio).
+
 ---
 
 ## Índice
 
+- [Véalo en acción — una demostración en vivo de 30 segundos](#véalo-en-acción--una-demostración-en-vivo-de-30-segundos)
 - [Inicio Rápido — 30 segundos para proteger tu repositorio](#inicio-rápido--30-segundos-para-proteger-tu-repositorio)
 - [Por qué — El problema que resuelve este plugin](#por-qué--el-problema-que-resuelve-este-plugin)
 - [Para quién es esto — Escenarios y equipos](#para-quién-es-esto--escenarios-y-equipos)
@@ -37,10 +50,10 @@ Tú defines tus propias ramas —
 
 ## Inicio Rápido — 30 segundos para proteger tu repositorio
 
-**Paso 1 — Instalar.** Los nueve clientes utilizan el mismo paquete npm `agents-gitflow-guard` — elige el modo de instalación correspondiente a tu agente:
+**Paso 1 — Instalar.** Los siete clientes utilizan el mismo paquete npm `agents-gitflow-guard` — elige el modo de instalación correspondiente a tu agente:
 
 ```bash
-# Modo A: Clientes Hook CLI (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# Modo A: Clientes Hook CLI (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -66,12 +79,10 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor (cada uno con su propio archivo; --yes omite la confirmación y/N)
+# Codex / OpenCode / Antigravity / Cursor (cada uno con su propio archivo; --yes omite la confirmación y/N)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -121,9 +132,9 @@ Los agentes de programación con IA trabajan directamente en tu repositorio. A t
 
 **Esa es una regla flexible (blanda).** Los agentes se la saltan, alteran el orden o simplemente la «olvidan» — no por malicia, sino porque las instrucciones blandas son optativas para un modelo de lenguaje.
 
-Este plugin transforma esa regla flexible en un **mecanismo estricto (duro)**. Cada operación de Git intentada por un agente se evalúa frente al *estado real de tu repositorio local*. Las infracciones se bloquean antes de que el comando se ejecute, explicando el motivo y el siguiente paso a seguir.
+Este plugin dota a la regla flexible de una **compuerta mecánica**. Cada operación de Git intentada por un agente se evalúa frente al *estado real de tu repositorio local*. Las infracciones rutinarias se bloquean antes de que el comando se ejecute, explicando el motivo y el siguiente paso a seguir.
 
-Nadie tiene que acordarse de las reglas — las reglas se aplican técnicamente.
+Nadie tiene que acordarse de las reglas — el guardián las verifica mecánicamente. La capa de texto es inherentemente best-effort: lo que un agente decidido aún puede hacer, véase [Límites honestos](#qué-no-hace--límites-honestos).
 
 ---
 
@@ -369,11 +380,11 @@ El destino de PR/MR se resuelve mediante `gh pr view` (GitHub) o `glab mr view` 
 
 | Tipo de cliente / Plataforma | Comando de instalación | Paso de montaje y conexión |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <nombre> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <nombre> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | Reiniciar DSH — el plugin se monta automáticamente como capa de perfil |
 | Pi | `npm i -D agents-gitflow-guard` | Copiar `pi/gitflow-guard.ts` dentro de `.pi/extensions/` |
 
-### 1. Clientes Hook CLI autónomos (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+### 1. Clientes Hook CLI autónomos (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 
 Instala la CLI de forma global una vez y luego **conecta cada cliente con un solo comando** (el guardián está activo por defecto mediante su configuración integrada, por lo que la conexión es lo único restante):
 
@@ -383,8 +394,6 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -433,10 +442,8 @@ gitflow-guard wire --client cursor --project --yes
 }
 ```
 
-Los otros tres clientes CLI usan la misma forma de hook — `wire` escribe su archivo por ti:
+Cursor usa la misma forma de hook — `wire` escribe su archivo por ti:
 
-- **CodeBuddy** — `.codebuddy/settings.json`
-- **ZCode** — `.zcode/config.json` (también establece `hooks.enabled: true`)
 - **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...` es un marcador de posición — `wire` lo resuelve al cablear con la ruta absoluta del runner del propio paquete instalado (totalmente autoanclado: sin expansión de variables del cliente, sin supuestos sobre el directorio de trabajo del hook, sin dependencia del PATH, sin nada que desplegar en el repositorio destino). ¿Actualizas desde ≤ 0.0.41? Vuelve a ejecutar `wire` una vez por cliente — las entradas antiguas (plantilla de variable / ruta relativa / forma PATH) se migran in situ.
@@ -461,6 +468,7 @@ Los otros tres clientes CLI usan la misma forma de hook — `wire` escribe su ar
   // Pi — .pi/settings.json (las extensiones se resuelven relativas a .pi)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  Instalación a nivel de usuario (todos los proyectos a la vez): copia el mismo archivo en `~/.pi/agent/extensions/gitflow-guard.ts`, regístralo en `~/.pi/agent/settings.json` e instala el paquete dentro de `~/.pi/agent` (`npm i agents-gitflow-guard`; en MSYS `ln -s` solo copia, así que en Windows usa una junction de PowerShell). La extensión inicia el guard con `node <runner incluido>`: no requiere entrada en PATH ni instalación global de npm, tampoco en Windows.
 
 ### 3. Desde el código fuente y desarrollo local
 
@@ -476,9 +484,9 @@ npm install && npm run build
 Monta la compilación local en tu plataforma de agente de destino:
 
 ```bash
-# A. Clientes Hook CLI autónomos (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# A. Clientes Hook CLI autónomos (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm link # o npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/ruta/hacia/AgentsGitFlowController
@@ -500,7 +508,7 @@ npm link
 ### 5. Mecanismo de Hook y notas técnicas
 
 - **Protocolo de plataforma**: El hook lee el payload en stdin y responde según el protocolo de cada plataforma:
-  - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2` (stderr contiene el motivo y los pasos a seguir).
+  - **Claude Code / OpenCode**: `exit 2` (stderr contiene el motivo y los pasos a seguir).
   - **Codex**: JSON en stdout `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`.
   - **Antigravity**: JSON en stdout `{"decision":"deny","reason":...}` con `exit 0` (Antigravity exige código de salida 0).
   - **Cursor**: JSON en stdout `{"permission":"deny","user_message":...,"agent_message":...}` con `exit 0`.
@@ -509,7 +517,6 @@ npm link
 - **Ejecución previa a la herramienta (Pre-tool)**: Solo se intercepta el evento previo a la herramienta; el guardián bloquea *antes* de que los comandos se ejecuten, por lo que no se necesitan hooks posteriores ni pasos de limpieza de permisos.
 - **Resolución del binario en PATH**: La instalación global (`npm i -g`) proporciona el binario `gitflow-guard`. `wire` ancla cada hook a la ruta absoluta del runner del propio paquete instalado, de modo que el hook sigue funcionando incluso cuando el ejecutor del agente no hereda tu `PATH` interactivo.
 - **Habilitado por defecto**: Los valores predeterminados integrados (`integration: ["develop"]`, `archive: ["main"]`) entran en vigor sin ningún archivo de configuración. Las configuraciones personalizadas en `gitflow-guard.config.json` se aplican por fusión profunda sobre estos valores.
-- **Conexión no destructiva**: `gitflow-guard wire` fusiona las configuraciones de hooks de forma idempotente sin modificar los hooks existentes (las entradas antiguas de gitflow-guard se migran a la forma actual al volver a ejecutar), y `wire --unwire` elimina únicamente la entrada del guardián.
 
 ---
 
@@ -563,7 +570,7 @@ Los bloqueos están reservados para: (1) escrituras directas en ramas de roles p
 
 Una configuración mal definida nunca se aplica por accidente: cualquier error de validación desactiva el guardián para ese proyecto y reporta los fallos.
 
-Errores comunes: redefinir un rol con el mismo nombre de rama que un rol predeterminado (ej. mapear `main` como integración mientras el archivo predeterminado sigue siendo `main` — un error explícito de superposición; redefine o elimina el otro rol también), superponer una misma rama en dos roles diferentes (rechazado), o un `featurePattern` que no compila (rechazado por regex no válida). El aviso de error es claro y el archivo es un único objeto JSON, por lo que la corrección normalmente toma menos de medio minuto.
+El aviso de error es claro y el archivo es un único objeto JSON, por lo que la corrección normalmente toma menos de medio minuto.
 
 ---
 
@@ -578,8 +585,6 @@ No se escribe nada en disco, no se contacta a ningún servidor remoto y no se re
 ### ¿Licencia / coste?
 
 MIT, gratuito, sin condiciones. Úsalo, modifícalo, distribúyelo — la única obligación es conservar el aviso de derechos de autor.
-
-Si le ahorra a tu equipo un incidente por un atajo no deseado, el botón de café en la parte superior de esta página es bienvenido, aunque nunca obligatorio. Ver [Licencia](#licencia).
 
 ---
 
@@ -600,12 +605,10 @@ Si le ahorra a tu equipo un incidente por un atajo no deseado, el botón de caf�
 
 ## Hoja de Ruta
 
-Capacidades futuras y áreas bajo exploración activa:
+Esta sección describe la dirección del proyecto: una intención, no una promesa:
 
-- **Nuevas integraciones de agentes**: investigación y adaptación a hooks/extensiones de nuevos agentes (ej. Windsurf, nuevas CLI de agentes).
-- **Agregación de auditorías**: sincronización de registros de auditoría entre máquinas y formatos de exportación para cumplimiento normativo de equipos.
-- **Preajustes de flujo de trabajo**: preajustes de configuración listos para usar según flujos de ramas comunes de Git (desarrollo basado en tronco, configuraciones empresariales multientorno).
-- **Comprobación estricta en CI**: hooks nativos para pipelines de CI e integración con verificaciones de PR manteniendo la ejecución local con cero dependencias.
+- **Enfoque — primero la corrección**: mantener la precisión y previsibilidad del guard existente (los agentes, las formas de comando y las reglas documentados en esta página) y validarlo en repositorios reales.
+- **No planificado**: nuevas integraciones de agentes, bloqueo estricto en CI, sincronización de auditorías entre máquinas y descarga de políticas remotas. El guard sigue siendo local y sin dependencias, y se configura únicamente desde este repositorio; la protección de ramas en tu servidor sigue siendo la frontera final.
 
 Para conocer las funciones publicadas y el historial de versiones, consulta [CHANGELOG.md](CHANGELOG.md).
 
@@ -628,7 +631,7 @@ npm run test:all        # typecheck + pruebas unitarias + matriz de plataformas 
 ```
 
 - **Regla de calidad**: cualquier cambio de lógica requiere una verificación de tipos sin errores (0 errores), todas las pruebas en verde y superar `verify:matrix`.
-- **Incorporación de clientes**: al añadir soporte para una nueva plataforma de agente, sigue la lista de verificación de sincronización en [AGENTS.md](AGENTS.md) §8.
+- **Incorporación de clientes**: al añadir soporte para una nueva plataforma de agente, sigue la lista de verificación de sincronización en [AGENTS.md](AGENTS.md) sección 8.
 
 ---
 

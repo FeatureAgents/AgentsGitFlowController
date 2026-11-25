@@ -31,7 +31,7 @@ Load this skill whenever updating **documentation, user-facing features, configu
 ## Trigger Scenarios
 
 - Any edit to `README.md` or `README.zh.md` (adding/updating sections, tables, FAQs, examples, or rules).
-- Adding support for a new AI Agent client platform (AGENTS.md §8 checklist).
+- Adding support for a new AI Agent client platform (AGENTS.md section 8 checklist).
 - Changing command classification, gate evaluation logic, or default configuration models.
 - Updating release version pins or installation guidance.
 
@@ -43,12 +43,12 @@ Whenever editing documentation, verify all 11 files against these 7 structural i
 
 | # | Check Dimension | Exact Specification |
 |---|---|---|
-| 1 | **Headings Hierarchy** | Exactly **44 headings** (1 H1, 18 H2, 22 H3, 3 H4) in identical order. |
+| 1 | **Headings Hierarchy** | Exactly **45 headings** (1 H1, 19 H2, 22 H3, 3 H4) in identical order. |
 | 2 | **Markdown Tables** | Exactly **7 tables** with identical row counts: Walkthrough (6 steps), Server vs Plugin (7 rows), Defaults (2 roles), Branch Roles (5 roles), Gate Matrix (11 actions), Install Matrix (3 tiers), Glossary (8 terms). |
-| 3 | **Code Blocks** | Exactly **20 code blocks** preserving identical commands, CLI arguments, JSON keys, and schemas. |
+| 3 | **Code Blocks** | Exactly **21 code blocks** preserving identical commands, CLI arguments, JSON keys, and schemas. |
 | 4 | **FAQ Completeness** | Exactly **9 FAQ Q&A pairs** answering all common user questions. |
 | 5 | **Glossary Completeness** | Exactly **8 core terms** defined in the Glossary table. |
-| 6 | **TOC & Anchor Validity** | Exactly **17 TOC links** resolving to valid GitHub slug anchors with 0 broken links. |
+| 6 | **TOC & Anchor Validity** | Exactly **18 TOC links** resolving to valid GitHub slug anchors with 0 broken links, listed in the same order as the headings appear in the document, with **every H2 listed** (no omitted section). All three are enforced mechanically by `scripts/check-readme-equality.mjs` (`tocAnchorErrors`). |
 | 7 | **Navigation Bar Symmetry** | All 11 language links + localized License link present in the exact same order. |
 
 ---
@@ -72,6 +72,7 @@ After any documentation change, run the automated validation suite:
 
 ```bash
 # 1. Check structural parity and symmetry across all 11 READMEs
+# (heading/table/TOC counts + TOC anchor resolution + TOC order == document order)
 node scripts/check-readme-equality.mjs
 
 # 2. Check version pins consistency across all READMEs and package.json

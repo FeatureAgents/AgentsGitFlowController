@@ -35,6 +35,9 @@ const en: Dict = {
   'refUpdateProtected.why': (v) =>
     `Protected branch "${v.branch}" forbids direct ref updates (update-ref / symbolic-ref / branch -m|-f / checkout -B)`,
   'refUpdateProtected.next': () => 'Update protected branches via PR/MR; they are managed by you.',
+  'refUpdateUnknown.why': () =>
+    'Cannot statically verify target refs of update-ref --stdin (may modify protected branches)',
+  'refUpdateUnknown.next': () => 'Specify a non-protected branch name explicitly, or update protected branches via PR/MR.',
   'refMoveProtected.why': () =>
     'Rewriting history on a protected branch (reset / rebase / commit --amend / filter-branch / cherry-pick / revert) is not allowed',
   'refMoveProtected.next': () => 'Do history rewrites on a feature branch; protected branches advance via PR/MR and are managed by you.',
@@ -92,6 +95,12 @@ const en: Dict = {
   'aliasSmuggle.why': () => 'Alias defined through an out-of-band channel (--config-env / GIT_CONFIG_KEY_*)',
   'aliasSmuggle.next': () =>
     'Define it with `-c alias.<name>=<value>` so the guard can classify it, or run the underlying command directly.',
+  'segmentCwdMismatch.why': () => 'Guarded git segments in one command would run in different directories',
+  'segmentCwdMismatch.next': () =>
+    'Split the command and run each part on its own, or drop the directory redirection (cd / git -C).',
+  'segmentCwdUnknown.why': () => 'Cannot statically determine where a guarded git segment in this command would run',
+  'segmentCwdUnknown.next': () =>
+    'Split the command and run each part on its own, or drop the directory redirection (cd / git -C).',
   'deny.header': (v) => `[gitflow-guard] blocked: ${v.why}`,
   'deny.next': (v) => `Next: ${v.next}`,
 
@@ -115,7 +124,7 @@ const en: Dict = {
   'cli.checkInternalError': (v) => `[gitflow-guard] check internal error, allowed through: ${v.msg}`,
   'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] guard disabled: invalid config: ${v.err}`,
   // —— wire / setup / 默认配置引导 ——
-  'cli.wireUnknownClient': (v) => `unknown client: ${v.client} (expected dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor)`,
+  'cli.wireUnknownClient': (v) => `unknown client: ${v.client} (expected dsh|claude|codex|opencode|antigravity|pi|cursor)`,
   'cli.wireNeedRepo': () => 'project scope needs a git repository — run inside a repo or pass --repo <path>',
   'cli.wireScopeAsk': () => 'Scope — project (this repo only) or global (all repos on this machine)? [project/global] ',
   'cli.wireScopeInvalid': () => 'invalid scope (expected project or global)',
@@ -128,7 +137,7 @@ const en: Dict = {
   'cli.wireConfirmWrite': (v) => `Write ${v.path}? [y/N] `,
   'cli.wireRefuseGlobal': () => 'Refusing to modify a global config without confirmation — pass --yes to allow',
   'cli.wireDshGuide': () => 'DSH is an in-process plugin — no hook file to write. Mount it with: dsh plugin --profile web add agents-gitflow-guard',
-  'cli.wirePiGuide': () => 'Pi is an in-process extension — no hook file to write. Copy pi/gitflow-guard.ts into .pi/extensions/ and list it in .pi/settings.json (see README).',
+  'cli.wirePiGuide': () => 'Pi is an in-process extension — no hook file to write. Copy pi/gitflow-guard.ts into .pi/extensions/ and list it in .pi/settings.json (see README). User-level: copy it to ~/.pi/agent/extensions/ and list it in ~/.pi/agent/settings.json. The extension starts the guard with node + the bundled runner — no PATH entry or global install needed.',
   'cli.wireExperimental': (v) => `${v.client}: experimental support — verify the hook on a real device before relying on it`,
   'cli.wireDryRunAdd': (v) => `${v.client}: [dry-run] would add hook → ${v.path}`,
   'cli.wireDryRunMigrated': (v) => `${v.client}: [dry-run] would migrate legacy hook → ${v.path}`,
@@ -140,9 +149,19 @@ const en: Dict = {
   'cli.statusWireHint': (v) => `  ${v.client}: not wired — run: gitflow-guard wire --client ${v.client}`,
   'cli.statusWireLegacyHint': (v) => `  ${v.client}: legacy wiring detected (pre self-anchored runner path) — re-run: gitflow-guard wire --client ${v.client} to migrate`,
   'cli.setupIntro': () => 'gitflow-guard setup — wire one client for this project. (Ctrl+C to cancel)',
-  'cli.setupClientAsk': () => 'Which client? [dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor] ',
-  'cli.setupClientInvalid': () => 'invalid client (expected dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor)',
+  'cli.setupClientAsk': () => 'Which client? [dsh|claude|codex|opencode|antigravity|pi|cursor] ',
+  'cli.setupClientInvalid': () => 'invalid client (expected dsh|claude|codex|opencode|antigravity|pi|cursor)',
   'cli.setupNoTty': () => 'setup needs an interactive terminal — use: gitflow-guard wire --client <name> --yes',
+  // —— demo: 30 秒真实演示(沙箱仓库 + 同一守卫核心, 用户目录零残留) ——
+  'cli.demo.title': () => '[gitflow-guard] demo — watch the guard decide on a real throwaway repo',
+  'cli.demo.sandbox': (v) => `  sandbox: ${v.dir} (a real git repo — deleted on exit)`,
+  'cli.demo.scene': (v) => `  scene ${v.n}/${v.total} — on ${v.branch}: ${v.cmd}`,
+  'cli.demo.allow': () => '    → ALLOW (exit 0) — the command may run',
+  'cli.demo.deny': () => '    → DENY (exit 2) — the command never ran',
+  'cli.demo.why': (v) => `      why: ${v.why}`,
+  'cli.demo.next': (v) => `      next: ${v.next}`,
+  'cli.demo.cleanup': () => '  sandbox deleted — no files left behind. That was the real guard core, the same code your agent\'s hook calls.',
+  'cli.demo.wire': () => '  Put the guard in front of your agent:  npx agents-gitflow-guard wire --client <claude|codex|cursor|...> --project',
   'guardStrictConfigBroken.why': () => 'Guard config is invalid while strict mode is enabled',
   'guardStrictConfigBroken.next': () => 'Fix gitflow-guard.config.json (or remove "strict": true) before retrying.',
   'guardStrictInternalError.why': (v) => `Guard internal error while strict mode is enabled: ${v.msg}`,
@@ -152,14 +171,17 @@ const en: Dict = {
 Usage:
   gitflow-guard status [--repo <path>] [--locale <en|zh>]
   gitflow-guard audit [--lines <count>] [--repo <path>] [--locale <en|zh>]
-  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|codebuddy|zcode|cursor>] [--command "<cmd>"] [--repo <path>] [--locale <en|zh>]
-  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <path>] [--locale <en|zh>]
+  gitflow-guard demo [--cast <file>] [--locale <en|zh>]
+  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|cursor>] [--command "<cmd>"] [--repo <path>] [--locale <en|zh>]
+  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|cursor> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <path>] [--locale <en|zh>]
   gitflow-guard setup [--repo <path>] [--locale <en|zh>]
   gitflow-guard --help
 
 
 Notes:
   status/audit are read-only; the agent can self-inspect.
+  demo runs three real scenes in a throwaway sandbox repo (allow / deny / deny), then deletes it —
+  nothing is left in your home or state directories.
   --locale overrides the message language for this invocation (flag > project config > English).
   check reads the hook payload on stdin (platform-specific protocol: claude/opencode exit 2,
   codex/antigravity/cursor JSON on stdout) and is meant for pre/post hooks of AI agents.
@@ -183,6 +205,8 @@ const zh: Dict = {
   'refUpdateProtected.why': (v) =>
     `受保护分支「${v.branch}」禁止直接改写 refs(update-ref / symbolic-ref / branch -m|-f / checkout -B)`,
   'refUpdateProtected.next': () => '请通过 PR/MR 更新受保护分支; 受保护分支由用户亲手管理',
+  'refUpdateUnknown.why': () => '无法静态确认 update-ref --stdin 的目标分支(可能改写受保护分支)',
+  'refUpdateUnknown.next': () => '请显式指定非受保护分支名更新 ref, 或通过 PR/MR 更新受保护分支',
   'refMoveProtected.why': () =>
     '受保护分支禁止本地改写历史(reset / rebase / commit --amend / filter-branch / cherry-pick / revert)',
   'refMoveProtected.next': () => '历史改写请在 feature 分支上进行; 受保护分支仅经 PR/MR 推进, 由用户亲手管理',
@@ -233,6 +257,10 @@ const zh: Dict = {
   'aliasSmuggle.why': () => '别名经带外通道定义(--config-env / GIT_CONFIG_KEY_*)',
   'aliasSmuggle.next': () =>
     '请改用 `-c alias.<名>=<值>` 定义别名以便守卫识别, 或直接运行底层命令',
+  'segmentCwdMismatch.why': () => '单条命令里多个受门禁 git 段将在不同目录运行',
+  'segmentCwdMismatch.next': () => '请把命令拆开逐条执行, 或去掉目录重定向(cd / git -C)',
+  'segmentCwdUnknown.why': () => '单条命令里存在无法静态确定运行目录的受门禁段',
+  'segmentCwdUnknown.next': () => '请把命令拆开逐条执行, 或去掉目录重定向(cd / git -C)',
   'deny.header': (v) => `[gitflow-guard] 已拦截: ${v.why}`,
   'deny.next': (v) => `下一步: ${v.next}`,
 
@@ -255,7 +283,7 @@ const zh: Dict = {
   'cli.checkInternalError': (v) => `[gitflow-guard] check 内部错误, 已放行: ${v.msg}`,
   'cli.guardDisabledInvalidConfig': (v) => `[gitflow-guard] 守卫未启用: 配置无效: ${v.err}`,
   // —— wire / setup / 默认配置引导 ——
-  'cli.wireUnknownClient': (v) => `未知客户端: ${v.client}(应为 dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor)`,
+  'cli.wireUnknownClient': (v) => `未知客户端: ${v.client}(应为 dsh|claude|codex|opencode|antigravity|pi|cursor)`,
   'cli.wireNeedRepo': () => '项目级作用域需要一个 git 仓库 — 请在仓库内运行, 或传 --repo <路径>',
   'cli.wireScopeAsk': () => '作用域 — project(仅当前仓库) 还是 global(本机所有仓库)? [project/global] ',
   'cli.wireScopeInvalid': () => '无效作用域(应为 project 或 global)',
@@ -268,7 +296,7 @@ const zh: Dict = {
   'cli.wireConfirmWrite': (v) => `写入 ${v.path}? [y/N] `,
   'cli.wireRefuseGlobal': () => '拒绝在未确认时改动全局配置 — 传 --yes 允许',
   'cli.wireDshGuide': () => 'DSH 是进程内插件, 无需写入 hook 文件。挂载: dsh plugin --profile web add agents-gitflow-guard',
-  'cli.wirePiGuide': () => 'Pi 是进程内扩展, 无需写入 hook 文件。把 pi/gitflow-guard.ts 拷到 .pi/extensions/ 并在 .pi/settings.json 登记(见 README)',
+  'cli.wirePiGuide': () => 'Pi 是进程内扩展, 无需写入 hook 文件。把 pi/gitflow-guard.ts 拷到 .pi/extensions/ 并在 .pi/settings.json 登记(见 README);全局安装: 拷到 ~/.pi/agent/extensions/ 并登记到 ~/.pi/agent/settings.json。扩展以 node + 随包 runner 启动守卫, 不依赖 PATH 或全局安装。',
   'cli.wireExperimental': (v) => `${v.client}: 实验支持 — 请在真机核验后再依赖它`,
   'cli.wireDryRunAdd': (v) => `${v.client}: [dry-run] 将添加 hook → ${v.path}`,
   'cli.wireDryRunMigrated': (v) => `${v.client}: [dry-run] 将迁移旧版 hook → ${v.path}`,
@@ -280,9 +308,19 @@ const zh: Dict = {
   'cli.statusWireHint': (v) => `  ${v.client}: 未接线 — 运行: gitflow-guard wire --client ${v.client}`,
   'cli.statusWireLegacyHint': (v) => `  ${v.client}: 检测到旧版接线(runner 路径已过时) — 重新运行 gitflow-guard wire --client ${v.client} 完成迁移`,
   'cli.setupIntro': () => 'gitflow-guard setup — 为本项目接线一个客户端。(Ctrl+C 取消)',
-  'cli.setupClientAsk': () => '选哪个客户端? [dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor] ',
-  'cli.setupClientInvalid': () => '无效客户端(应为 dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor)',
+  'cli.setupClientAsk': () => '选哪个客户端? [dsh|claude|codex|opencode|antigravity|pi|cursor] ',
+  'cli.setupClientInvalid': () => '无效客户端(应为 dsh|claude|codex|opencode|antigravity|pi|cursor)',
   'cli.setupNoTty': () => 'setup 需要交互终端 — 请用: gitflow-guard wire --client <名字> --yes',
+  // —— demo: 30 秒真实演示(沙箱仓库 + 同一守卫核心, 用户目录零残留) ——
+  'cli.demo.title': () => '[gitflow-guard] demo — 在一个真实的一次性仓库上, 看守卫现场做判断',
+  'cli.demo.sandbox': (v) => `  沙箱: ${v.dir}(真实 git 仓库, 退出即删除)`,
+  'cli.demo.scene': (v) => `  场景 ${v.n}/${v.total} — 在 ${v.branch} 上: ${v.cmd}`,
+  'cli.demo.allow': () => '    → 放行 (exit 0) — 命令可以执行',
+  'cli.demo.deny': () => '    → 拦截 (exit 2) — 命令没有执行',
+  'cli.demo.why': (v) => `      原因: ${v.why}`,
+  'cli.demo.next': (v) => `      下一步: ${v.next}`,
+  'cli.demo.cleanup': () => '  沙箱已删除 — 不留任何文件。刚才就是真实的守卫核心, 与你 agent hook 调用的是同一份代码。',
+  'cli.demo.wire': () => '  把守卫接到你的 agent 面前:  npx agents-gitflow-guard wire --client <claude|codex|cursor|...> --project',
   'guardStrictConfigBroken.why': () => '守卫配置无效, 且已启用 strict 模式',
   'guardStrictConfigBroken.next': () => '请先修复 gitflow-guard.config.json(或移除 "strict": true)后重试',
   'guardStrictInternalError.why': (v) => `守卫内部错误, 且已启用 strict 模式: ${v.msg}`,
@@ -292,14 +330,16 @@ const zh: Dict = {
 用法:
   gitflow-guard status [--repo <路径>] [--locale <en|zh>]
   gitflow-guard audit [--lines <数量>] [--repo <路径>] [--locale <en|zh>]
-  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|codebuddy|zcode|cursor>] [--command "<cmd>"] [--repo <路径>] [--locale <en|zh>]
-  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|codebuddy|zcode|cursor> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard demo [--cast <文件>] [--locale <en|zh>]
+  gitflow-guard check [--platform <auto|claude|codex|opencode|antigravity|cursor>] [--command "<cmd>"] [--repo <路径>] [--locale <en|zh>]
+  gitflow-guard wire --client <dsh|claude|codex|opencode|antigravity|pi|cursor> [--project|--global] [--unwire] [--dry-run] [--yes] [--repo <路径>] [--locale <en|zh>]
   gitflow-guard setup [--repo <路径>] [--locale <en|zh>]
   gitflow-guard --help
 
 
 说明:
   status/audit 只读, agent 可自查。
+  demo 在一次性沙箱仓库里跑三个真实场景(放行/拦截/拦截), 结束即删 — 不在你的主目录或状态目录留任何文件。
   --locale 可临时覆盖本次调用的文案语言(旗标 > 项目配置 > 英文)。
   check 读 stdin hook payload 做门禁(平台协议: claude/opencode exit 2, codex/antigravity/cursor stdout JSON),
   供 Claude Code / Codex / OpenCode 等 agent 的 pre/post hook 调用。

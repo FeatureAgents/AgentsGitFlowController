@@ -4,16 +4,17 @@ import { appendFile, mkdir } from 'node:fs/promises'
 import { realpathSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
-import { classify } from './classify'
+import { classify, resolveSegmentCwds } from './classify'
 import { loadConfig } from './config'
+import type { ConfigLoadResult } from './config'
 import { decide } from './gate'
 import { makeT, resolveLocale } from './i18n'
 import type { Locale } from './i18n'
 import { commonGitDir, currentBranch as queryCurrentBranch, findRepoRoot, getUpstreamDivergence, getWorktreeStatus, ghPrChecks, ghPrInfo, ghRunner, gitRunner, glabMrInfo, glabRunner, resolvePrTarget, RunnerTimeoutError } from './repo'
-import type { Classified, GateFacts, PrTargetResolution } from './types'
+import type { Classified, GateFacts, GuardConfig, PrTargetResolution } from './types'
 import type { Runner } from './repo'
 
 // 运行时语言扩展点(包根再导出): 下游经 registerLocale 注册自定义 locale 后, 即可在项目配置引用该 locale 名;
@@ -21,8 +22,8 @@ import type { Runner } from './repo'
 export { MESSAGE_KEYS, registerLocale } from './i18n'
 export type { Dict } from './i18n'
 
-// Pi 进程内扩展适配层(与 DSH 同为 stdin-hook 例外, 见 AGENTS.md §8 与 .agents/hooks/references/pi.md)
-export { createPiExtension } from './pi'
+// Pi 进程内扩展适配层(与 DSH 同为 stdin-hook 例外, 见 AGENTS.md 第 8 节与 .agents/hooks/references/pi.md)
+export { createPiExtension, resolvePiBin } from './pi'
 export type { PiExtensionAPI, PiExtensionContext, PiExtensionOptions, PiToolCallEvent, PiToolCallResult } from './pi'
 
 // 接线层再导出: resolveRunnerPath/guardCommand 供外部复算 wire 写出的 canonical 钩子命令(测试/矩阵/集成方)
@@ -132,7 +133,7 @@ interface Env {
   runner: Runner
   gh: Runner
   glab: Runner
-  simulatedClean?: boolean
+  simulatedClean?: 'none' | 'staged' | 'all'
 }
 
 /** 解析一条命令: 分类 → git 事实 → 门禁 → allow/deny */
@@ -164,7 +165,8 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
   const segments = classify(command, { currentBranch: branch })
   // 模拟分支状态: checkout/switch 段会改变后续段的当前分支; commit/stash/reset --hard 会模拟工作区干净状态
   let simulatedBranch = branch
-  let simulatedClean = false
+  let simulatedClean: 'none' | 'staged' | 'all' = 'none'
+  let simulatedStagedAll = false
   for (const seg of segments) {
     const { facts } = await factsFor(seg, { ...env, branch: simulatedBranch, simulatedClean })
     const decision = decide(seg, facts, config, t)
@@ -174,7 +176,16 @@ export async function evaluateCommand(command: string, opts: EvaluateOptions): P
     }
     await logCiReference(seg, env)
     if (seg.kind === 'checkout' && seg.branch != null) simulatedBranch = seg.branch
-    if ('cleanWorktree' in seg && seg.cleanWorktree) simulatedClean = true
+    if ('stagesAll' in seg && seg.stagesAll) simulatedStagedAll = true
+    if (seg.kind === 'ref-move' && !seg.cleanWorktree) simulatedStagedAll = false
+    if ('cleanWorktree' in seg && seg.cleanWorktree) {
+      const scope = ('cleanScope' in seg ? seg.cleanScope : undefined) ?? 'all'
+      if (scope === 'all' || simulatedStagedAll) {
+        simulatedClean = 'all'
+      } else if (simulatedClean !== 'all') {
+        simulatedClean = 'staged'
+      }
+    }
   }
   return { outcome: 'allow', segmentCount: segments.length, locale }
 }
@@ -217,8 +228,12 @@ async function factsFor(seg: Classified, env: Env): Promise<{ facts: GateFacts; 
 
     if (needWorktreeCheck) {
       const realStatus = await getWorktreeStatus(runner, repoRoot)
-      if (simulatedClean) {
+      if (simulatedClean === 'all') {
         worktreeStatusFact = realStatus ? { staged: 0, unstaged: 0, untracked: realStatus.untracked, isDirty: false } : null
+      } else if (simulatedClean === 'staged') {
+        worktreeStatusFact = realStatus
+          ? { staged: 0, unstaged: realStatus.unstaged, untracked: realStatus.untracked, isDirty: realStatus.unstaged > 0 }
+          : null
       } else {
         worktreeStatusFact = realStatus
       }
@@ -251,6 +266,126 @@ function commandText(exec: ToolExecution): string {
   return typeof args?.command === 'string' ? args.command : ''
 }
 
+/** 工具调用自带的工作目录参数(DSH bash / pwsh 的 workdir, 兼容 cwd); 相对路径按会话目录解析, 缺省即会话目录 */
+function toolWorkdir(exec: ToolExecution, sessionCwd: string): string {
+  const args = exec.arguments as { workdir?: unknown; cwd?: unknown } | undefined
+  const wd = [args?.workdir, args?.cwd].find((v): v is string => typeof v === 'string' && v.trim() !== '')
+  return wd == null ? sessionCwd : resolve(sessionCwd, wd)
+}
+
+export type CommandRepoResolution =
+  | { kind: 'no-gated' }
+  | { kind: 'unmanaged' }
+  | { kind: 'config-broken'; repoRoot: string; loaded: ConfigLoadResult }
+  | { kind: 'deny-cwd'; reasonKey: 'segmentCwdUnknown' | 'segmentCwdMismatch'; repoRoot: string; config: GuardConfig }
+  | { kind: 'resolved'; repoRoot: string; loaded: ConfigLoadResult & { config: GuardConfig } }
+
+export interface ResolveCommandRepoOptions {
+  startDir: string
+  fallbackDir?: string
+  explicitRepoRoot?: string
+  runner?: Runner
+}
+
+function repoKey(repoRoot: string): string {
+  const r = resolve(repoRoot)
+  return process.platform === 'win32' ? r.toLowerCase() : r
+}
+
+/** 两个目录是否为同一目录(已规范化; Windows 盘符与路径大小写不敏感) */
+function sameDir(a: string, b: string): boolean {
+  return repoKey(a) === repoKey(b)
+}
+
+/** 统一解析命令所属仓库与分目录合规性(DSH apply 与 CLI check 共用) */
+export async function resolveCommandRepo(
+  command: string,
+  opts: ResolveCommandRepoOptions,
+): Promise<CommandRepoResolution> {
+  const runner = opts.runner ?? gitRunner
+  const { startDir, fallbackDir, explicitRepoRoot } = opts
+  const entries = resolveSegmentCwds(command, startDir)
+  if (entries.length === 0) return { kind: 'no-gated' }
+
+  const unknownDir = entries.some((e) => e.cwd == null)
+  const known = entries.map((e) => e.cwd).filter((d): d is string => d != null)
+
+  if (unknownDir || known.some((d) => !sameDir(d, known[0]))) {
+    const candidates: string[] = []
+    const seenDirs = new Set<string>()
+    for (const d of fallbackDir ? [...known, fallbackDir] : known) {
+      const k = repoKey(d)
+      if (seenDirs.has(k)) continue
+      seenDirs.add(k)
+      candidates.push(d)
+    }
+
+    const seenRepos = new Set<string>()
+    const broken: {
+      first?: { repoRoot: string; loaded: ConfigLoadResult }
+      strict?: { repoRoot: string; loaded: ConfigLoadResult }
+    } = {}
+
+    const inspectRepo = async (repoRoot: string): Promise<CommandRepoResolution | null> => {
+      const k = repoKey(repoRoot)
+      if (seenRepos.has(k)) return null
+      seenRepos.add(k)
+      const loaded = await loadConfig(repoRoot)
+      if (loaded.config?.enabled) {
+        return {
+          kind: 'deny-cwd',
+          reasonKey: unknownDir ? 'segmentCwdUnknown' : 'segmentCwdMismatch',
+          repoRoot,
+          config: loaded.config,
+        }
+      }
+      if (loaded.errors.length > 0) {
+        if (!broken.first) broken.first = { repoRoot, loaded }
+        if (!broken.strict && (loaded.strict === true || loaded.config?.strict === true)) {
+          broken.strict = { repoRoot, loaded }
+        }
+      }
+      return null
+    }
+
+    for (const d of candidates) {
+      const repoRoot =
+        explicitRepoRoot && sameDir(d, startDir) ? explicitRepoRoot : await findRepoRoot(runner, d)
+      if (!repoRoot) continue
+      const hit = await inspectRepo(repoRoot)
+      if (hit) return hit
+    }
+
+    if (explicitRepoRoot) {
+      const hit = await inspectRepo(explicitRepoRoot)
+      if (hit) return hit
+    }
+
+    const pickedBroken = broken.strict ?? broken.first
+    if (pickedBroken) return { kind: 'config-broken', repoRoot: pickedBroken.repoRoot, loaded: pickedBroken.loaded }
+    return { kind: 'unmanaged' }
+  }
+
+  const dir = known[0]
+  const repoRoot =
+    explicitRepoRoot && sameDir(dir, startDir)
+      ? explicitRepoRoot
+      : (await findRepoRoot(runner, dir)) ??
+        (fallbackDir && !sameDir(dir, fallbackDir) ? await findRepoRoot(runner, fallbackDir) : null) ??
+        explicitRepoRoot ??
+        null
+  if (!repoRoot) return { kind: 'unmanaged' }
+
+  const loaded = await loadConfig(repoRoot)
+  if (loaded.errors.length > 0 || !loaded.config) {
+    return { kind: 'config-broken', repoRoot, loaded }
+  }
+  if (!loaded.config.enabled) {
+    return { kind: 'unmanaged' }
+  }
+  return { kind: 'resolved', repoRoot, loaded: loaded as ConfigLoadResult & { config: GuardConfig } }
+}
+
 export function formatDeny(locale: Locale, why: string, next: string): string {
   const t = makeT(locale)
   return `${t('deny.header', { why })}\n${t('deny.next', { next })}`
@@ -261,17 +396,38 @@ export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
   const runner = pluginConfig.runner ?? gitRunner
 
   ctx.on('tools/pre-execute', async (exec, next) => {
+    let strict = false
     try {
       const command = commandText(exec)
       if (!command || !toolNames.has(exec.name)) return next()
-      // 快路径: 非 git 系命令直接放行, 不触发任何 git 查询(与 CLI check 的快路径同口径)
-      const segments = classify(command)
-      if (segments.length === 0 || segments.every((s) => s.kind === 'other')) return next()
-      const cwd = exec.agent?.session.header.cwd ?? process.cwd()
-      const repoRoot = await findRepoRoot(runner, cwd)
-      if (!repoRoot) return next()
+      // 按命令实际运行的目录判定(workdir 参数 → 前导 cd → git -C), 而非会话目录: 二者可能是不同的 worktree / 仓库。
+      // 无受门禁段直接放行(快路径, 不触发任何 git 查询); 任一受门禁段目录无法静态确定或段间目录不一致则直接拒绝;
+      // 推演出的目录不在任何仓库内(目录不存在、cd 失败后 ; 续跑等)时回落到会话目录的仓库, 不因目录推演而放行
+      const sessionCwd = exec.agent?.session.header.cwd ?? process.cwd()
+      const res = await resolveCommandRepo(command, {
+        startDir: toolWorkdir(exec, sessionCwd),
+        fallbackDir: sessionCwd,
+        runner,
+      })
+      if (res.kind === 'no-gated' || res.kind === 'unmanaged') return next()
+      if (res.kind === 'config-broken') {
+        if (res.loaded.strict === true || res.loaded.config?.strict === true) {
+          const t = makeT('en')
+          return { kind: 'deny', reason: formatDeny('en', t('guardStrictConfigBroken.why'), t('guardStrictConfigBroken.next')) }
+        }
+        return next()
+      }
+      if (res.kind === 'deny-cwd') {
+        strict = res.config.strict === true
+        const locale = resolveLocale(res.config.locale)
+        const t = makeT(locale)
+        const reason = t(`${res.reasonKey}.why`)
+        await appendAudit(res.repoRoot, { time: Date.now(), event: 'deny', command, reason }, runner)
+        return { kind: 'deny', reason: formatDeny(locale, reason, t(`${res.reasonKey}.next`)) }
+      }
 
-      const result = await evaluateCommand(command, { repoRoot, runner })
+      strict = res.loaded.strict === true || res.loaded.config?.strict === true
+      const result = await evaluateCommand(command, { repoRoot: res.repoRoot, runner })
       if (result.outcome === 'deny' && result.reason) {
         return { kind: 'deny', reason: formatDeny(result.locale, result.reason.why, result.reason.next) }
       }
@@ -282,6 +438,11 @@ export function apply(ctx: Context, pluginConfig: PluginConfig = {}): void {
         // 命中此分支即 findRepoRoot 自身超时 —— 没有仓库键可供审计落盘(仓库根已知的超时拒绝由 evaluateCommand 内部记账)
         const t = makeT('en')
         return { kind: 'deny', reason: formatDeny('en', t('repoTimeout.why'), t('repoTimeout.next')) }
+      }
+      if (strict) {
+        // strict: 内部异常也 fail-closed
+        const t = makeT('en')
+        return { kind: 'deny', reason: formatDeny('en', t('guardStrictInternalError.why', { msg: (e as Error).message }), t('guardStrictInternalError.next')) }
       }
       // 门禁内部故障降级放行, 不阻断工具管道
       ctx.logger?.warn?.(`gitflow-guard: gate internal error, allowed through: ${(e as Error).message}`)

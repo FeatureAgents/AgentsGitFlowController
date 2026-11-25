@@ -8,7 +8,7 @@
 
 > 每个客户端三处文档各司其职:`.agents/hooks/references/<客户端>.md` 记**官方协议事实**(几乎不变, 代码注释按路径引用),
 > 本目录 `<客户端>.md` 记**测试用例**(客户端触发方式变则改), `TestResult/<客户端>.md` 记**某次实测证据**(带日期与输出, 归档只增不改)。
-> 本表是三者唯一入口;`实机证据` 列为"待测"表示该客户端尚未真机跑过(AGENTS.md §8 接入清单的 E2E 固证项未闭环)。
+> 本表是三者唯一入口;`实机证据` 列为"待测"表示该客户端尚未真机跑过(AGENTS.md 第 8 节接入清单的 E2E 固证项未闭环)。
 
 | 客户端 | 接入形态 | 官方协议 | 测试用例 | 实机证据 | 本机状态 |
 |---|---|---|---|---|---|
@@ -18,8 +18,6 @@
 | OpenCode | stdin hook (exit 2) | [`opencode.md`](../../.agents/hooks/references/opencode.md) | [`opencode.md`](opencode.md) | [`opencode.md`](TestResult/opencode.md) | ✅ 已安装 1.18.15 |
 | Antigravity | stdin hook (exit 0+{decision}) | [`antigravity.md`](../../.agents/hooks/references/antigravity.md) | [`antigravity.md`](antigravity.md) | [`antigravity.md`](TestResult/antigravity.md) | ✅ 已实测(agy 1.1.22,2026-08-29);AGY-D2/D3 两处协议差异已修复(见证据文件) |
 | Pi | 进程内扩展 | [`pi.md`](../../.agents/hooks/references/pi.md) | [`pi.md`](pi.md) | [`pi.md`](TestResult/pi.md) | ✅ 已安装 0.84.3 |
-| CodeBuddy | stdin hook (exit 2) | [`codebuddy.md`](../../.agents/hooks/references/codebuddy.md) | [`codebuddy.md`](codebuddy.md) | 待测 | 📝 用例已就绪 |
-| ZCode | stdin hook (exit 2) | [`zcode.md`](../../.agents/hooks/references/zcode.md) | [`zcode.md`](zcode.md) | 待测 | 📝 用例已就绪 |
 | Cursor | stdin hook (exit 0+JSON) | [`cursor.md`](../../.agents/hooks/references/cursor.md) | [`cursor.md`](cursor.md) | 待测 | 📝 用例已就绪 |
 
 ## 统一前置条件(所有客户端)

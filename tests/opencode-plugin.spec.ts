@@ -19,16 +19,24 @@ vi.mock('node:fs', async (importOriginal) => {
 
 import pluginFactory from '../opencode/gitflow-guard'
 
-/** 构造一个可手动触发 close/error/stderr 的假子进程对象 */
+/** 构造一个可手动触发 close/error/stderr 的假子进程对象(含 stdin 记录与 kill) */
 function fakeChild() {
   const stderrHandlers: Array<(d: Buffer) => void> = []
   const handlers: Record<string, (arg?: unknown) => void> = {}
+  const stdinChunks: string[] = []
   const child = {
+    stdin: {
+      on: (_ev: string, _cb: (e: Error) => void) => {},
+      write: (d: string) => { stdinChunks.push(d) },
+      end: (d?: string) => { if (d !== undefined) stdinChunks.push(d) },
+    },
     stderr: { on: (ev: string, cb: (d: Buffer) => void) => { if (ev === 'data') stderrHandlers.push(cb) } },
     on: (ev: string, cb: (arg?: unknown) => void) => { handlers[ev] = cb },
+    kill: vi.fn(),
   }
   return {
     child,
+    stdinText: () => stdinChunks.join(''),
     emitStderr: (text: string) => stderrHandlers.forEach((cb) => cb(Buffer.from(text))),
     emitClose: (code: number | null) => handlers['close']?.(code),
     emitError: (e: Error) => handlers['error']?.(e),
@@ -41,17 +49,13 @@ const localBin = resolve(fileURLToPath(new URL('../..', import.meta.url)), 'bin'
 /** 平台形态: unix = shebang 直跑脚本; win32 = PATH 上的 node 解释脚本 */
 const NATIVE_WIN32 = process.platform === 'win32'
 
-/** 断言一次守卫 spawn 的参数形状(按当前平台) */
+/** 断言一次守卫 spawn 的参数形状与 stdin payload(静态 argv 无命令文本, 杜绝 shell 注入) */
 function expectGuardSpawned(command: string) {
-  const [bin, args] = spawnMock.mock.calls[0]
-  if (NATIVE_WIN32) {
-    expect(bin).toBe('node')
-    expect(args[0]).toBe(localBin)
-    expect(args.slice(1)).toEqual(['check', '--platform', 'opencode', '--command', command])
-  } else {
-    expect(bin).toBe(localBin)
-    expect(args).toEqual(['check', '--platform', 'opencode', '--command', command])
-  }
+  const [bin, args, opts] = spawnMock.mock.calls[0]
+  expect(bin).toBe('node')
+  expect(args).toEqual([localBin, 'check', '--platform', 'opencode'])
+  expect((opts as { shell?: boolean }).shell).toBe(false)
+  expect(JSON.parse(childControl.stdinText())).toMatchObject({ tool_args: { command } })
 }
 
 /** 共享的假子进程控制器: beforeEach 新建, 测试里按需 emitClose/emitStderr/emitError 后 await */
@@ -87,7 +91,7 @@ describe('opencode plugin: tool.execute.before 事件过滤', () => {
     expect(spawnMock).not.toHaveBeenCalled()
   })
 
-  it('bash git 命令 → spawn 守卫(按平台形态: unix shebang / win32 node)', async () => {
+  it('bash git 命令 → spawn 守卫(node 解释脚本 + 静态 argv)', async () => {
     const plugin = await pluginFactory()
     const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git push origin develop' } })
     childControl.emitClose(0)
@@ -104,32 +108,15 @@ describe('opencode plugin: tool.execute.before 事件过滤', () => {
     expect(spawnMock).toHaveBeenCalledTimes(1)
   })
 
-  it('特殊字符命令原样透传(spawn 数组参数, 不 shell 展开不注入)', async () => {
+  it('特殊字符命令经 stdin JSON 透传(argv 仅静态常量, 不 shell 展开不注入)', async () => {
     const nasty = 'git commit -m "a b;$HOME" && echo "x > y < z" | cat; #comment'
     const plugin = await pluginFactory()
     const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: nasty } })
     childControl.emitClose(0)
     await p
-    const args = spawnMock.mock.calls[0][1]
-    expect(args[args.length - 1]).toBe(nasty) // 整串作为单个 argv, 不经 shell
-  })
-
-  it.skipIf(NATIVE_WIN32)('win32: 用 PATH 上的 node 解释脚本(仅在非 win32 平台上强制模拟)', async () => {
-    const prev = process.platform
-    Object.defineProperty(process, 'platform', { value: 'win32' })
-    try {
-      const plugin = await pluginFactory()
-      const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git push origin develop' } })
-      childControl.emitClose(0)
-      await p
-      const [bin, args] = spawnMock.mock.calls[0]
-      expect(bin).toBe('node')
-      // node:path 的 join 行为按模块加载时平台决定(mac 上跑测试仍是 posix 分隔); win32 分支的意义在解释器选择
-      expect(args[0]).toBe(localBin)
-      expect(args.slice(1)).toEqual(['check', '--platform', 'opencode', '--command', 'git push origin develop'])
-    } finally {
-      Object.defineProperty(process, 'platform', { value: prev })
-    }
+    const [, args] = spawnMock.mock.calls[0]
+    expect(args).toEqual([localBin, 'check', '--platform', 'opencode'])
+    expect(JSON.parse(childControl.stdinText())).toMatchObject({ tool_args: { command: nasty } })
   })
 })
 
@@ -245,16 +232,19 @@ describe('opencode plugin: exit 语义(阻断 = 抛错, 其余 fail-open)', () =
   })
 })
 
-/** 断言守卫定位到指定脚本路径(按平台形态) */
-function expectTarget(binPath: string, command = 'git status') {
-  const [bin, args] = spawnMock.mock.calls[0]
-  if (NATIVE_WIN32) {
+/** 断言守卫定位到指定脚本或命令 */
+function expectTarget(binPath: string, command = 'git status', isScript = true) {
+  const [bin, args, opts] = spawnMock.mock.calls[0]
+  if (isScript) {
     expect(bin).toBe('node')
-    expect(args[0]).toBe(binPath)
+    expect(args).toEqual([binPath, 'check', '--platform', 'opencode'])
+    expect((opts as { shell?: boolean }).shell).toBe(false)
   } else {
-    expect(bin).toBe(binPath)
+    expect(bin).toBe(NATIVE_WIN32 ? `${binPath}.cmd` : binPath)
+    expect(args).toEqual(['check', '--platform', 'opencode'])
+    expect((opts as { shell?: boolean }).shell).toBe(NATIVE_WIN32)
   }
-  expect(String(args[args.length - 1])).toBe(command)
+  expect(JSON.parse(childControl.stdinText())).toMatchObject({ tool_args: { command } })
 }
 
 describe('opencode plugin: 守卫定位链', () => {
@@ -302,13 +292,13 @@ describe('opencode plugin: 守卫定位链', () => {
     }
   })
 
-  it('全部定位源缺失 → PATH 上的 gitflow-guard 回退', async () => {
+  it('全部定位源缺失 → PATH 上的 gitflow-guard(.cmd on win32) 回退', async () => {
     exits.mockReturnValue(false)
     const plugin = await pluginFactory()
     const p = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git status' } })
     childControl.emitClose(0)
     await p
-    expectTarget('gitflow-guard')
+    expectTarget('gitflow-guard', 'git status', false)
     // PATH 回退 spawn 失败也应 fail-open(不抛)
     beginSpawn()
     const p2 = plugin['tool.execute.before']({ tool: 'bash' }, { args: { command: 'git status' } })

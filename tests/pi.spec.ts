@@ -1,5 +1,6 @@
+import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { createPiExtension } from '../src/pi'
+import { createPiExtension, resolvePiBin } from '../src/pi'
 import type { PiExtensionAPI, PiExtensionOptions, PiRunResult, PiToolCallHandler } from '../src/pi'
 
 /** 挂载扩展并取回注册的 tool_call handler; run 注入为 spy */
@@ -105,5 +106,24 @@ describe('pi: createPiExtension', () => {
     await m.handler(evt('bash', 'git status'), ctx())
     await m.handler(evt('powershell', 'git status'), ctx())
     expect(m.calls).toHaveLength(1)
+  })
+})
+
+describe('pi: 默认执行器(Windows 可用性回归)', () => {
+  it('默认 bin = [process.execPath, 随包 runner 绝对路径]', () => {
+    const bin = resolvePiBin({})
+    expect(bin[0]).toBe(process.execPath)
+    expect(bin[1]?.replace(/\\/g, '/')).toMatch(/\/bin\/gitflow-guard\.mjs$/)
+    expect(existsSync(bin[1]!)).toBe(true)
+  })
+
+  it('默认不用 PATH 上的 gitflow-guard(Windows shim / .cmd 无法被 execFile 直接启动)', () => {
+    const bin = resolvePiBin({})
+    expect(bin[0]).not.toBe('gitflow-guard')
+    expect(bin).toHaveLength(2)
+  })
+
+  it('GITFLOW_GUARD_BIN 仍可覆盖默认(单值形态)', () => {
+    expect(resolvePiBin({ GITFLOW_GUARD_BIN: '/custom/guard.mjs' })).toEqual(['/custom/guard.mjs'])
   })
 })

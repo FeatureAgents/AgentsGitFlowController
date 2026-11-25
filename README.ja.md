@@ -2,18 +2,31 @@
 
 > **AI エージェントが勝手に GitFlow をスキップするのにうんざりしていませんか？**
 
-AI コーディングエージェントのための、柔軟にカスタマイズ可能なブランチ役割ガードプラグイン — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://github.com/opencode-ai/opencode)、[Antigravity](https://github.com/google-deepmind)、[CodeBuddy](https://codebuddy.ai)、[ZCode](https://zcode.ai)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、[Pi](https://github.com/mariozechner/pi) をサポート。  
-ブランチの役割は自由に定義可能 — **integration**（PR/MR 経由で feature をマージ）、**preview**（検証環境用エンドポイント）、**production**（本番）、**archive**（アーカイブ）— それぞれに独自の更新ルールを設定できます。エージェントによるプロセスのスキップを物理的に防ぎ、重要なマージ権限を確実に人間の手に残します。
+AI コーディングエージェントのための、柔軟にカスタマイズ可能なブランチ役割ガードプラグイン — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://opencode.ai)、[Antigravity](https://antigravity.google)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH)、[Pi](https://pi.dev) をサポート。  
+ブランチの役割は自由に定義可能 — **integration**（PR/MR 経由で feature をマージ）、**preview**（検証環境用エンドポイント）、**production**（本番）、**archive**（アーカイブ）— それぞれに独自の更新ルールを設定できます。定型的なフロー違反は実行前にブロックされ、理由と次の手順が明確に示されます。重要なマージ権限は確実に人間の手に残ります。意図的なエージェントがテキスト層のガードを迂回する可能性は残ります —— 詳細は[誠実な限界](#制限事項--誠実な限界)を参照。
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [ライセンス](LICENSE)
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## 動かしてみる — 30秒のライブデモ
+
+プロジェクトのファイルには触れず、何も残しません — コマンド 1 つで使い捨てのサンドボックスリポジトリ内で 3 つの実シーン（1 許可、2 ブロック）を実行し、終了時に削除します。下のアニメーションはそのコマンドの実際の出力から生成されたもので — エージェントのフックが呼び出すのと同じガードコアです：
+
+```bash
+npx agents-gitflow-guard demo
+```
+
+![gitflow-guard demo — 実際のリポジトリ上の実際の許可/ブロック判定](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+見たあとにエージェントの前にガードを置きたい場合は、[クイックスタート](#クイックスタート--30秒でリポジトリを保護)へ。
+
 ---
 
 ## 目次
 
+- [動かしてみる — 30秒のライブデモ](#動かしてみる--30秒のライブデモ)
 - [クイックスタート — 30秒でリポジトリを保護](#クイックスタート--30秒でリポジトリを保護)
 - [導入の理由 — このプラグインが解決する課題](#導入の理由--このプラグインが解決する課題)
 - [対象ユーザー — 利用シナリオとチーム](#対象ユーザー--利用シナリオとチーム)
@@ -36,10 +49,10 @@ AI コーディングエージェントのための、柔軟にカスタマイ�
 
 ## クイックスタート — 30秒でリポジトリを保護
 
-**ステップ 1 — インストール。** 9 つのクライアントすべてが共通の npm パッケージ `agents-gitflow-guard` を使用します。ご利用のエージェント種別に応じて選択してください：
+**ステップ 1 — インストール。** 7 つのクライアントすべてが共通の npm パッケージ `agents-gitflow-guard` を使用します。ご利用のエージェント種別に応じて選択してください：
 
 ```bash
-# モード A: CLI Hook クライアント (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# モード A: CLI Hook クライアント (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -65,12 +78,10 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor（各クライアント専用の設定ファイルに書き込み。--yes で y/N 確認をスキップ）
+# Codex / OpenCode / Antigravity / Cursor（各クライアント専用の設定ファイルに書き込み。--yes で y/N 確認をスキップ）
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -120,9 +131,9 @@ AI コーディングエージェントはリポジトリ内で直接作業し�
 
 **しかし、これは「ソフトな規則」に過ぎません。** エージェントは規則をスキップしたり、順序を入れ替えたり、単に「忘れたり」します — 悪意からではなく、LLM にとってテキストの指示は任意のものだからです。
 
-本プラグインは、そのソフトな規則を **「ハードな機械的制約」** に変換します。エージェントが試みるすべての Git 操作は、*ローカルリポジトリの実際の状態* に基づいて判定されます。違反はコマンド実行前に即座にブロックされ、理由と次の手順が通知されます。
+本プラグインは、そのソフトな規則に **機械的に働くゲート** を付します。エージェントが試みるすべての Git 操作は、*ローカルリポジトリの実際の状態* に基づいて判定されます。定型的な違反はコマンド実行前に即座にブロックされ、理由と次の手順が通知されます。
 
-ルールを記憶し続ける必要はありません — システムがルールを強制します。
+ルールを記憶し続ける必要はありません — ガードが機械的に判定します。テキスト層は本質的にベストエフォートです: 意図的なエージェントに何ができるかは[誠実な限界](#制限事項--誠実な限界)を参照。
 
 ---
 
@@ -368,11 +379,11 @@ PR/MR ターゲットは `gh pr view` (GitHub) または `glab mr view` (GitLab)
 
 | クライアント種別 / プラットフォーム | インストールコマンド | 配線・マウント手順 |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | DSH を再起動 — プロファイル層として自動マウント |
 | Pi | `npm i -D agents-gitflow-guard` | `pi/gitflow-guard.ts` を `.pi/extensions/` にコピー |
 
-### 1. 独立した CLI フック系クライアント (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+### 1. 独立した CLI フック系クライアント (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 
 CLI をグローバルに 1 回インストールし、**クライアントごとに 1 つのコマンドを実行して配線します**（ガードは組み込み設定によりデフォルトで有効なため、配線のみで完了します）：
 
@@ -382,8 +393,6 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -432,10 +441,8 @@ gitflow-guard wire --client cursor --project --yes
 }
 ```
 
-他の 3 つの CLI クライアントも同じフック形式を使用します — `wire` がそれぞれのファイルを書き込みます：
+Cursor も同じフック形式を使用します — `wire` がファイルを書き込みます：
 
-- **CodeBuddy** — `.codebuddy/settings.json`
-- **ZCode** — `.zcode/config.json`（`hooks.enabled: true` も設定）
 - **Cursor** — `.cursor/hooks.json`（`hooks.beforeShellExecution`）
 
 > `<npm-global>/agents-gitflow-guard/bin/...` はプレースホルダーです — `wire` は実行時に、インストール済みパッケージ自身の runner の絶対パスを解決して書き込みます（完全自己アンカー型：クライアント変数展開・hook プロセスの cwd・PATH に依存せず、対象リポジトリへの配置も不要）。≤0.0.41 からのアップグレード時は、クライアントごとに `wire` を再実行すれば旧形式のエントリ（変数テンプレート／相対パス／PATH 形式）をその場でマイグレーションします。
@@ -460,6 +467,7 @@ gitflow-guard wire --client cursor --project --yes
   // Pi — .pi/settings.json (extensions のパスは .pi からの相対パスで解決されます)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  ユーザー単位のインストール（全プロジェクトに一括適用）：同じファイルを `~/.pi/agent/extensions/gitflow-guard.ts` に置き、`~/.pi/agent/settings.json` に登録し、`~/.pi/agent` 内に本パッケージをインストールします（`npm i agents-gitflow-guard`。MSYS の `ln -s` はコピーになるため、Windows では PowerShell の junction を使用）。拡張は `node <同梱 runner>` でガードを起動するため、PATH もグローバル npm インストールも不要です — Windows でも動作します。
 
 ### 3. ソースコードからのインストールと開発 (From Source)
 
@@ -475,9 +483,9 @@ npm install && npm run build
 利用するエージェントプラットフォームに応じてローカルビルドをマウントします：
 
 ```bash
-# A. CLI Hook クライアント (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# A. CLI Hook クライアント (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm link # または npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/path/to/AgentsGitFlowController
@@ -499,7 +507,7 @@ npm link
 ### 5. Hook メカニズムと技術仕様
 
 - **プラットフォームプロトコル仕様**: Hook は stdin からペイロードを読み取り、各プラットフォームの仕様に従って応答します：
-  - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2`（stderr に拒否理由と次のステップを出力）。
+  - **Claude Code / OpenCode**: `exit 2`（stderr に拒否理由と次のステップを出力）。
   - **Codex**: stdout に JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` を出力。
   - **Antigravity**: stdout に JSON `{"decision":"deny","reason":...}` を出力し、`exit 0` を維持（プラットフォーム要件）。
   - **Cursor**: stdout に JSON `{"permission":"deny","user_message":...,"agent_message":...}` を出力し、`exit 0` を維持。
@@ -508,7 +516,6 @@ npm link
 - **事前イベントのみをインターセプト**: コマンド実行*前*にブロックを行うため、事後のクリーンアップやパーミットトークンの消費処理は一切不要です。
 - **PATH とバイナリの解決**: グローバルインストールにより `gitflow-guard` バイナリが提供されます。`wire` はすべてのフックを、インストール済みパッケージ自身の runner の絶対パスにアンカーするため、エージェントの実行環境が対話型の `PATH` を継承していない場合でもフックは動作し続けます。
 - **初期状態で有効**: 組み込みデフォルト設定（`integration: ["develop"]`, `archive: ["main"]`）により、設定ファイルなしで即座に機能します。カスタム設定は自動的にディープマージされます。
-- **非破壊的な配線**: `gitflow-guard wire` は既存のフックに影響を与えることなく安全にマージし（再実行時、旧形式の gitflow-guard エントリは現行形式にマイグレーションされ）、`--unwire` で正確に対象エントリのみを削除します。
 
 ---
 
@@ -562,7 +569,7 @@ npm link
 
 不完全な推測設定が誤って適用されることは決してありません。バリデーションエラーが発生した場合、そのプロジェクトのガードは無効化され、エラー内容がレポートされます。
 
-よくあるミス：デフォルトの役割と同じブランチ名でオーバーライドすること（例: デフォルトの archive が `main` のまま `main` を integration に設定する — 明示的な重複エラーとなります。もう一方の役割も明示的に上書きまたは削除してください）、同一ブランチを 2 つの役割に重複設定すること（拒否）、コンパイルできない `featurePattern`（無効な正規表現として拒否）。エラーは明確に通知され、ファイルはシンプルな 1 つの JSON オブジェクトであるため、通常は 30 秒程度で修正できます。
+エラーは明確に通知され、ファイルはシンプルな 1 つの JSON オブジェクトであるため、通常は 30 秒程度で修正できます。
 
 ---
 
@@ -577,8 +584,6 @@ npm link
 ### ライセンス / 費用について
 
 MIT ライセンスで提供されており、完全無料・無条件で利用できます。使用、改変、再配布は自由であり、唯一の義務は著作権表示を保持することです。
-
-もしこのツールがチームの開発フローにおける誤操作を未然に防ぐのに役立ちましたら、ページ上部のコーヒーボタンよりご支援いただけると幸いです（必須ではありません）。[ライセンス](#ライセンス) を参照してください。
 
 ---
 
@@ -599,12 +604,10 @@ MIT ライセンスで提供されており、完全無料・無条件で利用�
 
 ## ロードマップ
 
-今後の拡張計画および現在アクティブに探索中の領域：
+本節はプロジェクトの方向性を示すものであり、約束ではありません：
 
-- **新しいエージェントプラットフォームの統合**: Windsurf、次世代 CLI エージェントなど、新興ツールのフック/拡張機構の調査と適合。
-- **監査ログの集約**: 複数マシン間での監査ログ同期およびチームレベルのコンプライアンス出力フォーマットの提供。
-- **ワークフロープリセット**: 一般的なブランチモデル（トランクベース開発、多環境エンタープライズ構成など）向けの設定プリセット。
-- **CI ハードゲート連携**: ゼロ依存のローカル実行性を保ちつつ、ネイティブな CI パイプライン連携および PR チェック連携を探索。
+- **重点——正確性を最優先**：既存のゲートの正確性と予測可能性（本ページに記載のクライアント、コマンド形態、ルール）を維持し、実際のリポジトリで検証します。
+- **計画していないもの**：新しいエージェントプラットフォームの統合、CI 側でのハードゲート、マシン間の監査ログ同期、リモート／チームポリシーの取得。ガードはローカル・ゼロ依存を維持し、設定は本リポジトリ内からのみ読み込みます。サーバー側のブランチ保護が最終的な境界です。
 
 リリース履歴と詳細については [CHANGELOG.md](CHANGELOG.md) をご覧ください。
 
@@ -627,7 +630,7 @@ npm run test:all        # typecheck + 単体テスト + プラットフォーム
 ```
 
 - **品質ルール**: すべてのロジック変更は型チェック（0 エラー）、単体テスト全緑、および連続回帰マトリクス（`verify:matrix`）の通過が必須です。
-- **クライアント追加**: 新しいエージェントプラットフォームを追加する際は、[AGENTS.md](AGENTS.md) §8 の同期チェックリストに従ってください。
+- **クライアント追加**: 新しいエージェントプラットフォームを追加する際は、[AGENTS.md](AGENTS.md) 第 8 節 の同期チェックリストに従ってください。
 
 ---
 

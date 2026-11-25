@@ -2,18 +2,31 @@
 
 > **有沒有受夠了 AI Agent 隨意跳過你的 GitFlow 合併流程？**
 
-一個可自由配置分支角色的流程守衛，專為主流 AI 寫碼 Agent 平台而生 —— [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://github.com/opencode-ai/opencode)、[Antigravity](https://github.com/google-deepmind)、[CodeBuddy](https://codebuddy.ai)、[ZCode](https://zcode.ai)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 與 [Pi](https://github.com/mariozechner/pi)。  
-你自己定義分支 —— **集成分支**（feature 經 PR/MR 合入）、**預覽分支**（環境端點）、**生產分支**、**歸檔分支** —— 每個角色各自配置規則。Agent 無法跳過流程，敏感合併始終留在你手上。
+一個可自由配置分支角色的流程守衛，專為主流 AI 寫碼 Agent 平台而生 —— [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)、[Codex](https://github.com/openai/codex)、[OpenCode](https://opencode.ai)、[Antigravity](https://antigravity.google)、[Cursor](https://cursor.com)、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) 與 [Pi](https://pi.dev)。  
+你自己定義分支 —— **集成分支**（feature 經 PR/MR 合入）、**預覽分支**（環境端點）、**生產分支**、**歸檔分支** —— 每個角色各自配置規則。常規流程違規在執行前就被攔截，並給出明確的原因與下一步；敏感合併始終留在你手上。存心的 Agent 仍可繞過文字層守衛 —— 見[誠實的邊界](#它不能做什麼--誠實的邊界)。
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [授權條款](LICENSE)
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## 看它實際攔截 — 30 秒真機演示
+
+不碰你的專案檔案，不留任何東西 —— 一條命令在一次性沙箱儲存庫裡跑三個真實場景（1 放行，2 攔截），退出即刪。下面的動畫由該命令的真實輸出生成 —— 與你 Agent hook 呼叫的是同一守衛核心：
+
+```bash
+npx agents-gitflow-guard demo
+```
+
+![gitflow-guard demo — 真實儲存庫上真實的放行/攔截判定](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+看完之後想把守衛接到你的 Agent 面前，繼續看[快速開始](#快速開始--30-秒上手)。
+
 ---
 
 ## 目錄
 
+- [看它實際攔截 — 30 秒真機演示](#看它實際攔截--30-秒真機演示)
 - [快速開始 — 30 秒上手](#快速開始--30-秒上手)
 - [為什麼需要它 — 解決的問題](#為什麼需要它--解決的問題)
 - [適合誰 — 場景與團隊](#適合誰--場景與團隊)
@@ -36,10 +49,10 @@
 
 ## 快速開始 — 30 秒上手
 
-**第 1 步 — 安裝。** 九個客戶端全部使用同一個 npm 套件 `agents-gitflow-guard`，依據你的 Agent 類型選擇對應安裝方式：
+**第 1 步 — 安裝。** 七個客戶端全部使用同一個 npm 套件 `agents-gitflow-guard`，依據你的 Agent 類型選擇對應安裝方式：
 
 ```bash
-# 模式 A: CLI Hook 客戶端 (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# 模式 A: CLI Hook 客戶端 (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -65,12 +78,10 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor（各寫各的設定檔；--yes 跳過 y/N 確認）
+# Codex / OpenCode / Antigravity / Cursor（各寫各的設定檔；--yes 跳過 y/N 確認）
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -120,9 +131,9 @@ AI 寫碼 Agent 在你的程式碼倉庫裡工作。它透過系統提示詞、�
 
 **這是軟規則。** Agent 會跳過、重排、甚至乾脆「忘記」它 —— 不是出於惡意，而是因為軟性指令對模型來說本來就是可選的。
 
-這個外掛把軟規則變成**硬機制**。Agent 每次嘗試的 Git 操作都會對照*本地倉庫的真實狀態*進行檢查；違規操作在指令執行前就會被攔截，並給出原因與下一步指引。
+這個外掛給軟規則配上**機械執行的閘門**。Agent 每次嘗試的 Git 操作都會對照*本地倉庫的真實狀態*進行檢查；常規違規在指令執行前就會被攔截，並給出原因與下一步指引。
 
-沒有人需要刻意記住規則 —— 規則被強制執行。
+沒有人需要刻意記住規則 —— 守衛機械地把關。文字層本質上是盡力而為：存心的 Agent 能做什麼，見[誠實的邊界](#它不能做什麼--誠實的邊界)。
 
 ---
 
@@ -368,11 +379,11 @@ PR/MR 目標透過 `gh pr view` (GitHub) 或 `glab mr view` (GitLab) 進行解�
 
 | 客戶端類型 / 平台 | 安裝指令 | 掛載與接線步驟 |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <名稱> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <名稱> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | 重啟 DSH —— 外掛自動掛載為 profile 層 |
 | Pi | `npm i -D agents-gitflow-guard` | 將 `pi/gitflow-guard.ts` 複製進 `.pi/extensions/` |
 
-### 1. CLI Hook 客戶端 (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+### 1. CLI Hook 客戶端 (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 
 全域安裝一次 CLI，接著**針對每個客戶端執行一條指令完成接線**（守衛依賴內建預設配置已預設啟用，接線是唯一剩下的步驟）：
 
@@ -382,8 +393,6 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -431,10 +440,8 @@ gitflow-guard wire --client cursor --project --yes
 }
 ```
 
-其餘三個 CLI 用戶端使用相同的 hook 形態 —— `wire` 會替你寫入對應檔案：
+Cursor 使用相同的 hook 形態 —— `wire` 會替你寫入對應檔案：
 
-- **CodeBuddy** —— `.codebuddy/settings.json`
-- **ZCode** —— `.zcode/config.json`（同時設定 `hooks.enabled: true`）
 - **Cursor** —— `.cursor/hooks.json`（`hooks.beforeShellExecution`）
 
 > `<npm-global>/agents-gitflow-guard/bin/...` 僅為佔位 — `wire` 落位時解析為本機安裝套件自身 runner 的真實絕對路徑（完全自錨定：不依賴用戶端變數展開、不依賴 hook 行程 cwd、不依賴 PATH，目標儲存庫零部署）。從 ≤0.0.41 升級？對每個客戶端重跑一次 `wire`，舊形態條目（變數範本/相對路徑/PATH 形態）會被原位遷移。
@@ -459,6 +466,7 @@ gitflow-guard wire --client cursor --project --yes
   // Pi — .pi/settings.json (extensions 路徑相對於 .pi 進行解析)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  全域安裝（一次涵蓋所有專案）：把同一檔案放到 `~/.pi/agent/extensions/gitflow-guard.ts`，在 `~/.pi/agent/settings.json` 登記，並在 `~/.pi/agent` 內安裝本套件（`npm i agents-gitflow-guard`；MSYS 下 `ln -s` 會退化成複製，Windows 請用 PowerShell junction）。擴充以 `node <隨包 runner>` 啟動守衛，不依賴 PATH、不需全域 npm 安裝——Windows 同樣可用。
 
 ### 3. 從源碼安裝與本地開發 (From Source)
 
@@ -474,9 +482,9 @@ npm install && npm run build
 根據你所使用的 Agent 客戶端掛載本地開發版本：
 
 ```bash
-# A. CLI Hook 客戶端 (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# A. CLI Hook 客戶端 (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm link # 或 npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/path/to/AgentsGitFlowController
@@ -498,7 +506,7 @@ npm link
 ### 5. Hook 機制與協定細節
 
 - **平台協定規範**：Hook 從 stdin 讀取 payload 並依據各平台規範進行回應：
-  - **Claude Code / OpenCode / CodeBuddy / ZCode**：`exit 2`（stderr 輸出攔截原因與下一步行動指引）。
+  - **Claude Code / OpenCode**：`exit 2`（stderr 輸出攔截原因與下一步行動指引）。
   - **Codex**：stdout 輸出 JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`。
   - **Antigravity**：stdout 輸出 JSON `{"decision":"deny","reason":...}` 且維持 `exit 0`（平台要求）。
   - **Cursor**：stdout 輸出 JSON `{"permission":"deny","user_message":...,"agent_message":...}` 且維持 `exit 0`。
@@ -507,7 +515,6 @@ npm link
 - **僅攔截前置事件**：門禁在指令執行*前*即完成攔截，無需事後清理或消耗特許權杖。
 - **PATH 與二進位解析**：全域安裝提供 `gitflow-guard` 執行檔。`wire` 會將每個 hook 錨定到安裝套件自身 runner 的絕對路徑，因此即使 Agent 子進程未繼承你的互動式 `PATH`，hook 依然可用。
 - **開箱即用**：內建預設配置（`integration: ["develop"]`, `archive: ["main"]`）無需額外建立檔案即生效；自訂配置自動執行深度合併。
-- **安全接線**：`gitflow-guard wire` 具備冪等性，安全合併配置且不影響現有其他 Hook（重跑 wire 會把舊版 gitflow-guard 條目遷移為當前形態）；`--unwire` 精準移除對應條目。
 
 ---
 
@@ -561,7 +568,7 @@ npm link
 
 半吊子的錯誤配置絕不會意外生效：任何校驗錯誤都會讓該專案的守衛回退為禁用狀態並回報錯誤詳情。
 
-常見錯誤：覆蓋的角色與預設角色同名（例如將 `main` 設定為 integration，而預設的 archive 依然是 `main` —— 此為明確的重疊報錯，需一併覆蓋或移除另一角色）、同一個分支被重複配置到兩個角色中（明確拒絕）、`featurePattern` 無法編譯為合法正則表達式（報錯）。錯誤提示非常明確，且檔案僅為一個單純的 JSON 物件，通常三十秒內即可修正完畢。
+錯誤提示非常明確，且檔案僅為一個單純的 JSON 物件，通常三十秒內即可修正完畢。
 
 ---
 
@@ -576,8 +583,6 @@ npm link
 ### 授權條款 / 是否收費？
 
 MIT 授權，免費開源，無任何附加條件。隨意使用、修改、分發，唯一的義務是保留原著作權聲明。
-
-如果它曾幫助你或你的團隊避免了一次不當操作，歡迎透過頁面頂部的按鈕請作者喝杯咖啡，但這絕非強制要求。詳見[授權條款](#授權條款)。
 
 ---
 
@@ -598,12 +603,10 @@ MIT 授權，免費開源，無任何附加條件。隨意使用、修改、分�
 
 ## 路線圖
 
-未來規劃與正在積極探索的方向：
+本節說明專案的方向——是意圖，不是承諾：
 
-- **更多 Agent 平台整合**：調研並適配新興的 AI Coding Agent 工具（例如 Windsurf、新一代 CLI Agent）。
-- **稽核記錄彙整與匯出**：跨機器稽核日誌同步機制及團隊級安全合規性匯出格式。
-- **情境化工作流程預設檔**：針對常見 Git 分支模式（Trunk-based 單主幹模式、多環境企業級 GitFlow）提供開箱即用的配置預設。
-- **CI 門禁與 PR 校驗聯動**：探索原生 CI 流水線整合與 PR 檢查聯動機制，同時保有本地端零依賴執行的優勢。
+- **重點——先確保正確**：讓現有門禁保持準確、可預期，並誠實面對自身邊界（即本頁記錄的用戶端、命令形態與規則），在日常儲存庫中做真實驗證。
+- **不計畫進行**：新 Agent 平台整合、CI 端硬性門禁、跨機器稽核同步、遠端／團隊策略拉取。守衛保持本地端、零依賴，設定僅從本儲存庫讀取；伺服器上的分支保護仍是最終邊界。
 
 已發布的功能與歷史版本更新記錄詳見 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -626,7 +629,7 @@ npm run test:all        # 型別檢查 + 單元測試 + 平台矩陣 + git 矩�
 ```
 
 - **品質鐵律**：任何邏輯改動必須通過型別檢查（0 錯誤）、單元測試全數通過，並通過連續回歸矩陣測試（`verify:matrix`）。
-- **客戶端接入規範**：新增支援的 Agent 平台時，必須嚴格遵循 [AGENTS.md](AGENTS.md) §8 中的同步清單。
+- **客戶端接入規範**：新增支援的 Agent 平台時，必須嚴格遵循 [AGENTS.md](AGENTS.md) 第 8 節 中的同步清單。
 
 ---
 

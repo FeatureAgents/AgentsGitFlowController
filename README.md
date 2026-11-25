@@ -2,19 +2,32 @@
 
 > **Are you tired of agents skipping your GitFlow?**
 
-A configurable branch-role guard for AI coding agents — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), and [Pi](https://github.com/mariozechner/pi).
+A configurable branch-role guard for AI coding agents — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), and [Pi](https://pi.dev).
 You define your own branches —
-**integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Agents can't skip the flow, and sensitive merges stay in your hands.
+**integration** (features merge in via PR/MR), **preview** (env endpoints), **production**, **archive** — each with its own update rules. Routine flow violations are blocked before they run, with a clear why/next — and sensitive merges stay in your hands. A determined agent can still evade a text-layer guard; see [honest limits](#what-it-does-not-do--honest-limits).
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [License](LICENSE)
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## See it work — a 30-second live demo
+
+No project files touched, nothing left behind — one command runs three real scenes (1 pass, 2 blocks) inside a throwaway sandbox repo and deletes it on exit. The output below is generated from that command's real run — the same guard core your agent's hook calls:
+
+```bash
+npx agents-gitflow-guard demo
+```
+
+![gitflow-guard demo — real allow/deny decisions on a real throwaway repo](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+To put the guard in front of your agent afterwards, continue with [Quick Start](#quick-start--30-seconds-to-a-guarded-repo).
+
 ---
 
 ## Table of Contents
 
+- [See it work — a 30-second live demo](#see-it-work--a-30-second-live-demo)
 - [Quick Start — 30 seconds to a guarded repo](#quick-start--30-seconds-to-a-guarded-repo)
 - [Why — the problem this plugin solves](#why--the-problem-this-plugin-solves)
 - [Who this is for — scenarios & teams](#who-this-is-for--scenarios--teams)
@@ -37,10 +50,10 @@ You define your own branches —
 
 ## Quick Start — 30 seconds to a guarded repo
 
-**Step 1 — install.** All nine clients consume the same npm package `agents-gitflow-guard` — choose the installation mode matching your agent:
+**Step 1 — install.** All seven clients consume the same npm package `agents-gitflow-guard` — choose the installation mode matching your agent:
 
 ```bash
-# Mode A: CLI Hook clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# Mode A: CLI Hook clients (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -66,12 +79,10 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor (each its own config file; --yes skips the y/N prompt)
+# Codex / OpenCode / Antigravity / Cursor (each its own config file; --yes skips the y/N prompt)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -121,9 +132,9 @@ AI coding agents work in your repository. They are *told* — via system prompts
 
 **That is a soft rule.** Agents skip it, reorder it, or simply "forget" it — not out of malice, but because soft instructions are optional to a model.
 
-This plugin turns the soft rule into a **hard mechanism**. Every git operation an agent attempts is checked against the *actual state of your local repository*. Violations are blocked before the command runs, with an explanation of why and what to do next.
+This plugin turns the soft rule into a **mechanical gate**. Every git operation an agent attempts is checked against the *actual state of your local repository*. Routine violations are blocked before the command runs, with an explanation of why and what to do next.
 
-Nobody has to remember the rules — the rules are enforced.
+Nobody has to remember the rules — the guard checks them mechanically. (Text-layer and best-effort by nature: see [honest limits](#what-it-does-not-do--honest-limits) for what a determined agent can still do.)
 
 ---
 
@@ -369,11 +380,11 @@ The PR/MR target is resolved via `gh pr view` (GitHub) or `glab mr view` (GitLab
 
 | Client Type / Platform | Install Command | Mounting & Wiring Step |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <name> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | Restart DSH — plugin auto-mounts as a profile layer |
 | Pi | `npm i -D agents-gitflow-guard` | Copy `pi/gitflow-guard.ts` into `.pi/extensions/` |
 
-### 1. Standalone CLI Hook Clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+### 1. Standalone CLI Hook Clients (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 
 Install the CLI globally once, then **wire each client with a single command** (the guard is on by default via its built-in config, so wiring is all that remains):
 
@@ -383,8 +394,6 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -433,10 +442,8 @@ gitflow-guard wire --client cursor --project --yes
 }
 ```
 
-The other three CLI clients use the same hook shape — `wire` writes their file for you:
+Cursor uses the same hook shape — `wire` writes its file for you:
 
-- **CodeBuddy** — `.codebuddy/settings.json`
-- **ZCode** — `.zcode/config.json` (also sets `hooks.enabled: true`)
 - **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...` is a placeholder — `wire` resolves the real absolute path of the installed package's own runner at wire time (fully self-anchored: no client variable expansion, no hook-cwd assumption, no PATH dependency, nothing deployed into the target repo). Upgrading from ≤ 0.0.41? Re-run `wire` once per client — legacy entries (variable-template / relative / PATH forms) are migrated in place.
@@ -461,6 +468,7 @@ The other three CLI clients use the same hook shape — `wire` writes their file
   // Pi — .pi/settings.json (extensions resolve relative to .pi)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  User-level install (all projects at once): copy the same file to `~/.pi/agent/extensions/gitflow-guard.ts`, list it in `~/.pi/agent/settings.json`, and install the package inside `~/.pi/agent` (`npm i agents-gitflow-guard` — under MSYS a plain `ln -s` copies, so use a PowerShell junction on Windows). The extension starts the guard as `node <bundled runner>`, so no PATH entry and no global npm install are involved — Windows included.
 
 ### 3. From Source & Local Development
 
@@ -476,9 +484,9 @@ npm install && npm run build
 Mount the local build into your target agent platform:
 
 ```bash
-# A. Standalone CLI Hook Clients (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# A. Standalone CLI Hook Clients (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm link # or npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/path/to/AgentsGitFlowController
@@ -500,7 +508,7 @@ npm link
 ### 5. Hook Mechanism & Technical Notes
 
 - **Platform protocol**: The hook reads the payload on stdin and answers with that platform's protocol:
-  - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2` (stderr contains the reason and actionable next steps).
+  - **Claude Code / OpenCode**: `exit 2` (stderr contains the reason and actionable next steps).
   - **Codex**: stdout JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`.
   - **Antigravity**: stdout JSON `{"decision":"deny","reason":...}` with `exit 0` (Antigravity requires exit 0).
   - **Cursor**: stdout JSON `{"permission":"deny","user_message":...,"agent_message":...}` with `exit 0`.
@@ -509,7 +517,6 @@ npm link
 - **Pre-tool execution**: Only the pre-tool event is intercepted; the guard blocks *before* commands execute, so no post-tool hooks or permit-cleanup steps are needed.
 - **Binary PATH resolution**: Global installation (`npm i -g`) provides the `gitflow-guard` binary. `wire` anchors every hook to the absolute path of the installed package's own runner, so the hook keeps working even when the agent runner does not inherit your interactive `PATH`.
 - **Enabled by default**: Built-in defaults (`integration: ["develop"]`, `archive: ["main"]`) take effect without any config file. Custom configurations in `gitflow-guard.config.json` deep-merge on top of defaults.
-- **Non-destructive wiring**: `gitflow-guard wire` merges hook configurations idempotently without modifying existing hooks (legacy gitflow-guard entries are migrated to the current form on re-run), and `wire --unwire` removes only the guard entry.
 
 ---
 
@@ -563,7 +570,7 @@ The blocks are reserved for: (1) direct writes to protected role branches, and (
 
 A half-guessed setup is never applied by accident: any validation error disables the guard for that project and reports the errors.
 
-Common mistakes: overriding a role with the same branch name as a default role (e.g. `main` as integration while the default archive is still `main` — an explicit overlap error; cover or drop the other role too), overlapping a branch across two roles (rejected), and a `featurePattern` that doesn't compile (rejected as invalid regex). The failure is loud and the file is one JSON object, so the fix is usually a thirty-second correction.
+The failure is loud and the file is one JSON object, so the fix is usually a thirty-second correction.
 
 ---
 
@@ -578,8 +585,6 @@ Nothing is written, no remote is contacted, and no hosting-service feature is re
 ### License / cost?
 
 MIT, free, no strings. Use it, modify it, ship it — the only obligation is keeping the copyright notice.
-
-If it saves your team from a shortcut gone wrong, the coffee button at the top of this page is appreciated but never required. See [License](#license).
 
 ---
  
@@ -600,12 +605,10 @@ If it saves your team from a shortcut gone wrong, the coffee button at the top o
 
 ## Roadmap
 
-Future capabilities and areas under active exploration:
+This section states the project's direction — intent, not promises:
 
-- **New agent integrations**: Research and adapt to emerging agent hooks/extensions (e.g. Windsurf, emerging agent CLIs).
-- **Audit aggregation**: Cross-machine audit trail synchronization and team-level compliance export formats.
-- **Workflow presets**: Ready-to-use configuration presets for common Git branching flows (Trunk-based development, multi-environment enterprise setups).
-- **CI hard-gating**: Native CI pipeline hooks and PR check integration while keeping zero-dependency local execution.
+- **Focus — correctness first**: keep the existing gate accurate and predictable (the clients, command forms, and rules documented on this page), and validate it in everyday repositories.
+- **Not planned**: new agent integrations, CI-side hard gating, cross-machine audit synchronization, and remote policy fetching. The guard stays local and zero-dependency, configured only from this repository; branch protection on your server remains the final boundary.
 
 For shipped features and release history, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -619,7 +622,7 @@ npm test                # unit tests: classify / gate / config / cli / repo / pl
 npm run typecheck       # tsc --noEmit, 0 errors
 npm run build           # tsdown → lib/ (CLI and plugin share the build)
 npm run check:pins      # assert package.json version matches the CHANGELOG heading and any README version pins
-npm run check:readmes   # assert all 11 READMEs stay structurally symmetric (44 headings / 7 tables / 17 TOC items)
+npm run check:readmes   # assert all 11 READMEs stay structurally symmetric (45 headings / 7 tables / 18 TOC items)
 npm run verify:matrix   # continuous cross-agent regression: DSH logic + zh-locale + multi-client hooks + Pi extension
 npm run test:git-matrix # 169-case git decision matrix against real repositories
 npm run test:realflow   # feature-branch lifecycle end-to-end against a real remote
@@ -628,7 +631,7 @@ npm run test:all        # typecheck + unit tests + platform matrix + git matrix 
 ```
 
 - **Quality Rule**: Every logic change requires a 0-error typecheck, all tests green, and a passing `verify:matrix`.
-- **Client Additions**: When adding support for a new agent platform, follow the synchronization checklist in [AGENTS.md](AGENTS.md) §8.
+- **Client Additions**: When adding support for a new agent platform, follow the synchronization checklist in [AGENTS.md](AGENTS.md) section 8.
 
 ---
 

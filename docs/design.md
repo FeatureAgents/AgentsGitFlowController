@@ -1,6 +1,6 @@
 # agents-gitflow-guard 设计规格(现行)
 
-> 状态: **唯一现行规格**, 描述 0.0.13 起的角色驱动实现(含本文 §10 的存储修订)。
+> 状态: **唯一现行规格**, 描述 0.0.13 起的角色驱动实现(含本文 第 10 节的存储修订)。
 > v0(permit/confirm 特许制)设计定稿已被 0.0.2 角色驱动模型整体取代, 原文仅存于 git 历史
 > (`git show 0.0.12:docs/design.md`); 演进记录见 `CHANGELOG.md`。用户侧文档以双语 README 为准。
 > 实机验证与测试证据: 见 `docs/e2e/TestResult/`。
@@ -15,7 +15,7 @@ agent 在多分支流程(feature → 预览/集成分支 → 发布分支)中**�
 |---|---|---|
 | AGENTS.md 注入 / Skills | 🟡 软 | 模型可忽略或漏加载 |
 | 服务端分支保护(GitHub/GitLab 设置) | 🔴 硬 | 管推送面, 不管 agent 本地动作与平台操作时序 |
-| **本插件(命令文本门禁)** | 🔴🔴 最贴近 | 文本解析 best-effort(§14 如实记载边界) |
+| **本插件(命令文本门禁)** | 🔴🔴 最贴近 | 文本解析 best-effort(第 14 节如实记载边界) |
 
 ## 2. 目标与非目标
 
@@ -33,7 +33,7 @@ agent 在多分支流程(feature → 预览/集成分支 → 发布分支)中**�
 - ❌ 多机状态同步(审计单机存储, v2)。
 - ❌ 主动弹窗通知。
 - ❌ 替代 AGENTS.md/Skill 软层(软层给完整指引, 本插件做最后硬兜底)。
-- ❌ GitHub Copilot 接入(原生 allow/deny/ask 权限已覆盖; 见 AGENTS.md §8 例外)。
+- ❌ GitHub Copilot 接入(原生 allow/deny/ask 权限已覆盖; 见 AGENTS.md 第 8 节例外)。
 
 ## 3. 架构总览
 
@@ -133,7 +133,7 @@ tools/pre-execute           exit/JSON 协议按平台编码(platform.ts)
 
 | 场景 | 行为 |
 |---|---|
-| 无配置文件 | **内置默认生效**(integration=develop, archive=main; 默认开启语义, 见 §2.1) |
+| 无配置文件 | **内置默认生效**(integration=develop, archive=main; 默认开启语义, 见 第 2.1 节) |
 | `"enabled": false` | 静默关闭(显式关闭路径) |
 | JSON 损坏 / 字段校验失败 | stderr 一行告警(不再静默), 门禁放行; exit 仍 0 不破坏工具管道 |
 | `"strict": true` | 上述异常改为 fail-closed(拦截), 高风险仓库选用 |
@@ -150,16 +150,14 @@ locale: 内置 `en`/`zh`; `registerLocale(name, dict)` 运行时扩展(键一致
 | DSH | 进程内插件(patch.yml + dsh.bundle.patch) | ToolExecution.arguments.command | 返回值 {kind:'deny', reason}, 不经 stdin/exit 协议 |
 | Claude Code | PreToolUse hook | tool_input.command + cwd | exit 2, stderr 即原因 |
 | Codex | PreToolUse hook | 同 Claude 形 + turn_id(判别字段) | exit 0 + stdout hookSpecificOutput.permissionDecision:"deny" JSON |
-| OpenCode | 插件(tool.execute.before, 1.18+ 无 hooks.yaml) | output.args.command | handler 抛错(经守卫 check exit 2 判定) |
+| OpenCode | 插件(tool.execute.before, 1.18+ 无 hooks.yaml) | output.args.command + effectiveCwd(workdir/cwd 经存在性校验回退 ctx.directory/worktree) | handler 抛错(经守卫 check exit 2 或 45s SIGKILL 超时阻断) |
 | Antigravity | PreToolUse(run_command) | toolCall.args.CommandLine | exit 0 + stdout {"decision":"deny","reason":...}(无 block 值, 不可包 hookSpecificOutput) |
 | Pi | 进程内扩展(tool_call 事件) | event.input.command | 返回值 {block:true, reason}, 不经 stdin/exit 协议 |
-| CodeBuddy | PreToolUse hook(.codebuddy/settings.json; 官方 Claude Code Hooks 兼容实现, Beta v1.16.0+) | 同 Claude 形(无判别字段) | exit 2, stderr 即原因(官方 stdout 消息优先级更高, 守卫 stdout 留空即落 stderr) |
-| ZCode | PreToolUse hook(.zcode/config.json; 配置文件 hooks 默认禁用, 须 hooks.enabled:true) | 待真机核验(CLAUDE_* 模板变量别名暗示同 Claude 形) | exit 2, stderr 即原因(stdout JSON 为严格 schema, 多键即失效, 弃用) |
 | Cursor | beforeShellExecution hook(.cursor/hooks.json) | command + cwd (含 cursor_version / workspace_roots 判别字段) | exit 0 + stdout {"permission":"deny","user_message":...,"agent_message":...} |
 
-`check --platform auto` 按 payload 判别: `turn_id`→codex、`toolCall`→antigravity、`tool_args`→opencode、`cursor_version`/`workspace_roots`→cursor、其余→claude。CodeBuddy / ZCode 的 payload 与 Claude 同形且无判别字段, auto 一并归 claude 通道——两者 deny 编码与 claude 相同(exit 2), 判定行为无差异; wire 落位写显式 `--platform codebuddy|zcode|cursor`。
+`check --platform auto` 按 payload 判别: `turn_id`→codex、`toolCall`→antigravity、`tool_args`→opencode、`cursor_version`/`workspace_roots`→cursor、其余→claude。
 
-> 接入状态: CodeBuddy / ZCode / Cursor 已**正式接入**——`HookPlatform` 成员、wire 规格（`.codebuddy/settings.json`、`.zcode/config.json` 与 `.cursor/hooks.json`）、dogfood 配置及复测矩阵十节用例（[H]、[I] 与 [J]）全部落地闭环。
+> 接入状态: Cursor 已**正式接入**——`HookPlatform` 成员、wire 规格（`.cursor/hooks.json`）、dogfood 配置及复测矩阵八节用例（[H]）全部落地闭环。
 
 ## 9. CLI
 
@@ -171,7 +169,7 @@ gitflow-guard check --platform <p>       # 各家 hook 调用的门禁入口(std
                  [--repo <path>] [--locale <l>]
 ```
 
-快路径: 非 git/gh/glab/gitflow-guard 命令零查询直接放行; 内部错误 fail-open(strict 下除外)。hook 子进程未必继承 PATH, 也无法假设其 cwd 是仓库根: wire 落位的命令统一为 `node <随包 runner 绝对路径> check --platform <p>` —— 落位时解析**本机安装包自身**的 `bin/gitflow-guard.mjs` 绝对路径写死进配置(目标仓库零部署, 不依赖变量展开/cwd/PATH); 写入前自检 runner 在场, 存量旧形态条目由重跑 wire 原位迁移。
+快路径: 非 git/gh/glab/gitflow-guard 命令零查询直接放行; 内部错误 fail-open(strict 下除外)。CLI `check` 与 DSH `apply()` 共享 `resolveCommandRepo` 执行按段分目录判定(`workdir`/`cwd` → 前导 `cd`/`pushd` → `git -C`), 不存在目录回退会话/仓库基准, 跨目录或不可静态确定时直接拦截。hook 子进程未必继承 PATH, 也无法假设其 cwd 是仓库根: JSON 客户端 wire 落位的命令统一为 `node <随包 runner 绝对路径> check --platform <p>` —— 落位时解析**本机安装包自身**的 `bin/gitflow-guard.mjs` 绝对路径写死进配置(目标仓库零部署, 不依赖变量展开/cwd/PATH); OpenCode wire 落位 `.opencode/plugins/gitflow-guard.ts` 时就地注入 `WIRED_RUNNER_PATH` 与 `WIRED_NODE_PATH` 绝对路径(重跑 `wire` 就地升级返回 `migrated`, 非本插件自定义文件拒绝覆盖); 写入前自检 runner 在场, 存量旧形态条目由重跑 wire 原位迁移。
 
 ## 10. 运行时数据存储(**本版修订**: 迁出仓库)
 
@@ -198,20 +196,20 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 ## 12. 测试策略
 
 - **单元/集成**(vitest, 无需特定 agent 宿主环境): classify(对抗语料)、gate、config(校验/strict)、i18n(键一致性)、repo、index(evaluateCommand 编排/降级路径)、cli(status/audit/check/--locale)、platform(各平台 stdin-hook extract/detect/encode)、stateDir(确定性/隔离性/XDG 重定向)。
-- **accuracy-audit 语料**: §1.1 对抗样本(shell 包装、git 形态、组合旗标)固化为回归清单。
-- **复测矩阵** `npm run verify:matrix` 十节 A–J: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity / Pi 扩展 / CodeBuddy / ZCode / Cursor——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段); wire 装配类断言进一步在**无 bin/ 的干净临时仓库**实弹执行生成的钩子命令(防「指针在、程序不在」的静默 MODULE_NOT_FOUND 回归)。
+- **accuracy-audit 语料**: 第 1.1 节对抗样本(shell 包装、git 形态、组合旗标)固化为回归清单。
+- **复测矩阵** `npm run verify:matrix` 八节 A–H: DSH 核心逻辑 / zh 全链路 / Claude Code / Codex / OpenCode / Antigravity / Pi 扩展 / Cursor——每平台断言「真实 payload 拦截 + 放行」的 wire 格式(exit 码/JSON 字段); wire 装配类断言进一步在**无 bin/ 的干净临时仓库**实弹执行生成的钩子命令(防「指针在、程序不在」的静默 MODULE_NOT_FOUND 回归)。
 - **铁律**: `npm run typecheck`(0 错)+ `npm test`(全绿)+ `npm run verify:matrix`(全绿)才算完成。CI 矩阵 ubuntu/macOS/Windows × Node 22/24。
 
 ## 13. 项目结构
 
 ```
 ├── src/
-│   ├── index.ts        # 插件入口 apply() + evaluateCommand 编排 + stateDir/appendAudit
+│   ├── index.ts        # 插件入口 apply() + resolveCommandRepo 分目录解析(与 CLI check 共用) + evaluateCommand 编排 + stateDir/appendAudit
 │   ├── classify.ts     # 命令识别(纯函数)
 │   ├── gate.ts         # 门禁矩阵(纯函数)
 │   ├── config.ts       # 配置加载/规范化/校验/strict
 │   ├── repo.ts         # git 只读查询 + gh/glab Runner(可注入)
-│   ├── platform.ts     # 7 个 stdin-hook 平台协议 (Claude Code / Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor)(extract/detect/encodeDeny; DSH 在 index.ts、Pi 在 pi.ts)
+│   ├── platform.ts     # 5 个 stdin-hook 平台协议 (Claude Code / Codex / OpenCode / Antigravity / Cursor)(extract/detect/encodeDeny; DSH 在 index.ts、Pi 在 pi.ts)
 
 │   ├── wire.ts         # 脚手架 wire/setup(各 agent 平台 hook 配置接入与更新)
 │   ├── pi.ts           # Pi 扩展工厂(createPiExtension 进程内事件拦截)
@@ -240,5 +238,5 @@ Windows:     %LOCALAPPDATA%\gitflow-guard\repos\<repo>-<hash>\audit.jsonl
 
 1. 文本解析 best-effort: 已实测穿透文本层的混淆形态与两条本地不可防通道(forge API 直连、解释器子进程内嵌)记录于 README 局限节; **服务端分支保护是最终边界**, 本插件叠加在其内侧的时序防线。
 2. 分支正则由项目作者编写, 注意避免灾难性回溯(README 有提示); 非法正则在加载期报错。
-3. 审计单机存储(§10), 多机协同需 v2 同步。
+3. 审计单机存储(第 10 节), 多机协同需 v2 同步。
 4. 插件改动需重新构建(`npm run build`)，DSH 需重启宿主进程；核心逻辑全部纯函数 + 配置驱动, 把「改代码」压到最少。

@@ -2,19 +2,32 @@
 
 > **Устали от того, что ИИ-агенты игнорируют ваш GitFlow?**
 
-Конфигурируемый страж ролей веток Git для ИИ-агентов написания кода — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://github.com/opencode-ai/opencode), [Antigravity](https://github.com/google-deepmind), [CodeBuddy](https://codebuddy.ai), [ZCode](https://zcode.ai), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) и [Pi](https://github.com/mariozechner/pi).
+Конфигурируемый страж ролей веток Git для ИИ-агентов написания кода — [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai), [Antigravity](https://antigravity.google), [Cursor](https://cursor.com), [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) и [Pi](https://pi.dev).
 Вы сами определяете свои ветки —
-**integration** (фичи вливаются через PR/MR), **preview** (окружения тестирования), **production**, **archive** — каждая со своими правилами обновления. Агенты не могут обойти процесс, а критические слияния остаются под вашим контролем.
+**integration** (фичи вливаются через PR/MR), **preview** (окружения тестирования), **production**, **archive** — каждая со своими правилами обновления. Рутинные нарушения потока блокируются до выполнения — с ясной причиной и следующим шагом; а критические слияния остаются под вашим контролем. Целеустремлённый агент всё же может обойти текстовый слой — см. [Честные ограничения](#чего-он-не-делает--честные-ограничения).
 
 [English](README.md) · [简体中文](README.zh.md) · [繁體中文](README.zh-tw.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Português](README.pt.md) · [Español](README.es.md) · [Русский](README.ru.md) · [Лицензия](LICENSE)
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/keanz21)
 [![npm total downloads](https://img.shields.io/npm/dt/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard) [![npm weekly downloads](https://img.shields.io/npm/dw/agents-gitflow-guard.svg)](https://www.npmjs.com/package/agents-gitflow-guard)
 
+## Посмотрите в действии — 30-секундная живая демонстрация
+
+Без касания файлов вашего проекта, без каких-либо остатков — одна команда выполняет три реальных сцены (1 пропуск, 2 блокировки) внутри одноразового песочницы-репозитория и удаляет её при выходе. Анимация ниже сгенерирована из реального вывода этой команды — то же ядро стража, которое вызывает hook вашего агента:
+
+```bash
+npx agents-gitflow-guard demo
+```
+
+![gitflow-guard demo — реальные решения о пропуске/блокировке в реальном одноразовом репозитории](https://raw.githubusercontent.com/FeatureAgents/AgentsGitFlowController/develop/docs/assets/demo.svg)
+
+Чтобы затем поставить стража перед вашим агентом, продолжайте с [Быстрого старта](#быстрый-старт--30-секунд-до-защиты-репозитория).
+
 ---
 
 ## Оглавление
 
+- [Посмотрите в действии — 30-секундная живая демонстрация](#посмотрите-в-действии--30-секундная-живая-демонстрация)
 - [Быстрый старт — 30 секунд до защиты репозитория](#быстрый-старт--30-секунд-до-защиты-репозитория)
 - [Зачем — Проблема, которую решает этот плагин](#зачем--проблема-которую-решает-этот-плагин)
 - [Для кого — Сценарии и команды](#для-кого--сценарии-и-команды)
@@ -37,10 +50,10 @@
 
 ## Быстрый старт — 30 секунд до защиты репозитория
 
-**Шаг 1 — установка.** Все девять клиентов используют один и тот же npm-пакет `agents-gitflow-guard` — выберите режим установки, соответствующий вашему агенту:
+**Шаг 1 — установка.** Все семь клиентов используют один и тот же npm-пакет `agents-gitflow-guard` — выберите режим установки, соответствующий вашему агенту:
 
 ```bash
-# Режим A: Клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# Режим A: Клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm i -g agents-gitflow-guard
 ```
 
@@ -66,12 +79,10 @@ gitflow-guard wire --client claude --project --yes
 ```
 
 ```bash
-# Codex / OpenCode / Antigravity / CodeBuddy / ZCode / Cursor (у каждого собственный конфигурационный файл; --yes пропускает подтверждение y/N)
+# Codex / OpenCode / Antigravity / Cursor (у каждого собственный конфигурационный файл; --yes пропускает подтверждение y/N)
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -121,9 +132,9 @@ Next: Integration branch (develop) is updated via PR/MR from a feature branch: p
 
 **Это мягкое правило (soft rule).** Агенты срезают углы, меняют порядок действий или просто «забывают» о нем — не из злого умысла, а потому что текстовые инструкции для языковой модели являются необязательными.
 
-Этот плагин превращает мягкое правило в **жесткий системный механизм (hard mechanism)**. Каждая git-операция, которую пытается выполнить агент, сверяется с *реальным состоянием локального репозитория*. Нарушения блокируются до запуска команды с подробным объяснением причины и подсказкой следующего шага.
+Этот плагин снабжает мягкое правило **механическим затвором**. Каждая git-операция, которую пытается выполнить агент, сверяется с *реальным состоянием локального репозитория*. Рутинные нарушения блокируются до запуска команды с подробным объяснением причины и подсказкой следующего шага.
 
-Никому не нужно помнить правила — правила исполняются принудительно.
+Никому не нужно помнить правила — страж проверяет их механически. Текстовый слой по своей природе best-effort: что может сделать целеустремлённый агент — см. [Честные ограничения](#чего-он-не-делает--честные-ограничения).
 
 ---
 
@@ -368,11 +379,11 @@ archive (опционально; архивируется вами после р
 
 | Тип клиента / Платформа | Команда установки | Шаг монтирования и подключения |
 |---|---|---|
-| Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <имя> --project --yes` |
+| Claude Code · Codex · OpenCode · Antigravity · Cursor | `npm i -g agents-gitflow-guard` | `gitflow-guard wire --client <имя> --project --yes` |
 | DeepSeek Harness (DSH) | `dsh plugin --profile web add agents-gitflow-guard` | Перезапустить DSH — плагин автоматически монтируется в слой профиля |
 | Pi | `npm i -D agents-gitflow-guard` | Скопировать `pi/gitflow-guard.ts` в `.pi/extensions/` |
 
-### 1. Автономные клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+### 1. Автономные клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 
 Установите CLI глобально один раз, затем **подключите каждого клиента одной командой** (страж уже включен по умолчанию со встроенными настройками):
 
@@ -382,8 +393,6 @@ gitflow-guard wire --client claude --project --yes
 gitflow-guard wire --client codex --project --yes
 gitflow-guard wire --client opencode --project --yes
 gitflow-guard wire --client antigravity --project --yes
-gitflow-guard wire --client codebuddy --project --yes
-gitflow-guard wire --client zcode --project --yes
 gitflow-guard wire --client cursor --project --yes
 ```
 
@@ -432,10 +441,8 @@ gitflow-guard wire --client cursor --project --yes
 }
 ```
 
-Остальные три клиента CLI используют ту же форму хука — `wire` записывает их файлы за вас:
+Cursor использует ту же форму хука — `wire` записывает его файл за вас:
 
-- **CodeBuddy** — `.codebuddy/settings.json`
-- **ZCode** — `.zcode/config.json` (также устанавливает `hooks.enabled: true`)
 - **Cursor** — `.cursor/hooks.json` (`hooks.beforeShellExecution`)
 
 > `<npm-global>/agents-gitflow-guard/bin/...` — это заполнитель: `wire` при подключении подставляет абсолютный путь к раннеру самого установленного пакета (полностью самозаякоренная команда: без раскрытия переменных на стороне клиента, без предположений о cwd hook-процесса, без зависимости от PATH, без развертывания чего-либо в целевом репозитории). Обновляетесь с ≤ 0.0.41? Перезапустите `wire` один раз для каждого клиента — старые записи (шаблоны переменных / относительные пути / форма PATH) мигрируют на месте.
@@ -460,6 +467,7 @@ gitflow-guard wire --client cursor --project --yes
   // Pi — .pi/settings.json (пути расширений разрешаются относительно .pi)
   { "extensions": ["extensions/gitflow-guard.ts"] }
   ```
+  Установка на уровне пользователя (сразу для всех проектов): скопируйте тот же файл в `~/.pi/agent/extensions/gitflow-guard.ts`, зарегистрируйте его в `~/.pi/agent/settings.json` и установите пакет внутри `~/.pi/agent` (`npm i agents-gitflow-guard`; в MSYS `ln -s` только копирует — в Windows используйте junction PowerShell). Расширение запускает гейт как `node <встроенный runner>`: ни записи в PATH, ни глобальной установки npm не требуется — включая Windows.
 
 ### 3. Сборка из исходников и локальная разработка
 
@@ -475,9 +483,9 @@ npm install && npm run build
 Подключите локальную сборку к целевой платформе агента:
 
 ```bash
-# A. Клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · CodeBuddy · ZCode · Cursor)
+# A. Клиенты CLI Hook (Claude Code · Codex · OpenCode · Antigravity · Cursor)
 npm link # или npm install -g .
-gitflow-guard wire --client <claude|codex|opencode|antigravity|codebuddy|zcode|cursor> --project --yes
+gitflow-guard wire --client <claude|codex|opencode|antigravity|cursor> --project --yes
 
 # B. DeepSeek Harness (DSH)
 dsh plugin --profile web add file:/path/to/AgentsGitFlowController
@@ -499,7 +507,7 @@ npm link
 ### 5. Механизм хуков и технические детали
 
 - **Протокол платформы**: Хук считывает данные из stdin и отвечает в соответствии с протоколом целевой платформы:
-  - **Claude Code / OpenCode / CodeBuddy / ZCode**: `exit 2` (в stderr передается причина и инструкция по дальнейшим действиям).
+  - **Claude Code / OpenCode**: `exit 2` (в stderr передается причина и инструкция по дальнейшим действиям).
   - **Codex**: stdout JSON `{"hookSpecificOutput":{"permissionDecision":"deny",...}}`.
   - **Antigravity**: stdout JSON `{"decision":"deny","reason":...}` с кодом `exit 0` (требование Antigravity).
   - **Cursor**: stdout JSON `{"permission":"deny","user_message":...,"agent_message":...}` с кодом `exit 0`.
@@ -508,7 +516,6 @@ npm link
 - **Перехват до выполнения (Pre-tool)**: Перехватывается только предварительное событие; страж блокирует команды *до* их запуска, поэтому пост-хуки и очистка разрешений не требуются.
 - **Разрешение переменной PATH**: Глобальная установка (`npm i -g`) предоставляет бинарник `gitflow-guard`. `wire` привязывает каждый хук к абсолютному пути раннера самого установленного пакета, поэтому хук продолжает работать, даже когда среда агента не наследует ваш интерактивный `PATH`.
 - **Включено по умолчанию**: Встроенные настройки (`integration: ["develop"]`, `archive: ["main"]`) действуют без создания конфигурационного файла. Пользовательские настройки в `gitflow-guard.config.json` объединяются с базовыми через deep-merge.
-- **Неразрушающее подключение**: `gitflow-guard wire` объединяет хуки идемпотентно без изменения существующих правил (устаревшие записи gitflow-guard при повторном запуске мигрируют в текущую форму), а `wire --unwire` удаляет исключительно запись стража.
 
 ---
 
@@ -562,7 +569,7 @@ npm link
 
 Некорректная конфигурация никогда не применяется случайно: любая ошибка валидации отключает страж для проекта и выводит список ошибок.
 
-Типичные ошибки: переопределение роли веткой, совпадающей с ролью по умолчанию (например, назначение `main` в integration, когда стандартный archive остается `main` — явная ошибка пересечения; переопределите или удалите другую роль), указание одной ветки в двух разных ролях (отклоняется) и невалидное регулярное выражение в `featurePattern` (отклоняется при компиляции). Сообщения об ошибках предельно понятны, а конфигурация представляет собой простой JSON-объект, поэтому исправление обычно занимает полминуты.
+Сообщения об ошибках предельно понятны, а конфигурация представляет собой простой JSON-объект, поэтому исправление обычно занимает полминуты.
 
 ---
 
@@ -577,8 +584,6 @@ npm link
 ### Лицензия / стоимость?
 
 MIT, бесплатно, без скрытых условий. Используйте, модифицируйте, распространяйте — единственным требованием является сохранение уведомления об авторских правах.
-
-Если плагин спас вашу команду от неприятных последствий срезки процесса, кнопка чаевых вверху страницы всегда доступна, но не обязательна. См. [Лицензия](#лицензия).
 
 ---
 ## Глоссарий
@@ -598,12 +603,10 @@ MIT, бесплатно, без скрытых условий. Использу�
 
 ## Планы развития (Roadmap)
 
-Будущие возможности и направления активных исследований:
+Этот раздел описывает направление проекта — намерение, а не обещание:
 
-- **Поддержка новых агентов**: Исследование и адаптация под хуки и расширения новых ИИ-агентов (например, Windsurf, новые CLI-агенты).
-- **Агрегация аудита**: Синхронизация журналов аудита между машинами и форматы экспорта для проверки соответствия стандартам безопасности команд.
-- **Готовые шаблоны процессов**: Пресеты конфигурации для распространенных моделей ветвления Git (Trunk-based разработка, многоуровневый корпоративный GitFlow).
-- **Интеграция с CI**: Нативные хуки для CI-пайплайнов и интеграция с проверками PR при сохранении локального запуска без зависимостей.
+- **Фокус — сначала корректность**: поддерживать точность и предсказуемость существующего гейта (агенты, формы команд и правила, описанные на этой странице) и проверять его на реальных репозиториях.
+- **Не планируется**: новые интеграции агентов, жёсткая блокировка на стороне CI, синхронизация журналов аудита между машинами и загрузка внешних политик. Гейт остаётся локальным и без зависимостей, настраивается только из этого репозитория; защита веток на сервере остаётся финальной границей.
 
 Выпущенные функции и история версий представлены в [CHANGELOG.md](CHANGELOG.md).
 
@@ -626,7 +629,7 @@ npm run test:all        # typecheck + модульные тесты + матри
 ```
 
 - **Стандарт качества**: Любое изменение логики требует успешного прохождения тайпчека (0 ошибок), всех тестов и матрицы `verify:matrix`.
-- **Добавление клиентов**: При добавлении поддержки новой платформы агентов следуйте чек-листу синхронизации в [AGENTS.md](AGENTS.md) §8.
+- **Добавление клиентов**: При добавлении поддержки новой платформы агентов следуйте чек-листу синхронизации в [AGENTS.md](AGENTS.md) раздел 8.
 
 ---
 
